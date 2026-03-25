@@ -132,7 +132,7 @@ export function ClubProfileForm({
       if (redirectToCourts) {
         setRedirectToCourtsState("success");
         setTimeout(() => {
-          router.push("/dashboard/club/canchas");
+          router.push("/dashboard/club/pistas");
         }, 1000);
       }
       router.refresh();
