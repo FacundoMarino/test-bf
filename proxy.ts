@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { env } from "@/lib/env";
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME ?? "auth_session";
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -23,8 +23,8 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
-export function middleware(request: NextRequest) {
-  const sessionCookie = request.cookies.get(env.SESSION_COOKIE_NAME);
+export function proxy(request: NextRequest) {
+  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
   const sessionToken = sessionCookie?.value;
   const hasValidSession = sessionToken ? !isTokenExpired(sessionToken) : false;
   const isAuthRoute =
@@ -36,7 +36,7 @@ export function middleware(request: NextRequest) {
     loginUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
     const res = NextResponse.redirect(loginUrl);
     if (sessionToken) {
-      res.cookies.delete(env.SESSION_COOKIE_NAME);
+      res.cookies.delete(SESSION_COOKIE_NAME);
     }
     return res;
   }
@@ -47,7 +47,7 @@ export function middleware(request: NextRequest) {
 
   if (!hasValidSession && isAuthRoute && sessionToken) {
     const res = NextResponse.next();
-    res.cookies.delete(env.SESSION_COOKIE_NAME);
+    res.cookies.delete(SESSION_COOKIE_NAME);
     return res;
   }
 
