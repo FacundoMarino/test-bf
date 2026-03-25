@@ -1,7 +1,19 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  NEXT_PUBLIC_AUTH_SERVICE_URL: z.string().url(),
+  NEXT_PUBLIC_AUTH_SERVICE_URL: z.preprocess(
+    (value) => (typeof value === "string" ? value : ""),
+    z
+      .string()
+      .min(
+        1,
+        "Missing NEXT_PUBLIC_AUTH_SERVICE_URL. Set it in .env.local (or .env) as a full URL, e.g. http://localhost:3001",
+      )
+      .url({
+        message:
+          "NEXT_PUBLIC_AUTH_SERVICE_URL must be a valid URL (including http/https)",
+      }),
+  ),
   SESSION_COOKIE_NAME: z.string().min(1).default("auth_session"),
   NODE_ENV: z
     .enum(["development", "test", "production"])
