@@ -20,8 +20,22 @@ const envSchema = z.object({
     .default("development"),
 });
 
-export const env = envSchema.parse({
-  NEXT_PUBLIC_AUTH_SERVICE_URL: process.env.NEXT_PUBLIC_AUTH_SERVICE_URL,
-  SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME,
-  NODE_ENV: process.env.NODE_ENV,
+type Env = z.infer<typeof envSchema>;
+
+let cachedEnv: Env | null = null;
+
+function readEnv(): Env {
+  if (cachedEnv) return cachedEnv;
+  cachedEnv = envSchema.parse({
+    NEXT_PUBLIC_AUTH_SERVICE_URL: process.env.NEXT_PUBLIC_AUTH_SERVICE_URL,
+    SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME,
+    NODE_ENV: process.env.NODE_ENV,
+  });
+  return cachedEnv;
+}
+
+export const env = new Proxy({} as Env, {
+  get(_, prop: keyof Env) {
+    return readEnv()[prop];
+  },
 });
