@@ -28,8 +28,8 @@ export function Sidebar({ showClubNav = false }: { showClubNav?: boolean }) {
           icon: Building2,
         },
         {
-          href: "/dashboard/club/canchas",
-          label: "canchas",
+          href: "/dashboard/club/pistas",
+          label: "Canchas",
           icon: Grid3x3,
         },
         {
