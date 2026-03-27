@@ -25,6 +25,8 @@ export type CourtRecord = {
   type: string;
   surface: string;
   lighting: boolean;
+  /** Si es false, la cancha no se muestra en la app de jugadores. */
+  listed?: boolean;
   clubId: string;
   createdAt: string;
   updatedAt: string;

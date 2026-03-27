@@ -32,14 +32,10 @@ export default async function canchasPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <h1 className="text-foreground text-2xl font-bold tracking-tight">
-          canchas
+          Canchas
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Gestiona las canchas de tu club. Los horarios se guardan en{" "}
-          <code className="text-foreground/80 text-xs">court_schedules</code> y
-          definen los slots que expone el API (
-          <code className="text-foreground/80 text-xs">/slots</code>
-          ).
+          Gestiona las canchas de tu club.
         </p>
       </div>
       <CourtsManager

@@ -5,7 +5,6 @@ import { Moon, Sun } from "lucide-react";
 
 import {
   createCourtAction,
-  getCourtSchedulesAction,
   updateCourtAction,
 } from "@/actions/courts";
 import { ScheduleBlocksEditor } from "@/components/club/ScheduleBlocksEditor";
@@ -23,12 +22,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   COURT_SLOT_DURATION_OPTIONS,
   dailyBlocksToCourtSchedulePayload,
-  courtScheduleRowsToClubBlocks,
-  courtScheduleRowsToDailyBlocks,
   hhmmToMinutes,
 } from "@/lib/court-schedule-map";
 import type {
-  ClubScheduleBlock,
   ClubScheduleBlocks,
   CourtRecord,
   DailyScheduleBlocks,
@@ -90,15 +86,6 @@ function dailyToGrouped(blocks: DailyScheduleBlocks): ClubScheduleBlocks {
   };
 }
 
-function areBlocksEqual(a: ClubScheduleBlock, b: ClubScheduleBlock): boolean {
-  return (
-    a.enabled === b.enabled &&
-    a.startTime === b.startTime &&
-    a.endTime === b.endTime &&
-    a.slotDurationMinutes === b.slotDurationMinutes
-  );
-}
-
 const DAILY_ROWS: Array<{ key: keyof DailyScheduleBlocks; label: string }> = [
   { key: "monday", label: "Lunes" },
   { key: "tuesday", label: "Martes" },
@@ -150,40 +137,46 @@ export function CourtFormDialog({
   );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loadingSchedules, setLoadingSchedules] = useState(isEditMode);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const msg =
-      scheduleMode === "daily"
-        ? validateDailySchedule(dailySchedule)
-        : validateSchedule(schedule);
-    if (msg) {
-      setError(msg);
-      return;
+    if (!isEditMode) {
+      const msg =
+        scheduleMode === "daily"
+          ? validateDailySchedule(dailySchedule)
+          : validateSchedule(schedule);
+      if (msg) {
+        setError(msg);
+        return;
+      }
     }
     if (!name.trim() || !surface.trim()) {
       setError("Nombre y superficie son obligatorios.");
       return;
     }
     setPending(true);
-    const payload = {
-      name: name.trim(),
-      type,
-      surface: surface.trim(),
-      lighting,
-      schedule,
-      schedulesPayload:
-        scheduleMode === "daily"
-          ? dailyBlocksToCourtSchedulePayload(dailySchedule)
-          : undefined,
-    };
     const res =
       mode === "create"
-        ? await createCourtAction(clubId, payload)
+        ? await createCourtAction(clubId, {
+            name: name.trim(),
+            type,
+            surface: surface.trim(),
+            lighting,
+            schedule,
+            schedulesPayload:
+              scheduleMode === "daily"
+                ? dailyBlocksToCourtSchedulePayload(dailySchedule)
+                : undefined,
+          })
         : court
-          ? await updateCourtAction(clubId, court.id, payload)
+          ? await updateCourtAction(clubId, court.id, {
+              name: name.trim(),
+              type,
+              surface: surface.trim(),
+              lighting,
+              updateSchedules: false,
+            })
           : { ok: false as const, error: "cancha no válida" };
     setPending(false);
     if (res.ok) {
@@ -194,36 +187,11 @@ export function CourtFormDialog({
     }
   }
   useEffect(() => {
-    if (!open || mode !== "edit" || !court) {
-      return;
-    }
-
-    let active = true;
-    void getCourtSchedulesAction(clubId, court.id).then((r) => {
-      if (!active) return;
-      setLoadingSchedules(false);
-      if (r.ok && r.rows.length) {
-        const grouped = courtScheduleRowsToClubBlocks(r.rows);
-        const daily = courtScheduleRowsToDailyBlocks(r.rows);
-        setSchedule(grouped);
-        setDailySchedule(daily);
-        const weekdaysEqual =
-          areBlocksEqual(daily.monday, daily.tuesday) &&
-          areBlocksEqual(daily.monday, daily.wednesday) &&
-          areBlocksEqual(daily.monday, daily.thursday) &&
-          areBlocksEqual(daily.monday, daily.friday);
-        setScheduleMode(weekdaysEqual ? "grouped" : "daily");
-      } else {
-        setSchedule(defaultScheduleBlocks);
-        setDailySchedule(groupedToDaily(defaultScheduleBlocks));
-        setScheduleMode("grouped");
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [open, mode, court, clubId, defaultScheduleBlocks]);
+    if (!open || mode !== "create") return;
+    setSchedule(defaultScheduleBlocks);
+    setDailySchedule(groupedToDaily(defaultScheduleBlocks));
+    setScheduleMode("grouped");
+  }, [open, mode, defaultScheduleBlocks]);
 
   return (
     <Dialog
@@ -297,10 +265,11 @@ export function CourtFormDialog({
             <Switch checked={lighting} onCheckedChange={setLighting} />
           </div>
 
-          <div className="space-y-2">
-            <span className="text-sm font-semibold">Horario de la cancha</span>
-            <p className="text-muted-foreground text-xs"></p>
-            <div className="grid grid-cols-2 gap-2">
+          {mode === "create" ? (
+            <div className="space-y-2">
+              <span className="text-sm font-semibold">Horario de la cancha</span>
+              <p className="text-muted-foreground text-xs"></p>
+              <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -329,12 +298,7 @@ export function CourtFormDialog({
               >
                 Configurar por día
               </button>
-            </div>
-            {loadingSchedules && mode === "edit" ? (
-              <p className="text-muted-foreground text-sm">
-                Cargando horarios…
-              </p>
-            ) : (
+              </div>
               <>
                 {scheduleMode === "grouped" ? (
                   <ScheduleBlocksEditor
@@ -472,8 +436,8 @@ export function CourtFormDialog({
                   </div>
                 )}
               </>
-            )}
-          </div>
+            </div>
+          ) : null}
 
           {error ? (
             <p className="text-destructive text-sm" role="alert">
@@ -492,7 +456,7 @@ export function CourtFormDialog({
             </Button>
             <Button
               type="submit"
-              disabled={pending || (mode === "edit" && loadingSchedules)}
+              disabled={pending}
               className="rounded-lg font-semibold"
             >
               {pending ? "Guardando…" : "Guardar cancha"}

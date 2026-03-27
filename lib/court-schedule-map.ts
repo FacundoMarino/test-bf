@@ -18,6 +18,10 @@ export type CourtScheduleRow = {
   startTimeMinutes: number;
   endTimeMinutes: number;
   slotDurationMinutes: number;
+  pricePerHour?: number;
+  periodName?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
 };
 
 export function hhmmToMinutes(hhmm: string): number {

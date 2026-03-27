@@ -2,15 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Grid3x3, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  Clock3,
+  Grid3x3,
+  Lightbulb,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
-import { deleteCourtAction, duplicateCourtAction } from "@/actions/courts";
+import {
+  deleteCourtAction,
+  duplicateCourtAction,
+  updateCourtListedAction,
+} from "@/actions/courts";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { ClubScheduleBlocks } from "@/types/club";
 import type { CourtRecord } from "@/types/club";
 
 import { CourtFormDialog } from "./CourtFormDialog";
+import { CourtAvailabilityDialog } from "./CourtAvailabilityDialog";
+import { CourtScheduleDialog } from "./CourtScheduleDialog";
 
 export function CourtsManager({
   clubId,
@@ -26,6 +41,12 @@ export function CourtsManager({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
   const [editingCourt, setEditingCourt] = useState<CourtRecord | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleCourt, setScheduleCourt] = useState<CourtRecord | null>(null);
+  const [availabilityDialogOpen, setAvailabilityDialogOpen] = useState(false);
+  const [availabilityCourt, setAvailabilityCourt] = useState<CourtRecord | null>(
+    null,
+  );
 
   useEffect(() => {
     setCourts(initialCourts);
@@ -43,6 +64,16 @@ export function CourtsManager({
     setDialogOpen(true);
   }
 
+  function openSchedule(court: CourtRecord) {
+    setScheduleCourt(court);
+    setScheduleDialogOpen(true);
+  }
+
+  function openAvailability(court: CourtRecord) {
+    setAvailabilityCourt(court);
+    setAvailabilityDialogOpen(true);
+  }
+
   async function handleDuplicate(court: CourtRecord) {
     const res = await duplicateCourtAction(clubId, {
       id: court.id,
@@ -50,6 +81,7 @@ export function CourtsManager({
       type: court.type,
       surface: court.surface,
       lighting: court.lighting,
+      listed: court.listed !== false,
     });
     if (res.ok) router.refresh();
     else alert(res.error);
@@ -66,6 +98,18 @@ export function CourtsManager({
     const res = await deleteCourtAction(clubId, court.id);
     if (res.ok) router.refresh();
     else alert(res.error);
+  }
+
+  async function handleListedChange(court: CourtRecord, listed: boolean) {
+    const res = await updateCourtListedAction(clubId, court.id, listed);
+    if (res.ok) {
+      setCourts((prev) =>
+        prev.map((c) => (c.id === court.id ? { ...c, listed } : c)),
+      );
+      router.refresh();
+    } else {
+      alert(res.error);
+    }
   }
 
   return (
@@ -97,11 +141,77 @@ export function CourtsManager({
           {courts.map((court) => (
             <li
               key={court.id}
-              className="border-border bg-card flex flex-col rounded-xl border p-4 shadow-sm ring-1 ring-foreground/5"
+              className="border-border bg-card flex min-h-40 flex-col rounded-2xl border p-5 shadow-sm"
             >
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="text-foreground font-semibold">{court.name}</h3>
-                <div className="flex gap-1">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-foreground text-[26px] leading-none font-semibold">
+                  {court.name}
+                </h3>
+                <Switch
+                  checked={court.listed !== false}
+                  onCheckedChange={(checked) =>
+                    void handleListedChange(court, checked)
+                  }
+                  aria-label={
+                    court.listed === false
+                      ? "Cancha oculta en la app; activar para mostrarla"
+                      : "Cancha visible en la app; desactivar para ocultarla"
+                  }
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium",
+                    court.type === "outdoor"
+                      ? "border-amber-200 bg-amber-100/80 text-amber-900 dark:border-amber-300/25 dark:bg-amber-400/15 dark:text-amber-200"
+                      : "border-slate-200 bg-slate-100/80 text-slate-800 dark:border-slate-300/25 dark:bg-slate-400/15 dark:text-slate-200",
+                  )}
+                >
+                  {court.type === "outdoor" ? (
+                    <span className="inline-flex items-center gap-1">
+                      ☀ Outdoor
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1">
+                      ☽ Indoor
+                    </span>
+                  )}
+                </span>
+                <span className="border-border bg-background text-foreground inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium">
+                  {court.surface}
+                </span>
+                {court.listed === false ? (
+                  <span className="text-muted-foreground border-muted-foreground/30 bg-muted/40 inline-flex items-center rounded-full border border-dashed px-3 py-1 text-xs font-medium">
+                    Oculta en la app
+                  </span>
+                ) : null}
+              </div>
+              <div className="border-border/80 mt-4 border-t" />
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-muted-foreground inline-flex items-center gap-1.5 text-sm">
+                  <Lightbulb className="size-3.5 text-amber-500" />
+                  {court.lighting ? "Con iluminación" : "Sin iluminación"}
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openSchedule(court)}
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-md"
+                    aria-label="Configurar horarios"
+                    title="Configurar horarios"
+                  >
+                    <Clock3 className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openAvailability(court)}
+                    className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-md"
+                    aria-label="Gestionar disponibilidad"
+                    title="Gestionar disponibilidad"
+                  >
+                    <CalendarDays className="size-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => openEdit(court)}
@@ -112,49 +222,14 @@ export function CourtsManager({
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleDuplicate(court)}
-                    className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-md"
-                    aria-label="Duplicar cancha"
-                    title="Duplicar cancha"
-                  >
-                    <Copy className="size-4" />
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => void handleDelete(court)}
-                    className="text-destructive/80 hover:text-destructive hover:bg-destructive/10 inline-flex size-8 items-center justify-center rounded-md"
+                    className="text-destructive/85 hover:text-destructive hover:bg-destructive/10 inline-flex size-8 items-center justify-center rounded-md"
                     aria-label="Eliminar"
                   >
                     <Trash2 className="size-4" />
                   </button>
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium",
-                    court.type === "outdoor"
-                      ? "bg-amber-500/15 text-amber-800 dark:text-amber-200"
-                      : "bg-slate-500/15 text-slate-800 dark:text-slate-200",
-                  )}
-                >
-                  {court.type === "outdoor" ? (
-                    <span className="inline-flex items-center gap-0.5">
-                      ☀ Outdoor
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-0.5">
-                      ☽ Indoor
-                    </span>
-                  )}
-                </span>
-                <span className="bg-muted text-muted-foreground rounded-md px-2 py-0.5 text-xs">
-                  {court.surface}
-                </span>
-              </div>
-              <p className="text-muted-foreground mt-3 text-xs">
-                {court.lighting ? "Con iluminación" : "Sin iluminación"}
-              </p>
             </li>
           ))}
         </ul>
@@ -178,6 +253,34 @@ export function CourtsManager({
             setDialogOpen(false);
             setEditingCourt(null);
             setDialogMode("create");
+            router.refresh();
+          }}
+        />
+      ) : null}
+      {scheduleDialogOpen ? (
+        <CourtScheduleDialog
+          open={scheduleDialogOpen}
+          onOpenChange={(nextOpen) => {
+            setScheduleDialogOpen(nextOpen);
+            if (!nextOpen) setScheduleCourt(null);
+          }}
+          clubId={clubId}
+          court={scheduleCourt}
+          onSaved={() => {
+            router.refresh();
+          }}
+        />
+      ) : null}
+      {availabilityDialogOpen ? (
+        <CourtAvailabilityDialog
+          open={availabilityDialogOpen}
+          onOpenChange={(nextOpen) => {
+            setAvailabilityDialogOpen(nextOpen);
+            if (!nextOpen) setAvailabilityCourt(null);
+          }}
+          clubId={clubId}
+          court={availabilityCourt}
+          onSaved={() => {
             router.refresh();
           }}
         />
