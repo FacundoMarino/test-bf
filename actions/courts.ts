@@ -97,7 +97,11 @@ export async function createCourtAction(
     const schedules = rawSchedules.map((s) => ({
       ...s,
       pricePerHour:
-        s.pricePerHour != null && s.pricePerHour >= 1 ? s.pricePerHour : 1,
+        "pricePerHour" in s &&
+        typeof s.pricePerHour === "number" &&
+        s.pricePerHour >= 1
+          ? s.pricePerHour
+          : 1,
     }));
 
     const sr = await fetch(
