@@ -172,14 +172,42 @@ export function ClubProfileForm({
   }
 
   const showAvatar =
-    avatarUrl &&
-    (() => {
-      try {
-        return Boolean(new URL(avatarUrl));
-      } catch {
-        return false;
-      }
-    })();
+    Boolean(avatarUrl) &&
+    (avatarUrl.toLowerCase().startsWith("data:image/") ||
+      (() => {
+        try {
+          return Boolean(new URL(avatarUrl));
+        } catch {
+          return false;
+        }
+      })());
+
+  function onLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const allowedMime = new Set([
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ]);
+    const byName = /\.(png|jpe?g|webp)$/i.test(file.name);
+    if (!allowedMime.has(file.type) && !byName) {
+      setMessage({
+        type: "err",
+        text: "Formato no soportado. Usa PNG, JPG o WEBP",
+      });
+      return;
+    }
+    setMessage(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const r = reader.result;
+      if (typeof r === "string") setAvatarUrl(r);
+    };
+    reader.readAsDataURL(file);
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -423,10 +451,20 @@ export function ClubProfileForm({
               <Label htmlFor="avatarUrl">URL de imagen</Label>
               <Input
                 id="avatarUrl"
-                value={avatarUrl}
+                value={avatarUrl.startsWith("data:") ? "" : avatarUrl}
                 onChange={(e) => setAvatarUrl(e.target.value)}
                 placeholder="https://…"
                 className="h-11 rounded-lg"
+              />
+              <p className="text-muted-foreground text-xs">
+                O subí un archivo (PNG, JPG o WEBP).
+              </p>
+              <Input
+                id="club-logo-file"
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp"
+                className="text-muted-foreground text-sm file:mr-3 file:rounded-lg file:border file:border-border file:bg-background file:px-3 file:py-1.5 file:text-sm"
+                onChange={onLogoFileChange}
               />
             </div>
             <Button
@@ -436,7 +474,7 @@ export function ClubProfileForm({
               disabled
             >
               <Camera className="mr-2 size-4" />
-              Subir más fotos (próximamente)
+              Más fotos (próximamente)
             </Button>
           </section>
 

@@ -107,14 +107,64 @@ const dayPricingSchema = z.object({
   pricePerHour: z.number().min(0),
 });
 
+const optionalWebUrlSchema = z.union([
+  z.literal(""),
+  z
+    .string()
+    .trim()
+    .refine(
+      (s) => {
+        try {
+          const u = new URL(s);
+          return u.protocol === "http:" || u.protocol === "https:";
+        } catch {
+          return false;
+        }
+      },
+      {
+        message: "Introduce una URL válida (incluye http:// o https://)",
+      },
+    ),
+]);
+
+const clubAvatarUrlSchema = z.union([
+  z.literal(""),
+  z
+    .string()
+    .trim()
+    .refine(
+      (s) => {
+        const low = s.toLowerCase();
+        if (
+          low.startsWith("data:image/png") ||
+          low.startsWith("data:image/jpeg") ||
+          low.startsWith("data:image/jpg") ||
+          low.startsWith("data:image/webp")
+        ) {
+          return true;
+        }
+        try {
+          new URL(s);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: "URL de imagen no válida" },
+    ),
+]);
+
 export const clubProfileSaveSchema = z.object({
   clubId: z.string().uuid().optional(),
   club: z.object({
     name: z.string().min(1, "El nombre del club es obligatorio"),
     address: z.string().min(1, "La dirección es obligatoria"),
-    email: z.union([z.literal(""), z.string().email()]),
-    web: z.union([z.literal(""), z.string().url()]),
-    avatarUrl: z.union([z.literal(""), z.string().url()]),
+    email: z.union([
+      z.literal(""),
+      z.string().email("Introduce un email válido"),
+    ]),
+    web: optionalWebUrlSchema,
+    avatarUrl: clubAvatarUrlSchema,
     courtCount: z.coerce.number().int().min(1),
     courtType: z.enum(["indoor", "outdoor", "both"]),
     pricing: z.array(dayPricingSchema).min(1),

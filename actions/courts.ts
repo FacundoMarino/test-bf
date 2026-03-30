@@ -54,7 +54,7 @@ export async function createCourtAction(
   clubId: string,
   data: {
     name: string;
-    type: "indoor" | "outdoor";
+    type: "indoor" | "outdoor" | "unspecified";
     surface: string;
     lighting: boolean;
     schedule: ClubScheduleBlocks;
@@ -92,8 +92,13 @@ export async function createCourtAction(
     if (!res.ok) return { ok: false, error: normalizeMessage(body) };
 
     const court = body as { id: string };
-    const schedules =
+    const rawSchedules =
       data.schedulesPayload ?? clubBlocksToCourtSchedulePayload(data.schedule);
+    const schedules = rawSchedules.map((s) => ({
+      ...s,
+      pricePerHour:
+        s.pricePerHour != null && s.pricePerHour >= 1 ? s.pricePerHour : 1,
+    }));
 
     const sr = await fetch(
       `${base}/clubs/${clubId}/courts/${court.id}/schedules`,
@@ -182,7 +187,12 @@ export async function duplicateCourtAction(
       },
       body: JSON.stringify({
         name: newName,
-        type: source.type === "outdoor" ? "outdoor" : "indoor",
+        type:
+          source.type === "outdoor"
+            ? "outdoor"
+            : source.type === "indoor"
+              ? "indoor"
+              : "unspecified",
         surface: source.surface,
         lighting: source.lighting,
         listed: source.listed !== false,
@@ -193,6 +203,12 @@ export async function duplicateCourtAction(
 
     const court = body as { id: string };
 
+    const schedulesWithPrice = schedules.map((s) => ({
+      ...s,
+      pricePerHour:
+        s.pricePerHour != null && s.pricePerHour >= 1 ? s.pricePerHour : 1,
+    }));
+
     const sr = await fetch(
       `${base}/clubs/${clubId}/courts/${court.id}/schedules`,
       {
@@ -201,7 +217,7 @@ export async function duplicateCourtAction(
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ schedules }),
+        body: JSON.stringify({ schedules: schedulesWithPrice }),
       },
     );
     const sbody: unknown = await sr.json().catch(() => ({}));
@@ -254,7 +270,7 @@ export async function updateCourtAction(
   courtId: string,
   data: {
     name: string;
-    type: "indoor" | "outdoor";
+    type: "indoor" | "outdoor" | "unspecified";
     surface: string;
     lighting: boolean;
     schedule?: ClubScheduleBlocks;
@@ -269,6 +285,8 @@ export async function updateCourtAction(
       periodEnd?: string;
     }>;
     updateSchedules?: boolean;
+    /** Reemplazo de horarios: cancelar reservas que ya no encajan (segunda petición tras confirmar). */
+    confirmCancelAffectedBookings?: boolean;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = await getToken();
@@ -312,7 +330,12 @@ export async function updateCourtAction(
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ schedules }),
+        body: JSON.stringify({
+          schedules,
+          ...(data.confirmCancelAffectedBookings
+            ? { confirmCancelAffectedBookings: true }
+            : {}),
+        }),
       },
     );
     const sbody: unknown = await sr.json().catch(() => ({}));

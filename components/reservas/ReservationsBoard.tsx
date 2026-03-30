@@ -1,40 +1,47 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import esLocale from "@fullcalendar/core/locales/es";
-import type { EventContentArg, EventInput } from "@fullcalendar/core";
-import { Check, Eye, Search, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Search,
+  User,
+  X,
+} from "lucide-react";
 
 import {
   approveClubBookingAction,
+  cancelClubBookingAction,
+  listCourtDaySlotsAction,
   rejectClubBookingAction,
 } from "@/actions/reservas";
+import { BookingDetailCard } from "@/components/reservas/BookingDetailCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import type {
+  ClubReservation,
+  ReservationStatus,
+} from "@/types/club-reservation";
 
-type ReservationStatus = "PENDING" | "CONFIRMED" | "REJECTED" | "CANCELLED";
+export type { ClubReservation } from "@/types/club-reservation";
 
-export type ClubReservation = {
+export type ClubCourtOption = {
   id: string;
-  userId: string;
-  user: {
-    fullName: string | null;
-    avatarUrl: string | null;
-  };
-  court: {
-    id: string;
-    name: string;
-    type: string;
-  };
-  start: string;
-  end: string;
-  status: ReservationStatus;
-  createdAt: string;
+  name: string;
+  type: string;
+  surface: string;
 };
 
 const STATUS_LABELS: Record<ReservationStatus, string> = {
@@ -51,16 +58,34 @@ const STATUS_CLASSNAMES: Record<ReservationStatus, string> = {
   CANCELLED: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
 };
 
-const COURT_COLOR_PALETTE = [
-  { bg: "#dbeafe", border: "#60a5fa", text: "#1e3a8a" },
-  { bg: "#ede9fe", border: "#8b5cf6", text: "#4c1d95" },
-  { bg: "#dcfce7", border: "#22c55e", text: "#14532d" },
-  { bg: "#fef3c7", border: "#f59e0b", text: "#78350f" },
-  { bg: "#ffe4e6", border: "#f43f5e", text: "#881337" },
-  { bg: "#e0e7ff", border: "#6366f1", text: "#312e81" },
-  { bg: "#cffafe", border: "#06b6d4", text: "#164e63" },
-  { bg: "#ecfccb", border: "#84cc16", text: "#365314" },
-] as const;
+function courtTypeTag(type: string): string {
+  if (type === "outdoor") return "Outdoor";
+  if (type === "indoor") return "Indoor";
+  return "";
+}
+
+function courtSelectLine(c: ClubCourtOption): string {
+  const title = c.name.trim() || "Sin nombre";
+  const tag = courtTypeTag(c.type);
+  return tag ? `${title} ${tag} — ${c.surface}` : `${title} — ${c.surface}`;
+}
+
+function formatLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function startOfLocalDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function sameLocalDay(a: Date, b: Date): boolean {
+  return formatLocalYmd(a) === formatLocalYmd(b);
+}
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-ES", {
@@ -78,79 +103,196 @@ function fmtTime(iso: string) {
   });
 }
 
+function intervalsOverlapMs(
+  a0: number,
+  a1: number,
+  b0: number,
+  b1: number,
+): boolean {
+  return a0 < b1 && a1 > b0;
+}
+
+/** Vista calendario: lunes = primer columna */
+function MiniMonthCalendar({
+  viewMonth,
+  onViewMonthChange,
+  selectedDate,
+  onSelectDate,
+  markedDays,
+}: {
+  viewMonth: Date;
+  onViewMonthChange: (d: Date) => void;
+  selectedDate: Date;
+  onSelectDate: (d: Date) => void;
+  markedDays: Set<string>;
+}) {
+  const y = viewMonth.getFullYear();
+  const m = viewMonth.getMonth();
+  const first = new Date(y, m, 1);
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const lead = (first.getDay() + 6) % 7; // Mon=0
+  const today = startOfLocalDay(new Date());
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < lead; i++) cells.push(null);
+  for (let d = 1; d <= lastDay; d++) cells.push(d);
+
+  const title = viewMonth.toLocaleDateString("es-ES", {
+    month: "long",
+    year: "numeric",
+  });
+
+  return (
+    <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-lg"
+          onClick={() => onViewMonthChange(new Date(y, m - 1, 1))}
+          aria-label="Mes anterior"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+        <span className="text-foreground flex-1 text-center text-sm font-semibold capitalize">
+          {title}
+        </span>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-lg"
+          onClick={() => onViewMonthChange(new Date(y, m + 1, 1))}
+          aria-label="Mes siguiente"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      </div>
+      <div className="mb-1 grid grid-cols-7 gap-0.5 text-center">
+        {["L", "M", "X", "J", "V", "S", "D"].map((w) => (
+          <div
+            key={w}
+            className="text-muted-foreground pb-1 text-[10px] font-medium"
+          >
+            {w}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-sm">
+        {cells.map((day, idx) => {
+          if (day === null) {
+            return <div key={`e-${idx}`} className="aspect-square" />;
+          }
+          const cellDate = new Date(y, m, day);
+          const ymd = formatLocalYmd(cellDate);
+          const isSelected = sameLocalDay(cellDate, selectedDate);
+          const isToday = sameLocalDay(cellDate, today);
+          const hasMark = markedDays.has(ymd);
+
+          return (
+            <button
+              key={ymd}
+              type="button"
+              onClick={() => onSelectDate(cellDate)}
+              className={cn(
+                "relative flex aspect-square items-center justify-center rounded-lg text-sm font-medium transition-colors",
+                isSelected
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-foreground hover:bg-muted",
+                isToday && !isSelected && "ring-primary/40 ring-2",
+              )}
+            >
+              {day}
+              {hasMark && !isSelected ? (
+                <span className="bg-primary absolute bottom-1 size-1 rounded-full" />
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ReservationsBoard({
   clubId,
+  initialCourts,
   initialReservations,
 }: {
   clubId: string;
+  initialCourts: ClubCourtOption[];
   initialReservations: ClubReservation[];
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"ALL" | ReservationStatus>("ALL");
   const [mode, setMode] = useState<"list" | "calendar">("calendar");
-  const [calendarView, setCalendarView] = useState<
-    "timeGridDay" | "timeGridWeek" | "dayGridMonth"
-  >("timeGridWeek");
-  const [courtFilter, setCourtFilter] = useState("ALL");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [cancelBusyId, setCancelBusyId] = useState<string | null>(null);
+  const [expandedBookingId, setExpandedBookingId] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(() =>
+    startOfLocalDay(new Date()),
+  );
+  const [viewMonth, setViewMonth] = useState<Date>(() =>
+    startOfLocalDay(new Date()),
+  );
+  const [courtId, setCourtId] = useState<string>(
+    () => initialCourts[0]?.id ?? "",
+  );
+  const validCourtId = useMemo(() => {
+    if (initialCourts.length === 0) return "";
+    if (initialCourts.some((c) => c.id === courtId)) return courtId;
+    return initialCourts[0]!.id;
+  }, [initialCourts, courtId]);
 
-  const courts = useMemo(() => {
-    const byId = new Map(
-      initialReservations.map((r) => [
-        r.court.id,
-        { id: r.court.id, name: r.court.name },
-      ]),
-    );
-    return Array.from(byId.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
-  }, [initialReservations]);
+  const [daySlots, setDaySlots] = useState<
+    Array<{ start: string; end: string; isAvailable: boolean }>
+  >([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
 
-  const courtColorById = useMemo(() => {
-    const map = new Map<
-      string,
-      { bg: string; border: string; text: string; label: string }
-    >();
-    courts.forEach((court, idx) => {
-      const color = COURT_COLOR_PALETTE[idx % COURT_COLOR_PALETTE.length];
-      map.set(court.id, { ...color, label: court.name });
+  const loadSlots = useCallback(async () => {
+    if (!validCourtId || !clubId) {
+      setDaySlots([]);
+      return;
+    }
+    setLoadingSlots(true);
+    setSlotsError(null);
+    const ymd = formatLocalYmd(selectedDate);
+    const res = await listCourtDaySlotsAction(clubId, validCourtId, ymd);
+    setLoadingSlots(false);
+    if (!res.ok) {
+      setSlotsError(res.error);
+      setDaySlots([]);
+      return;
+    }
+    const seen = new Set<string>();
+    const unique = res.slots.filter((s) => {
+      const k = `${s.start}\0${s.end}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
     });
-    return map;
-  }, [courts]);
+    setDaySlots(unique);
+  }, [clubId, validCourtId, selectedDate]);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      void loadSlots();
+    });
+  }, [loadSlots]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return initialReservations.filter((r) => {
       if (status !== "ALL" && r.status !== status) return false;
-      if (courtFilter !== "ALL" && r.court.id !== courtFilter) return false;
       if (!q) return true;
       return (
         r.court.name.toLowerCase().includes(q) ||
         (r.user.fullName ?? "sin nombre").toLowerCase().includes(q)
       );
     });
-  }, [initialReservations, query, status, courtFilter]);
-
-  const calendarEvents = useMemo<EventInput[]>(() => {
-    return filtered.map((r) => {
-      const color = courtColorById.get(r.court.id);
-      return {
-        id: r.id,
-        title: r.court.name,
-        start: r.start,
-        end: r.end,
-        backgroundColor: color?.bg ?? "#e5e7eb",
-        borderColor: color?.border ?? "#9ca3af",
-        textColor: color?.text ?? "#111827",
-        extendedProps: {
-          userName: r.user.fullName ?? "Sin nombre",
-          status: STATUS_LABELS[r.status],
-          courtName: r.court.name,
-        },
-      };
-    });
-  }, [filtered, courtColorById]);
+  }, [initialReservations, query, status]);
 
   const grouped = useMemo(
     () => ({
@@ -166,6 +308,73 @@ export function ReservationsBoard({
     [initialReservations],
   );
 
+  const markedDays = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of initialReservations) {
+      if (r.court.id !== validCourtId) continue;
+      s.add(formatLocalYmd(new Date(r.start)));
+    }
+    return s;
+  }, [initialReservations, validCourtId]);
+
+  const bookingsForCourtDay = useMemo(() => {
+    return initialReservations.filter(
+      (r) =>
+        r.court.id === validCourtId &&
+        sameLocalDay(new Date(r.start), selectedDate),
+    );
+  }, [initialReservations, validCourtId, selectedDate]);
+
+  const slotRows = useMemo(() => {
+    return daySlots.map((slot) => {
+      const s0 = new Date(slot.start).getTime();
+      const s1 = new Date(slot.end).getTime();
+      const activeBooking =
+        bookingsForCourtDay.find(
+          (r) =>
+            (r.status === "PENDING" || r.status === "CONFIRMED") &&
+            intervalsOverlapMs(
+              s0,
+              s1,
+              new Date(r.start).getTime(),
+              new Date(r.end).getTime(),
+            ),
+        ) ?? null;
+
+      if (activeBooking) {
+        return {
+          start: slot.start,
+          end: slot.end,
+          kind: "reserved" as const,
+          booking: activeBooking,
+        };
+      }
+      if (!slot.isAvailable) {
+        return {
+          start: slot.start,
+          end: slot.end,
+          kind: "closed" as const,
+          booking: null,
+        };
+      }
+      return {
+        start: slot.start,
+        end: slot.end,
+        kind: "available" as const,
+        booking: null,
+      };
+    });
+  }, [daySlots, bookingsForCourtDay]);
+
+  const dayStats = useMemo(() => {
+    const disponibles = slotRows.filter((r) => r.kind === "available").length;
+    const reservados = slotRows.filter((r) => r.kind === "reserved").length;
+    const cancelados = bookingsForCourtDay.filter(
+      (r) => r.status === "CANCELLED",
+    ).length;
+    return { disponibles, reservados, cancelados };
+  }, [slotRows, bookingsForCourtDay]);
+
   async function onAction(bookingId: string, action: "approve" | "reject") {
     setError(null);
     setBusyId(bookingId);
@@ -174,22 +383,39 @@ export function ReservationsBoard({
         ? await approveClubBookingAction(clubId, bookingId)
         : await rejectClubBookingAction(clubId, bookingId);
     setBusyId(null);
-    if (!res.ok) setError(res.error);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    router.refresh();
+    void loadSlots();
   }
 
-  function renderEventContent(arg: EventContentArg) {
-    const userName = String(arg.event.extendedProps.userName ?? "");
-    const statusLabel = String(arg.event.extendedProps.status ?? "");
-    return (
-      <div className="fc-event-body leading-tight">
-        <div className="truncate text-[11px] font-semibold">
-          {arg.timeText} {arg.event.title}
-        </div>
-        <div className="truncate text-[11px]">{userName}</div>
-        <div className="truncate text-[10px] opacity-80">{statusLabel}</div>
-      </div>
-    );
+  async function handleCancelBooking(bookingId: string) {
+    setError(null);
+    setCancelBusyId(bookingId);
+    const res = await cancelClubBookingAction(clubId, bookingId);
+    setCancelBusyId(null);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setExpandedBookingId(null);
+    router.refresh();
+    void loadSlots();
   }
+
+  const selectedCourt = initialCourts.find((c) => c.id === validCourtId);
+  const courtSelectLabel = selectedCourt
+    ? courtSelectLine(selectedCourt)
+    : "Seleccioná una cancha";
+
+  const longDateLabel = selectedDate.toLocaleDateString("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="space-y-5">
@@ -223,65 +449,33 @@ export function ReservationsBoard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {(
-          [
-            ["timeGridDay", "Día"],
-            ["timeGridWeek", "Semana"],
-            ["dayGridMonth", "Mes"],
-          ] as const
-        ).map(([v, label]) => (
-          <Button
-            key={v}
-            type="button"
-            variant={calendarView === v ? "default" : "outline"}
-            className="rounded-lg"
-            onClick={() => setCalendarView(v)}
-          >
-            {label}
-          </Button>
-        ))}
-        <div className="ml-auto flex items-center gap-2">
-          <select
-            value={courtFilter}
-            onChange={(e) => setCourtFilter(e.target.value)}
-            className="border-input bg-background h-10 rounded-lg border px-3 text-sm"
-          >
-            <option value="ALL">Todas las canchas</option>
-            {courts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+      {mode === "list" ? (
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["ALL", `Todas (${grouped.ALL})`],
+              ["CONFIRMED", `Confirmadas (${grouped.CONFIRMED})`],
+              ["PENDING", `Pendientes (${grouped.PENDING})`],
+              ["CANCELLED", `Canceladas (${grouped.CANCELLED})`],
+              ["REJECTED", `Rechazadas (${grouped.REJECTED})`],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatus(value)}
+              className={cn(
+                "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                status === value
+                  ? "bg-primary/15 text-primary border-primary/30"
+                  : "border-border text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ["ALL", `Todas (${grouped.ALL})`],
-            ["CONFIRMED", `Confirmadas (${grouped.CONFIRMED})`],
-            ["PENDING", `Pendientes (${grouped.PENDING})`],
-            ["CANCELLED", `Canceladas (${grouped.CANCELLED})`],
-            ["REJECTED", `Rechazadas (${grouped.REJECTED})`],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setStatus(value)}
-            className={cn(
-              "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-              status === value
-                ? "bg-primary/15 text-primary border-primary/30"
-                : "border-border text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      ) : null}
 
       {error ? (
         <p className="text-destructive text-sm" role="alert">
@@ -306,12 +500,14 @@ export function ReservationsBoard({
               </thead>
               <tbody>
                 {filtered.map((r) => (
-                  <tr key={r.id} className="border-t border-border/70">
+                  <tr key={r.id} className="border-border/70 border-t">
                     <td className="px-4 py-3 text-xs">{r.id.slice(0, 8)}</td>
                     <td className="px-4 py-3">
                       {r.user.fullName ?? "Sin nombre"}
                     </td>
-                    <td className="px-4 py-3">{r.court.name}</td>
+                    <td className="px-4 py-3">
+                      {r.court.name.trim() || "Sin nombre"}
+                    </td>
                     <td className="px-4 py-3">{fmtDate(r.start)}</td>
                     <td className="px-4 py-3">{`${fmtTime(r.start)}-${fmtTime(r.end)}`}</td>
                     <td className="px-4 py-3">
@@ -368,52 +564,290 @@ export function ReservationsBoard({
           </div>
         </div>
       ) : (
-        <div className="reservas-calendar border-border bg-card overflow-hidden rounded-xl border p-2 shadow-sm">
-          <FullCalendar
-            key={calendarView}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            locale={esLocale}
-            initialView={calendarView}
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "",
-            }}
-            buttonText={{
-              today: "Hoy",
-            }}
-            views={{
-              timeGridWeek: {
-                dayHeaderFormat: {
-                  weekday: "short",
-                  day: "2-digit",
-                  month: "2-digit",
-                },
-              },
-              timeGridDay: {
-                dayHeaderFormat: {
-                  weekday: "long",
-                  day: "2-digit",
-                  month: "2-digit",
-                },
-              },
-            }}
-            allDaySlot={false}
-            slotMinTime="07:00:00"
-            slotMaxTime="23:00:00"
-            slotDuration="00:30:00"
-            slotLabelInterval="01:00:00"
-            expandRows
-            nowIndicator
-            editable={false}
-            selectable={false}
-            dayMaxEvents={3}
-            eventOverlap
-            eventMaxStack={4}
-            events={calendarEvents}
-            eventContent={renderEventContent}
-            height="auto"
-          />
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+          <aside className="lg:w-72 shrink-0 space-y-4">
+            <div>
+              <label className="text-muted-foreground mb-1.5 block text-xs font-medium">
+                Cancha
+              </label>
+              {initialCourts.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No hay canchas.{" "}
+                  <Link
+                    href="/dashboard/club/pistas"
+                    className="text-primary font-medium underline-offset-2 hover:underline"
+                  >
+                    Crear en Pistas
+                  </Link>
+                </p>
+              ) : (
+                <select
+                  value={validCourtId}
+                  onChange={(e) => {
+                    setExpandedBookingId(null);
+                    setCourtId(e.target.value);
+                  }}
+                  className="border-input bg-background text-foreground focus-visible:ring-ring h-11 w-full rounded-xl border px-3 text-sm font-medium shadow-sm outline-none focus-visible:ring-2"
+                >
+                  {initialCourts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {courtSelectLine(c)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <MiniMonthCalendar
+              viewMonth={viewMonth}
+              onViewMonthChange={setViewMonth}
+              selectedDate={selectedDate}
+              onSelectDate={(d) => {
+                setExpandedBookingId(null);
+                setSelectedDate(d);
+                setViewMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+              }}
+              markedDays={markedDays}
+            />
+
+            <div className="border-border bg-muted/20 space-y-2 rounded-xl border px-3 py-3 text-xs">
+              <p className="text-muted-foreground font-semibold tracking-wide uppercase">
+                Leyenda
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="size-2.5 shrink-0 rounded-full bg-emerald-400" />
+                  <span className="text-muted-foreground">Disponible</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="size-2.5 shrink-0 rounded-full bg-sky-500" />
+                  <span className="text-muted-foreground">Reservado</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="size-2.5 shrink-0 rounded-full bg-rose-400" />
+                  <span className="text-muted-foreground">Cancelado</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="size-2.5 shrink-0 rounded-full bg-slate-400" />
+                  <span className="text-muted-foreground">Día cerrado</span>
+                </li>
+              </ul>
+            </div>
+          </aside>
+
+          <section className="border-border bg-card min-h-[420px] flex-1 rounded-2xl border p-5 shadow-sm">
+            {initialCourts.length === 0 ? null : (
+              <>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-foreground text-lg font-semibold capitalize">
+                    {longDateLabel}
+                  </h2>
+                  <p className="text-muted-foreground text-sm">
+                    <span className="text-emerald-600 font-medium dark:text-emerald-400">
+                      {dayStats.disponibles} disponibles
+                    </span>
+                    <span className="mx-2">·</span>
+                    <span className="text-sky-600 font-medium dark:text-sky-400">
+                      {dayStats.reservados} reservados
+                    </span>
+                    <span className="mx-2">·</span>
+                    <span className="text-rose-600 font-medium dark:text-rose-400">
+                      {dayStats.cancelados} cancelados
+                    </span>
+                  </p>
+                </div>
+
+                <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
+                  {courtSelectLabel}
+                </p>
+
+                {slotsError ? (
+                  <p className="text-destructive mt-4 text-sm">{slotsError}</p>
+                ) : loadingSlots ? (
+                  <p className="text-muted-foreground mt-10 text-center text-sm">
+                    Cargando turnos…
+                  </p>
+                ) : slotRows.length === 0 ? (
+                  <p className="text-muted-foreground mt-10 text-center text-sm">
+                    No hay franjas para este día en esta cancha.
+                  </p>
+                ) : (
+                  <ul className="mt-6 space-y-3">
+                    {slotRows.map((row, rowIndex) => {
+                      const rangeLabel = `${fmtTime(row.start)} – ${fmtTime(row.end)}`;
+                      const isAvail = row.kind === "available";
+                      const isRes = row.kind === "reserved";
+                      const isClosed = row.kind === "closed";
+
+                      const isExpanded =
+                        isRes &&
+                        row.booking &&
+                        expandedBookingId === row.booking.id;
+
+                      return (
+                        <li
+                          key={`${validCourtId}-${formatLocalYmd(selectedDate)}-${rowIndex}-${row.kind}`}
+                          className={cn(
+                            "overflow-hidden rounded-xl border",
+                            isAvail &&
+                              "border-emerald-200/80 bg-emerald-50/50 dark:border-emerald-900/30 dark:bg-emerald-950/25",
+                            isRes &&
+                              "border-sky-200/80 bg-sky-50/50 dark:border-sky-900/30 dark:bg-sky-950/25",
+                            isClosed &&
+                              "border-border bg-muted/30 text-muted-foreground",
+                          )}
+                        >
+                          <div
+                            role={isRes ? "button" : undefined}
+                            tabIndex={isRes ? 0 : undefined}
+                            className={cn(
+                              "flex items-stretch",
+                              isRes &&
+                                "cursor-pointer hover:bg-sky-100/40 dark:hover:bg-sky-950/40",
+                            )}
+                            onClick={() => {
+                              if (isRes && row.booking) {
+                                setExpandedBookingId((prev) =>
+                                  prev === row.booking!.id
+                                    ? null
+                                    : row.booking!.id,
+                                );
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (
+                                !isRes ||
+                                !row.booking ||
+                                (e.key !== "Enter" && e.key !== " ")
+                              ) {
+                                return;
+                              }
+                              e.preventDefault();
+                              setExpandedBookingId((prev) =>
+                                prev === row.booking!.id
+                                  ? null
+                                  : row.booking!.id,
+                              );
+                            }}
+                          >
+                            <div
+                              className={cn(
+                                "w-1.5 shrink-0",
+                                isAvail && "bg-emerald-500",
+                                isRes && "bg-sky-500",
+                                isClosed && "bg-slate-400",
+                              )}
+                            />
+                            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
+                              <div className="min-w-0">
+                                <p className="text-foreground font-semibold">
+                                  {rangeLabel}
+                                </p>
+                                {isAvail ? (
+                                  <p className="text-muted-foreground mt-0.5 text-sm">
+                                    Disponible
+                                  </p>
+                                ) : null}
+                                {isRes && row.booking ? (
+                                  <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-sky-700 dark:text-sky-300">
+                                    <User className="size-3.5 shrink-0 opacity-80" />
+                                    <span className="truncate font-medium">
+                                      {row.booking.user.fullName ??
+                                        "Sin nombre"}
+                                    </span>
+                                  </p>
+                                ) : null}
+                                {isClosed ? (
+                                  <p className="mt-0.5 text-sm">
+                                    No disponible
+                                  </p>
+                                ) : null}
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                {isAvail ? (
+                                  <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                                    Libre
+                                  </span>
+                                ) : null}
+                                {isRes && row.booking ? (
+                                  <>
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      onKeyDown={(e) => e.stopPropagation()}
+                                    >
+                                      {row.booking.status === "PENDING" ? (
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger
+                                            className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800 outline-none hover:bg-sky-200/80 dark:bg-sky-900/50 dark:text-sky-100 dark:hover:bg-sky-900/70"
+                                            disabled={busyId === row.booking.id}
+                                          >
+                                            Reservado
+                                            <ChevronDown className="size-3.5 opacity-70" />
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            <DropdownMenuItem
+                                              onClick={() =>
+                                                void onAction(
+                                                  row.booking!.id,
+                                                  "approve",
+                                                )
+                                              }
+                                            >
+                                              Confirmar reserva
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                              variant="destructive"
+                                              onClick={() =>
+                                                void onAction(
+                                                  row.booking!.id,
+                                                  "reject",
+                                                )
+                                              }
+                                            >
+                                              Rechazar
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800 dark:bg-sky-900/50 dark:text-sky-100">
+                                          Reservado
+                                        </span>
+                                      )}
+                                    </div>
+                                    <ChevronDown
+                                      className={cn(
+                                        "size-4 shrink-0 text-sky-700 transition-transform dark:text-sky-300",
+                                        isExpanded && "rotate-180",
+                                      )}
+                                      aria-hidden
+                                    />
+                                  </>
+                                ) : null}
+                                {isClosed ? (
+                                  <span className="inline-flex rounded-full bg-slate-200/80 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                                    Cerrado
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                          {isRes && row.booking && isExpanded ? (
+                            <BookingDetailCard
+                              booking={row.booking}
+                              cancelling={cancelBusyId === row.booking.id}
+                              onCancel={() =>
+                                void handleCancelBooking(row.booking!.id)
+                              }
+                            />
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </>
+            )}
+          </section>
         </div>
       )}
     </div>

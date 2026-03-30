@@ -27,7 +27,10 @@ type CourtAvailabilityDialogProps = {
 };
 
 type Slot = { start: number; end: number; label: string };
-type DateState = { allDayClosed: boolean; excluded: Array<{ start: number; end: number }> };
+type DateState = {
+  allDayClosed: boolean;
+  excluded: Array<{ start: number; end: number }>;
+};
 
 const DAYS_SHORT = ["do", "lu", "ma", "mi", "ju", "vi", "sá"];
 
@@ -62,62 +65,87 @@ export function CourtAvailabilityDialog({
     new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [exceptionsByDate, setExceptionsByDate] = useState<Record<string, DateState>>({});
+  const [exceptionsByDate, setExceptionsByDate] = useState<
+    Record<string, DateState>
+  >({});
   const [monthLoaded, setMonthLoaded] = useState<Record<string, boolean>>({});
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const title = `Gestionar disponibilidad - ${court?.name ?? "Cancha"}`;
+  const title = `Gestionar disponibilidad - ${court?.name?.trim() || "Cancha"}`;
   const monthKey = toMonthKey(currentMonth);
 
   useEffect(() => {
     if (!open || !court) return;
-    setError(null);
-    setSelectedDate(null);
-    setSlots([]);
-    setExceptionsByDate({});
-    setMonthLoaded({});
-    setCurrentMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setError(null);
+      setSelectedDate(null);
+      setSlots([]);
+      setExceptionsByDate({});
+      setMonthLoaded({});
+      setCurrentMonth(
+        new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [open, court]);
 
   useEffect(() => {
     if (!open || !court || monthLoaded[monthKey]) return;
-    setLoading(true);
-    void getCourtAvailabilityExceptionsAction(clubId, court.id, monthKey).then((res) => {
-      setLoading(false);
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
-      const next = { ...exceptionsByDate };
-      const grouped: Record<string, DateState> = {};
-      for (const row of res.rows) {
-        const raw = row as CourtAvailabilityException & { is_closed_all_day?: boolean };
-        const date = row.date.slice(0, 10);
-        if (!grouped[date]) grouped[date] = { allDayClosed: false, excluded: [] };
-        const allDay = row.isClosedAllDay ?? raw.is_closed_all_day ?? false;
-        if (allDay) grouped[date].allDayClosed = true;
-        else if (
-          typeof row.startTimeMinutes === "number" &&
-          typeof row.endTimeMinutes === "number"
-        ) {
-          grouped[date].excluded.push({
-            start: row.startTimeMinutes,
-            end: row.endTimeMinutes,
-          });
-        }
-      }
-      for (const [k, v] of Object.entries(grouped)) next[k] = v;
-      setExceptionsByDate(next);
-      setMonthLoaded({ ...monthLoaded, [monthKey]: true });
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setLoading(true);
     });
+    void getCourtAvailabilityExceptionsAction(clubId, court.id, monthKey).then(
+      (res) => {
+        setLoading(false);
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
+        const next = { ...exceptionsByDate };
+        const grouped: Record<string, DateState> = {};
+        for (const row of res.rows) {
+          const raw = row as CourtAvailabilityException & {
+            is_closed_all_day?: boolean;
+          };
+          const date = row.date.slice(0, 10);
+          if (!grouped[date])
+            grouped[date] = { allDayClosed: false, excluded: [] };
+          const allDay = row.isClosedAllDay ?? raw.is_closed_all_day ?? false;
+          if (allDay) grouped[date].allDayClosed = true;
+          else if (
+            typeof row.startTimeMinutes === "number" &&
+            typeof row.endTimeMinutes === "number"
+          ) {
+            grouped[date].excluded.push({
+              start: row.startTimeMinutes,
+              end: row.endTimeMinutes,
+            });
+          }
+        }
+        for (const [k, v] of Object.entries(grouped)) next[k] = v;
+        setExceptionsByDate(next);
+        setMonthLoaded({ ...monthLoaded, [monthKey]: true });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
   }, [open, court, monthKey, monthLoaded, clubId, exceptionsByDate]);
 
   useEffect(() => {
     if (!selectedDate || !court) return;
-    setLoading(true);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setLoading(true);
+    });
     void getCourtSchedulesAction(clubId, court.id).then((res) => {
       setLoading(false);
       if (!res.ok) {
@@ -127,7 +155,10 @@ export function CourtAvailabilityDialog({
       const dow = selectedDate.getDay();
       const dateKey = toDateKey(selectedDate);
       const dayRows = res.rows.filter((r) => {
-        const row = r as typeof r & { period_start?: string | null; period_end?: string | null };
+        const row = r as typeof r & {
+          period_start?: string | null;
+          period_end?: string | null;
+        };
         const ps = (r.periodStart ?? row.period_start)?.slice(0, 10);
         const pe = (r.periodEnd ?? row.period_end)?.slice(0, 10);
         if (r.dayOfWeek !== dow) return false;
@@ -144,11 +175,18 @@ export function CourtAvailabilityDialog({
       let cur = row.startTimeMinutes;
       while (cur + row.slotDurationMinutes <= row.endTimeMinutes) {
         const end = cur + row.slotDurationMinutes;
-        generated.push({ start: cur, end, label: `${timeLabel(cur)} - ${timeLabel(end)}` });
+        generated.push({
+          start: cur,
+          end,
+          label: `${timeLabel(cur)} - ${timeLabel(end)}`,
+        });
         cur = end;
       }
       setSlots(generated);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedDate, clubId, court]);
 
   const selectedKey = selectedDate ? toDateKey(selectedDate) : null;
@@ -156,10 +194,17 @@ export function CourtAvailabilityDialog({
 
   function toggleSlot(slot: Slot) {
     if (!selectedKey) return;
-    const curr = exceptionsByDate[selectedKey] ?? { allDayClosed: false, excluded: [] };
-    const exists = curr.excluded.some((s) => s.start === slot.start && s.end === slot.end);
+    const curr = exceptionsByDate[selectedKey] ?? {
+      allDayClosed: false,
+      excluded: [],
+    };
+    const exists = curr.excluded.some(
+      (s) => s.start === slot.start && s.end === slot.end,
+    );
     const nextExcluded = exists
-      ? curr.excluded.filter((s) => !(s.start === slot.start && s.end === slot.end))
+      ? curr.excluded.filter(
+          (s) => !(s.start === slot.start && s.end === slot.end),
+        )
       : [...curr.excluded, { start: slot.start, end: slot.end }];
     setExceptionsByDate({
       ...exceptionsByDate,
@@ -169,7 +214,10 @@ export function CourtAvailabilityDialog({
 
   function toggleAllDay() {
     if (!selectedKey) return;
-    const curr = exceptionsByDate[selectedKey] ?? { allDayClosed: false, excluded: [] };
+    const curr = exceptionsByDate[selectedKey] ?? {
+      allDayClosed: false,
+      excluded: [],
+    };
     setExceptionsByDate({
       ...exceptionsByDate,
       [selectedKey]: {
@@ -181,8 +229,16 @@ export function CourtAvailabilityDialog({
 
   async function saveMonth() {
     if (!court) return;
-    const start = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    const end = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+    const start = new Date(
+      currentMonth.getFullYear(),
+      currentMonth.getMonth(),
+      1,
+    );
+    const end = new Date(
+      currentMonth.getFullYear(),
+      currentMonth.getMonth() + 1,
+      1,
+    );
     const exceptions: Array<{
       date: string;
       isClosedAllDay: boolean;
@@ -207,10 +263,14 @@ export function CourtAvailabilityDialog({
       }
     }
     setPending(true);
-    const res = await replaceCourtAvailabilityExceptionsAction(clubId, court.id, {
-      month: monthKey,
-      exceptions,
-    });
+    const res = await replaceCourtAvailabilityExceptionsAction(
+      clubId,
+      court.id,
+      {
+        month: monthKey,
+        exceptions,
+      },
+    );
     setPending(false);
     if (!res.ok) {
       setError(res.error);
@@ -221,7 +281,11 @@ export function CourtAvailabilityDialog({
   }
 
   const calendarDays = useMemo(() => {
-    const first = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    const first = new Date(
+      currentMonth.getFullYear(),
+      currentMonth.getMonth(),
+      1,
+    );
     const start = new Date(first);
     start.setDate(1 - ((first.getDay() + 6) % 7));
     const out: Date[] = [];
@@ -242,8 +306,8 @@ export function CourtAvailabilityDialog({
           </DialogTitle>
         </DialogHeader>
         <p className="text-muted-foreground text-sm">
-          Seleccioná una fecha en el calendario para ver los turnos. Tocá un turno
-          para cancelarlo o reactivarlo.
+          Seleccioná una fecha en el calendario para ver los turnos. Tocá un
+          turno para cancelarlo o reactivarlo.
         </p>
 
         <div className="grid gap-4 md:grid-cols-[280px_1fr]">
@@ -253,7 +317,11 @@ export function CourtAvailabilityDialog({
                 className="border-border text-muted-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-full border"
                 onClick={() =>
                   setCurrentMonth(
-                    new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
+                    new Date(
+                      currentMonth.getFullYear(),
+                      currentMonth.getMonth() - 1,
+                      1,
+                    ),
                   )
                 }
                 type="button"
@@ -270,7 +338,11 @@ export function CourtAvailabilityDialog({
                 className="border-border text-muted-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-full border"
                 onClick={() =>
                   setCurrentMonth(
-                    new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
+                    new Date(
+                      currentMonth.getFullYear(),
+                      currentMonth.getMonth() + 1,
+                      1,
+                    ),
                   )
                 }
                 type="button"
@@ -321,12 +393,16 @@ export function CourtAvailabilityDialog({
                   </h3>
                   <Button
                     type="button"
-                    variant={selectedState?.allDayClosed ? "destructive" : "outline"}
+                    variant={
+                      selectedState?.allDayClosed ? "destructive" : "outline"
+                    }
                     className="rounded-xl"
                     onClick={toggleAllDay}
                   >
                     <Ban className="mr-2 size-4" />
-                    {selectedState?.allDayClosed ? "Día cerrado" : "Cerrar día completo"}
+                    {selectedState?.allDayClosed
+                      ? "Día cerrado"
+                      : "Cerrar día completo"}
                   </Button>
                 </div>
 
@@ -353,7 +429,9 @@ export function CourtAvailabilityDialog({
                           }`}
                         >
                           {excluded ? (
-                            <span className="mr-1 inline-flex items-center">×</span>
+                            <span className="mr-1 inline-flex items-center">
+                              ×
+                            </span>
                           ) : null}
                           {slot.label}
                         </button>
@@ -379,7 +457,8 @@ export function CourtAvailabilityDialog({
                     key={`${date}-all`}
                     className="bg-destructive text-destructive-foreground inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
                   >
-                    {date.slice(8, 10)}/{date.slice(5, 7)} - Día completo <X className="ml-1 size-3" />
+                    {date.slice(8, 10)}/{date.slice(5, 7)} - Día completo{" "}
+                    <X className="ml-1 size-3" />
                   </span>
                 ) : (
                   st.excluded.map((s) => (
@@ -387,7 +466,8 @@ export function CourtAvailabilityDialog({
                       key={`${date}-${s.start}-${s.end}`}
                       className="bg-muted text-muted-foreground inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
                     >
-                      {date.slice(8, 10)}/{date.slice(5, 7)} {timeLabel(s.start)}-{timeLabel(s.end)}
+                      {date.slice(8, 10)}/{date.slice(5, 7)}{" "}
+                      {timeLabel(s.start)}-{timeLabel(s.end)}
                     </span>
                   ))
                 ),

@@ -10,7 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { ClubDashboardNextByCourt } from "@/types/club-dashboard";
+import type { ClubDashboardResponse } from "@/types/club-dashboard";
+
+type ClubDashboardNextByCourt = ClubDashboardResponse["nextReservationByCourt"][number];
 
 function formatTimeRange(startIso: string, endIso: string): string {
   const opts: Intl.DateTimeFormatOptions = {

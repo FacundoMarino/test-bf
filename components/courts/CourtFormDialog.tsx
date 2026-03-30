@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
+import { CircleDashed, Moon, Sun } from "lucide-react";
 
-import {
-  createCourtAction,
-  updateCourtAction,
-} from "@/actions/courts";
+import { createCourtAction, updateCourtAction } from "@/actions/courts";
 import { ScheduleBlocksEditor } from "@/components/club/ScheduleBlocksEditor";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +37,7 @@ function validateSchedule(blocks: ClubScheduleBlocks): string | null {
     const b = blocks[g];
     if (!b.enabled) continue;
     if (hhmmToMinutes(b.endTime) <= hhmmToMinutes(b.startTime)) {
-      return "La hora de fin debe ser posterior a la de inicio en cada franja activa.";
+      return "La hora de fin debe ser posterior a la de inicio";
     }
   }
   return null;
@@ -60,7 +57,7 @@ function validateDailySchedule(blocks: DailyScheduleBlocks): string | null {
     const b = blocks[g];
     if (!b.enabled) continue;
     if (hhmmToMinutes(b.endTime) <= hhmmToMinutes(b.startTime)) {
-      return "La hora de fin debe ser posterior a la de inicio en cada franja activa.";
+      return "La hora de fin debe ser posterior a la de inicio";
     }
   }
   return null;
@@ -117,9 +114,14 @@ export function CourtFormDialog({
 }: CourtFormDialogProps) {
   const isEditMode = mode === "edit" && Boolean(court);
   const [name, setName] = useState(isEditMode && court ? court.name : "");
-  const [type, setType] = useState<"indoor" | "outdoor">(
-    isEditMode && court?.type === "outdoor" ? "outdoor" : "indoor",
-  );
+  const [type, setType] = useState<"indoor" | "outdoor" | "unspecified">(() => {
+    if (isEditMode && court) {
+      if (court.type === "outdoor") return "outdoor";
+      if (court.type === "indoor") return "indoor";
+      return "unspecified";
+    }
+    return "unspecified";
+  });
   const [surface, setSurface] = useState(
     isEditMode && court ? court.surface : "",
   );
@@ -151,8 +153,8 @@ export function CourtFormDialog({
         return;
       }
     }
-    if (!name.trim() || !surface.trim()) {
-      setError("Nombre y superficie son obligatorios.");
+    if (!surface.trim()) {
+      setError("La superficie es obligatoria.");
       return;
     }
     setPending(true);
@@ -188,9 +190,16 @@ export function CourtFormDialog({
   }
   useEffect(() => {
     if (!open || mode !== "create") return;
-    setSchedule(defaultScheduleBlocks);
-    setDailySchedule(groupedToDaily(defaultScheduleBlocks));
-    setScheduleMode("grouped");
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setSchedule(defaultScheduleBlocks);
+      setDailySchedule(groupedToDaily(defaultScheduleBlocks));
+      setScheduleMode("grouped");
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [open, mode, defaultScheduleBlocks]);
 
   return (
@@ -210,19 +219,18 @@ export function CourtFormDialog({
         </DialogHeader>
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="court-name">Nombre</Label>
+            <Label htmlFor="court-name">Nombre (opcional)</Label>
             <Input
               id="court-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: cancha 7"
               className="h-11 rounded-lg"
-              required
             />
           </div>
           <div className="space-y-2">
-            <span className="text-sm font-medium">Tipo</span>
-            <div className="grid grid-cols-2 gap-2">
+            <span className="text-sm font-medium">Tipo (opcional)</span>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={() => setType("outdoor")}
@@ -247,6 +255,18 @@ export function CourtFormDialog({
                 <Moon className="size-4" />
                 Indoor
               </button>
+              <button
+                type="button"
+                onClick={() => setType("unspecified")}
+                className={`border-border flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                  type === "unspecified"
+                    ? "bg-primary/15 text-primary border-primary/30"
+                    : "hover:bg-muted/80"
+                }`}
+              >
+                <CircleDashed className="size-4" />
+                Sin especificar
+              </button>
             </div>
           </div>
           <div className="space-y-2">
@@ -267,37 +287,39 @@ export function CourtFormDialog({
 
           {mode === "create" ? (
             <div className="space-y-2">
-              <span className="text-sm font-semibold">Horario de la cancha</span>
+              <span className="text-sm font-semibold">
+                Horario de la cancha
+              </span>
               <p className="text-muted-foreground text-xs"></p>
               <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSchedule(dailyToGrouped(dailySchedule));
-                  setScheduleMode("grouped");
-                }}
-                className={`border-border rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                  scheduleMode === "grouped"
-                    ? "bg-primary/15 text-primary border-primary/30"
-                    : "hover:bg-muted/80"
-                }`}
-              >
-                Lunes a viernes
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDailySchedule(groupedToDaily(schedule));
-                  setScheduleMode("daily");
-                }}
-                className={`border-border rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                  scheduleMode === "daily"
-                    ? "bg-primary/15 text-primary border-primary/30"
-                    : "hover:bg-muted/80"
-                }`}
-              >
-                Configurar por día
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSchedule(dailyToGrouped(dailySchedule));
+                    setScheduleMode("grouped");
+                  }}
+                  className={`border-border rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    scheduleMode === "grouped"
+                      ? "bg-primary/15 text-primary border-primary/30"
+                      : "hover:bg-muted/80"
+                  }`}
+                >
+                  Lunes a viernes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDailySchedule(groupedToDaily(schedule));
+                    setScheduleMode("daily");
+                  }}
+                  className={`border-border rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    scheduleMode === "daily"
+                      ? "bg-primary/15 text-primary border-primary/30"
+                      : "hover:bg-muted/80"
+                  }`}
+                >
+                  Configurar por día
+                </button>
               </div>
               <>
                 {scheduleMode === "grouped" ? (

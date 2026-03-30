@@ -32,7 +32,11 @@ type PeriodConfig = {
   dayPrices: DayPrices;
 };
 
-const DAY_ROWS: Array<{ key: keyof DailyScheduleBlocks; label: string; short: string }> = [
+const DAY_ROWS: Array<{
+  key: keyof DailyScheduleBlocks;
+  label: string;
+  short: string;
+}> = [
   { key: "monday", label: "Lunes", short: "Lun" },
   { key: "tuesday", label: "Martes", short: "Mar" },
   { key: "wednesday", label: "Miércoles", short: "Mié" },
@@ -52,13 +56,48 @@ const GROUPED_ROWS: Array<{
 ];
 
 const EMPTY_DAILY: DailyScheduleBlocks = {
-  monday: { enabled: false, startTime: "07:00", endTime: "23:00", slotDurationMinutes: 60 },
-  tuesday: { enabled: false, startTime: "07:00", endTime: "23:00", slotDurationMinutes: 60 },
-  wednesday: { enabled: false, startTime: "07:00", endTime: "23:00", slotDurationMinutes: 60 },
-  thursday: { enabled: false, startTime: "07:00", endTime: "23:00", slotDurationMinutes: 60 },
-  friday: { enabled: false, startTime: "07:00", endTime: "23:00", slotDurationMinutes: 60 },
-  saturday: { enabled: false, startTime: "07:00", endTime: "23:00", slotDurationMinutes: 60 },
-  sunday: { enabled: false, startTime: "07:00", endTime: "23:00", slotDurationMinutes: 60 },
+  monday: {
+    enabled: false,
+    startTime: "07:00",
+    endTime: "23:00",
+    slotDurationMinutes: 60,
+  },
+  tuesday: {
+    enabled: false,
+    startTime: "07:00",
+    endTime: "23:00",
+    slotDurationMinutes: 60,
+  },
+  wednesday: {
+    enabled: false,
+    startTime: "07:00",
+    endTime: "23:00",
+    slotDurationMinutes: 60,
+  },
+  thursday: {
+    enabled: false,
+    startTime: "07:00",
+    endTime: "23:00",
+    slotDurationMinutes: 60,
+  },
+  friday: {
+    enabled: false,
+    startTime: "07:00",
+    endTime: "23:00",
+    slotDurationMinutes: 60,
+  },
+  saturday: {
+    enabled: false,
+    startTime: "07:00",
+    endTime: "23:00",
+    slotDurationMinutes: 60,
+  },
+  sunday: {
+    enabled: false,
+    startTime: "07:00",
+    endTime: "23:00",
+    slotDurationMinutes: 60,
+  },
 };
 
 const EMPTY_PRICES: DayPrices = {
@@ -113,7 +152,9 @@ function groupedFromDaily(daily: DailyScheduleBlocks) {
 function applyGroupedToDaily(
   daily: DailyScheduleBlocks,
   group: "weekday" | "saturday" | "sunday",
-  updater: (current: DailyScheduleBlocks[keyof DailyScheduleBlocks]) => DailyScheduleBlocks[keyof DailyScheduleBlocks],
+  updater: (
+    current: DailyScheduleBlocks[keyof DailyScheduleBlocks],
+  ) => DailyScheduleBlocks[keyof DailyScheduleBlocks],
 ): DailyScheduleBlocks {
   if (group === "weekday") {
     const next = updater(daily.monday);
@@ -126,7 +167,8 @@ function applyGroupedToDaily(
       friday: { ...next },
     };
   }
-  if (group === "saturday") return { ...daily, saturday: updater(daily.saturday) };
+  if (group === "saturday")
+    return { ...daily, saturday: updater(daily.saturday) };
   return { ...daily, sunday: updater(daily.sunday) };
 }
 
@@ -147,8 +189,104 @@ function validateDailySchedule(blocks: DailyScheduleBlocks): string | null {
     const b = blocks[k];
     if (!b.enabled) continue;
     if (hhmmToMinutes(b.endTime) <= hhmmToMinutes(b.startTime)) {
-      return "La hora de fin debe ser posterior a la de inicio en cada franja activa.";
+      return "La hora de fin debe ser posterior a la de inicio";
     }
+    if (!Number.isFinite(b.slotDurationMinutes) || b.slotDurationMinutes < 1) {
+      return "La duración es obligatoria";
+    }
+  }
+  return null;
+}
+
+function periodRangesOverlap(
+  aStart: string,
+  aEnd: string,
+  bStart: string,
+  bEnd: string,
+): boolean {
+  const aPs = new Date(aStart);
+  const aPe = new Date(aEnd);
+  const bPs = new Date(bStart);
+  const bPe = new Date(bEnd);
+  return aPs.getTime() <= bPe.getTime() && bPs.getTime() <= aPe.getTime();
+}
+
+function scheduleRowsOverlap(
+  a: {
+    dayOfWeek: number;
+    startTimeMinutes: number;
+    endTimeMinutes: number;
+    periodStart: string;
+    periodEnd: string;
+  },
+  b: typeof a,
+): boolean {
+  if (a.dayOfWeek !== b.dayOfWeek) return false;
+  if (
+    !periodRangesOverlap(a.periodStart, a.periodEnd, b.periodStart, b.periodEnd)
+  )
+    return false;
+  return (
+    a.startTimeMinutes < b.endTimeMinutes &&
+    b.startTimeMinutes < a.endTimeMinutes
+  );
+}
+
+/** Solapes dentro del mismo período (mismo rango de fechas). */
+function validateDraftNoOverlap(draft: PeriodConfig): string | null {
+  const rows = dailyBlocksToCourtSchedulePayload(draft.dailySchedule).map(
+    (row) => ({
+      ...row,
+      periodStart: draft.start,
+      periodEnd: draft.end,
+    }),
+  );
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      if (scheduleRowsOverlap(rows[i], rows[j])) {
+        return "El rango horario se solapa con uno existente";
+      }
+    }
+  }
+  return null;
+}
+
+function validateDraftPrices(draft: PeriodConfig): string | null {
+  for (const k of Object.keys(draft.dailySchedule) as Array<
+    keyof DailyScheduleBlocks
+  >) {
+    const b = draft.dailySchedule[k];
+    if (!b.enabled) continue;
+    const price = draft.dayPrices[k];
+    if (price === undefined || price < 1) {
+      return "El precio debe ser mayor que 0";
+    }
+  }
+  return null;
+}
+
+function validateCombinedScheduleRows(periods: PeriodConfig[]): string | null {
+  const rows = periods.flatMap((period) =>
+    dailyBlocksToCourtSchedulePayload(period.dailySchedule).map((row) => ({
+      ...row,
+      periodStart: period.start,
+      periodEnd: period.end,
+    })),
+  );
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      if (scheduleRowsOverlap(rows[i], rows[j])) {
+        return "El rango horario se solapa con uno existente";
+      }
+    }
+  }
+  return null;
+}
+
+function validateAllPeriodPrices(periods: PeriodConfig[]): string | null {
+  for (const p of periods) {
+    const err = validateDraftPrices(p);
+    if (err) return err;
   }
   return null;
 }
@@ -172,23 +310,28 @@ export function CourtScheduleDialog({
   const [viewMode, setViewMode] = useState<"list" | "edit">("list");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState<PeriodConfig>(newPeriodDraft());
-  const [scheduleMode, setScheduleMode] = useState<"grouped" | "daily">("grouped");
+  const [scheduleMode, setScheduleMode] = useState<"grouped" | "daily">(
+    "grouped",
+  );
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const title = useMemo(
-    () => `Horarios de ${court?.name ?? "Cancha"}`,
+    () => `Horarios de ${court?.name?.trim() || "Cancha"}`,
     [court?.name],
   );
 
   useEffect(() => {
     if (!open || !court) return;
     let active = true;
-    setLoading(true);
-    setError(null);
-    setViewMode("list");
-    setEditingIndex(null);
+    queueMicrotask(() => {
+      if (!active) return;
+      setLoading(true);
+      setError(null);
+      setViewMode("list");
+      setEditingIndex(null);
+    });
 
     void getCourtSchedulesAction(clubId, court.id).then((res) => {
       if (!active) return;
@@ -232,10 +375,12 @@ export function CourtScheduleDialog({
         const key = dayOfWeekToKey(row.dayOfWeek);
         current.dailySchedule[key] = {
           enabled: true,
-          startTime: String(Math.floor(row.startTimeMinutes / 60)).padStart(2, "0") +
+          startTime:
+            String(Math.floor(row.startTimeMinutes / 60)).padStart(2, "0") +
             ":" +
             String(row.startTimeMinutes % 60).padStart(2, "0"),
-          endTime: String(Math.floor(row.endTimeMinutes / 60)).padStart(2, "0") +
+          endTime:
+            String(Math.floor(row.endTimeMinutes / 60)).padStart(2, "0") +
             ":" +
             String(row.endTimeMinutes % 60).padStart(2, "0"),
           slotDurationMinutes: row.slotDurationMinutes,
@@ -251,7 +396,10 @@ export function CourtScheduleDialog({
     };
   }, [open, clubId, court]);
 
-  async function persistPeriods(nextPeriods: PeriodConfig[]) {
+  async function persistPeriods(
+    nextPeriods: PeriodConfig[],
+    options?: { forceCancelAffectedBookings?: boolean },
+  ) {
     if (!court) return { ok: false as const, error: "Cancha inválida" };
     const payload = nextPeriods.flatMap((period) =>
       dailyBlocksToCourtSchedulePayload(period.dailySchedule).map((row) => ({
@@ -263,9 +411,14 @@ export function CourtScheduleDialog({
       })),
     );
     const fallback = nextPeriods[0]?.dailySchedule ?? EMPTY_DAILY;
-    return updateCourtAction(clubId, court.id, {
+    const baseArgs = {
       name: court.name,
-      type: court.type === "outdoor" ? "outdoor" : "indoor",
+      type:
+        court.type === "outdoor"
+          ? "outdoor"
+          : court.type === "indoor"
+            ? "indoor"
+            : "unspecified",
       surface: court.surface,
       lighting: court.lighting,
       schedule: {
@@ -274,7 +427,28 @@ export function CourtScheduleDialog({
         sunday: fallback.sunday,
       },
       schedulesPayload: payload,
+    } as const;
+
+    let res = await updateCourtAction(clubId, court.id, {
+      ...baseArgs,
+      confirmCancelAffectedBookings: options?.forceCancelAffectedBookings,
     });
+    if (
+      !res.ok &&
+      !options?.forceCancelAffectedBookings &&
+      res.error.includes("Hay reservas activas en este rango")
+    ) {
+      const ok = window.confirm(
+        `${res.error}\n\n¿Cancelar esas reservas automáticamente y aplicar el cambio de horarios?`,
+      );
+      if (ok) {
+        res = await updateCourtAction(clubId, court.id, {
+          ...baseArgs,
+          confirmCancelAffectedBookings: true,
+        });
+      }
+    }
+    return res;
   }
 
   function openCreatePeriod() {
@@ -301,13 +475,25 @@ export function CourtScheduleDialog({
       p.monday === p.wednesday &&
       p.monday === p.thursday &&
       p.monday === p.friday;
-    setScheduleMode(weekdayBlocksEqual && weekdayPricesEqual ? "grouped" : "daily");
+    setScheduleMode(
+      weekdayBlocksEqual && weekdayPricesEqual ? "grouped" : "daily",
+    );
     setViewMode("edit");
     setError(null);
   }
 
   async function handleDeletePeriod(index: number) {
     const next = periods.filter((_, i) => i !== index);
+    const cross = validateCombinedScheduleRows(next);
+    if (cross) {
+      setError(cross);
+      return;
+    }
+    const pricesErr = validateAllPeriodPrices(next);
+    if (next.length > 0 && pricesErr) {
+      setError(pricesErr);
+      return;
+    }
     setPending(true);
     const res = await persistPeriods(next);
     setPending(false);
@@ -323,11 +509,18 @@ export function CourtScheduleDialog({
   async function handleSaveDraft() {
     const msg = validateDailySchedule(draft.dailySchedule);
     if (msg) return setError(msg);
-    if (!draft.name.trim()) return setError("El nombre del período es obligatorio.");
+    const priceMsg = validateDraftPrices(draft);
+    if (priceMsg) return setError(priceMsg);
+    const ov = validateDraftNoOverlap(draft);
+    if (ov) return setError(ov);
+    if (!draft.name.trim())
+      return setError("El nombre del período es obligatorio.");
     if (!draft.start || !draft.end || draft.start > draft.end) {
       return setError("Rango de fechas inválido para el período.");
     }
-    const hasAnyEnabled = Object.values(draft.dailySchedule).some((b) => b.enabled);
+    const hasAnyEnabled = Object.values(draft.dailySchedule).some(
+      (b) => b.enabled,
+    );
     if (!hasAnyEnabled) {
       return setError("Debes habilitar al menos un día para el período.");
     }
@@ -335,6 +528,11 @@ export function CourtScheduleDialog({
     const next = [...periods];
     if (editingIndex === null) next.push(draft);
     else next[editingIndex] = draft;
+
+    const cross = validateCombinedScheduleRows(next);
+    if (cross) return setError(cross);
+    const allPrices = validateAllPeriodPrices(next);
+    if (allPrices) return setError(allPrices);
 
     setPending(true);
     const res = await persistPeriods(next);
@@ -361,14 +559,20 @@ export function CourtScheduleDialog({
       <div className="space-y-4">
         {periods.length === 0 ? (
           <div className="border-border/80 text-muted-foreground rounded-2xl border px-4 py-8 text-center text-sm">
-            No hay períodos configurados. Añadí uno para definir horarios de esta cancha.
+            No hay períodos configurados. Añadí uno para definir horarios de
+            esta cancha.
           </div>
         ) : (
           periods.map((period, idx) => (
-            <section key={period.id} className="border-border/80 rounded-2xl border p-4">
+            <section
+              key={period.id}
+              className="border-border/80 rounded-2xl border p-4"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-semibold">{period.name || "Sin nombre"}</h3>
+                  <h3 className="text-base font-semibold">
+                    {period.name || "Sin nombre"}
+                  </h3>
                   <p className="text-muted-foreground text-sm">
                     {formatDate(period.start)} - {formatDate(period.end)}
                   </p>
@@ -401,7 +605,8 @@ export function CourtScheduleDialog({
                       key={key}
                       className="bg-primary text-primary-foreground inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
                     >
-                      {short}: {b.startTime}-{b.endTime} - ${period.dayPrices[key]}
+                      {short}: {b.startTime}-{b.endTime} - $
+                      {period.dayPrices[key]}
                     </span>
                   ) : (
                     <span
@@ -513,7 +718,9 @@ export function CourtScheduleDialog({
           const block =
             scheduleMode === "daily"
               ? draft.dailySchedule[key as keyof DailyScheduleBlocks]
-              : groupedFromDaily(draft.dailySchedule)[key as "weekday" | "saturday" | "sunday"];
+              : groupedFromDaily(draft.dailySchedule)[
+                  key as "weekday" | "saturday" | "sunday"
+                ];
           const knownSlot = COURT_SLOT_DURATION_OPTIONS.some(
             (o) => o.minutes === block.slotDurationMinutes,
           );
@@ -580,9 +787,14 @@ export function CourtScheduleDialog({
           };
 
           return (
-            <section key={key} className="border-border/80 space-y-4 rounded-2xl border p-4">
+            <section
+              key={key}
+              className="border-border/80 space-y-4 rounded-2xl border p-4"
+            >
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-foreground text-xl font-semibold">{label}</h3>
+                <h3 className="text-foreground text-xl font-semibold">
+                  {label}
+                </h3>
                 <div className="flex items-center gap-2">
                   <Label htmlFor={`period-${key}-enabled`} className="text-sm">
                     Abre
@@ -608,7 +820,10 @@ export function CourtScheduleDialog({
                     value={block.startTime}
                     disabled={!block.enabled}
                     onChange={(e) =>
-                      setBlock((current) => ({ ...current, startTime: e.target.value }))
+                      setBlock((current) => ({
+                        ...current,
+                        startTime: e.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -622,7 +837,10 @@ export function CourtScheduleDialog({
                     value={block.endTime}
                     disabled={!block.enabled}
                     onChange={(e) =>
-                      setBlock((current) => ({ ...current, endTime: e.target.value }))
+                      setBlock((current) => ({
+                        ...current,
+                        endTime: e.target.value,
+                      }))
                     }
                   />
                 </div>
@@ -637,7 +855,10 @@ export function CourtScheduleDialog({
                     onChange={(e) =>
                       setBlock((current) => ({
                         ...current,
-                        slotDurationMinutes: Number.parseInt(e.target.value, 10),
+                        slotDurationMinutes: Number.parseInt(
+                          e.target.value,
+                          10,
+                        ),
                       }))
                     }
                     className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
@@ -659,7 +880,9 @@ export function CourtScheduleDialog({
                     Precio
                   </Label>
                   <div className="border-input bg-background flex h-10 items-center rounded-lg border px-3">
-                    <span className="text-muted-foreground mr-2 text-sm">$</span>
+                    <span className="text-muted-foreground mr-2 text-sm">
+                      $
+                    </span>
                     <input
                       id={`period-${key}-price`}
                       type="number"
@@ -701,7 +924,9 @@ export function CourtScheduleDialog({
         </DialogHeader>
 
         {loading ? (
-          <p className="text-muted-foreground py-8 text-center text-sm">Cargando horarios...</p>
+          <p className="text-muted-foreground py-8 text-center text-sm">
+            Cargando horarios...
+          </p>
         ) : viewMode === "list" ? (
           renderPeriodList()
         ) : (

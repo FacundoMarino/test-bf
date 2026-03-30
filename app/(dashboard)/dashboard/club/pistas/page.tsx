@@ -18,12 +18,16 @@ export default async function canchasPage() {
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
 
   let courts: CourtRecord[] = [];
+  let courtTotalCount = 0;
   if (token) {
-    const res = await apiFetch<{ data: CourtRecord[] }>(
-      `/clubs/${ctx.club.id}/courts?limit=100`,
-      { authToken: token },
-    );
-    if (!res.error) courts = res.data.data;
+    const res = await apiFetch<{
+      data: CourtRecord[];
+      meta: { total: number };
+    }>(`/clubs/${ctx.club.id}/courts?limit=500`, { authToken: token });
+    if (!res.error) {
+      courts = res.data.data;
+      courtTotalCount = res.data.meta.total;
+    }
   }
 
   const defaultScheduleBlocks = defaultClubScheduleBlocks();
@@ -41,6 +45,8 @@ export default async function canchasPage() {
       <CourtsManager
         clubId={ctx.club.id}
         initialCourts={courts}
+        courtTotalCount={courtTotalCount}
+        maxCourts={ctx.club.courtCount}
         defaultScheduleBlocks={defaultScheduleBlocks}
       />
     </div>
