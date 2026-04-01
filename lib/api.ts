@@ -1,4 +1,6 @@
 import "server-only";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { env } from "./env";
 
@@ -18,6 +20,10 @@ function normalizeApiMessage(body: unknown): string {
     }
   }
   return "Ocurrió un error inesperado";
+}
+
+function isInvalidOrExpiredTokenMessage(message: string): boolean {
+  return message.toLowerCase().includes("invalid or expired token");
 }
 
 /**
@@ -46,10 +52,16 @@ export async function apiFetch<T>(
 
     if (!res.ok) {
       const body: unknown = await res.json().catch(() => ({}));
+      const message = normalizeApiMessage(body);
+      if (res.status === 401 && isInvalidOrExpiredTokenMessage(message)) {
+        const cookieStore = await cookies();
+        cookieStore.delete(env.SESSION_COOKIE_NAME);
+        redirect("/login");
+      }
       return {
         data: null,
         error: {
-          message: normalizeApiMessage(body),
+          message,
           status: res.status,
         },
       };

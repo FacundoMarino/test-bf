@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { env } from "@/lib/env";
 import { clubProfileSaveSchema, type ClubProfileSavePayload } from "@/types";
@@ -14,6 +15,13 @@ function normalizeMessage(body: unknown): string {
       return m.filter((s): s is string => typeof s === "string").join(", ");
   }
   return "Error al guardar";
+}
+
+async function maybeLogoutOnInvalidToken(message: string) {
+  if (!message.toLowerCase().includes("invalid or expired token")) return;
+  const cookieStore = await cookies();
+  cookieStore.delete(env.SESSION_COOKIE_NAME);
+  redirect("/login");
 }
 
 export async function saveClubProfileAction(
@@ -54,7 +62,11 @@ export async function saveClubProfileAction(
         body: JSON.stringify(clubJson),
       });
       const body: unknown = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+      if (!res.ok) {
+        const message = normalizeMessage(body);
+        await maybeLogoutOnInvalidToken(message);
+        return { ok: false, error: message };
+      }
     } else {
       const res = await fetch(`${base}/clubs`, {
         method: "POST",
@@ -65,7 +77,11 @@ export async function saveClubProfileAction(
         body: JSON.stringify(clubJson),
       });
       const body: unknown = await res.json().catch(() => ({}));
-      if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+      if (!res.ok) {
+        const message = normalizeMessage(body);
+        await maybeLogoutOnInvalidToken(message);
+        return { ok: false, error: message };
+      }
     }
 
     const profileBody: Record<string, unknown> = {
@@ -88,7 +104,11 @@ export async function saveClubProfileAction(
       body: JSON.stringify(profileBody),
     });
     const pbody: unknown = await pres.json().catch(() => ({}));
-    if (!pres.ok) return { ok: false, error: normalizeMessage(pbody) };
+    if (!pres.ok) {
+      const message = normalizeMessage(pbody);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
   } catch {
     return { ok: false, error: "Error de red" };
   }
@@ -114,7 +134,11 @@ export async function deleteClubAction(
       },
     );
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
   } catch {
     return { ok: false, error: "Error de red" };
   }

@@ -15,6 +15,8 @@ export type ClubReservation = {
     level?: number | null;
     email?: string | null;
   };
+  /** Fallback cuando backend envía email fuera de `user`. */
+  userEmail?: string | null;
   court: {
     id: string;
     name: string;
@@ -33,5 +35,6 @@ export type ClubReservation = {
     profileId: string;
     fullName: string | null;
     avatarUrl: string | null;
+    level?: number | null;
   }>;
 };

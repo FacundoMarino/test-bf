@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { clubBlocksToCourtSchedulePayload } from "@/lib/court-schedule-map";
 import type { CourtScheduleRow } from "@/lib/court-schedule-map";
@@ -16,6 +17,13 @@ function normalizeMessage(body: unknown): string {
       return m.filter((s): s is string => typeof s === "string").join(", ");
   }
   return "Error al guardar";
+}
+
+async function maybeLogoutOnInvalidToken(message: string) {
+  if (!message.toLowerCase().includes("invalid or expired token")) return;
+  const cookieStore = await cookies();
+  cookieStore.delete(env.SESSION_COOKIE_NAME);
+  redirect("/login");
 }
 
 async function getToken(): Promise<string | null> {
@@ -43,7 +51,11 @@ export async function getCourtSchedulesAction(
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
     return { ok: true, rows: body as CourtScheduleRow[] };
   } catch {
     return { ok: false, error: "Error de red" };
@@ -89,7 +101,11 @@ export async function createCourtAction(
       }),
     });
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
 
     const court = body as { id: string };
     const rawSchedules =
@@ -97,11 +113,7 @@ export async function createCourtAction(
     const schedules = rawSchedules.map((s) => ({
       ...s,
       pricePerHour:
-        "pricePerHour" in s &&
-        typeof s.pricePerHour === "number" &&
-        s.pricePerHour >= 1
-          ? s.pricePerHour
-          : 1,
+        s.pricePerHour != null && s.pricePerHour >= 1 ? s.pricePerHour : 1,
     }));
 
     const sr = await fetch(
@@ -121,7 +133,9 @@ export async function createCourtAction(
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
-      return { ok: false, error: normalizeMessage(sbody) };
+      const message = normalizeMessage(sbody);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
     }
 
     revalidateCourts();
@@ -203,7 +217,11 @@ export async function duplicateCourtAction(
       }),
     });
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
 
     const court = body as { id: string };
 
@@ -230,7 +248,9 @@ export async function duplicateCourtAction(
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
-      return { ok: false, error: normalizeMessage(sbody) };
+      const message = normalizeMessage(sbody);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
     }
 
     revalidateCourts();
@@ -261,7 +281,11 @@ export async function updateCourtListedAction(
       },
     );
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
     revalidateCourts();
     return { ok: true };
   } catch {
@@ -312,7 +336,11 @@ export async function updateCourtAction(
       }),
     });
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
 
     if (data.updateSchedules === false) {
       revalidateCourts();
@@ -343,7 +371,11 @@ export async function updateCourtAction(
       },
     );
     const sbody: unknown = await sr.json().catch(() => ({}));
-    if (!sr.ok) return { ok: false, error: normalizeMessage(sbody) };
+    if (!sr.ok) {
+      const message = normalizeMessage(sbody);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
 
     revalidateCourts();
     return { ok: true };
@@ -367,7 +399,11 @@ export async function deleteCourtAction(
       },
     );
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
     revalidateCourts();
     return { ok: true };
   } catch {
@@ -399,7 +435,11 @@ export async function getCourtAvailabilityExceptionsAction(
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
     return { ok: true, rows: body as CourtAvailabilityException[] };
   } catch {
     return { ok: false, error: "Error de red" };
@@ -434,7 +474,11 @@ export async function replaceCourtAvailabilityExceptionsAction(
       },
     );
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
     revalidateCourts();
     return { ok: true };
   } catch {

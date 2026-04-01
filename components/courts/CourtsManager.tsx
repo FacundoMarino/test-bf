@@ -148,7 +148,7 @@ export function CourtsManager({
           ) : (
             <>
               No hay canchas todavía. Usá &quot;Añadir cancha&quot; para crear
-              una y definir su horario.
+              una.
             </>
           )}
         </div>

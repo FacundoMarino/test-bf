@@ -103,6 +103,13 @@ function fmtTime(iso: string) {
   });
 }
 
+function fmtTimeUtc(iso: string) {
+  const d = new Date(iso);
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 function intervalsOverlapMs(
   a0: number,
   a1: number,
@@ -674,7 +681,7 @@ export function ReservationsBoard({
                 ) : (
                   <ul className="mt-6 space-y-3">
                     {slotRows.map((row, rowIndex) => {
-                      const rangeLabel = `${fmtTime(row.start)} – ${fmtTime(row.end)}`;
+                      const rangeLabel = `${fmtTimeUtc(row.start)} – ${fmtTimeUtc(row.end)}`;
                       const isAvail = row.kind === "available";
                       const isRes = row.kind === "reserved";
                       const isClosed = row.kind === "closed";

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { env } from "@/lib/env";
 
@@ -14,6 +15,13 @@ function normalizeMessage(body: unknown): string {
     }
   }
   return "Error al guardar";
+}
+
+async function maybeLogoutOnInvalidToken(message: string) {
+  if (!message.toLowerCase().includes("invalid or expired token")) return;
+  const cookieStore = await cookies();
+  cookieStore.delete(env.SESSION_COOKIE_NAME);
+  redirect("/login");
 }
 
 async function patchBookingStatus(
@@ -37,7 +45,11 @@ async function patchBookingStatus(
       },
     );
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
     revalidatePath("/dashboard/club/reservas");
     return { ok: true };
   } catch {
@@ -79,7 +91,11 @@ export async function cancelClubBookingAction(
       },
     );
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
     revalidatePath("/dashboard/club/reservas");
     return { ok: true };
   } catch {
@@ -113,7 +129,11 @@ export async function listCourtDaySlotsAction(
       },
     );
     const body: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: normalizeMessage(body) };
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
     const raw = body as { data?: unknown[] };
     const rows = Array.isArray(raw.data) ? raw.data : [];
     const slots: CourtSlotDay[] = rows.map((row) => {

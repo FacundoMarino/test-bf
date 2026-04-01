@@ -43,6 +43,11 @@ function initial(name: string | null | undefined): string {
   return t ? t.charAt(0).toUpperCase() : "?";
 }
 
+function normalizeLevel(raw: number | null | undefined): number | null {
+  if (typeof raw !== "number" || Number.isNaN(raw)) return null;
+  return Math.min(7, Math.max(1, Math.round(raw)));
+}
+
 const STATUS_DETAIL: Record<ReservationStatus, string> = {
   PENDING: "Pendiente de confirmación",
   CONFIRMED: "Confirmada",
@@ -61,8 +66,15 @@ function courtTypeLabel(t: string) {
   return t;
 }
 
-function LevelDots({ level }: { level: number }) {
-  const filled = Math.min(7, Math.max(0, level));
+function LevelDots({
+  level,
+  invert = false,
+}: {
+  level: number;
+  invert?: boolean;
+}) {
+  const normalized = normalizeLevel(level) ?? 7;
+  const filled = invert ? 8 - normalized : normalized;
   return (
     <div className="flex items-center gap-1">
       {Array.from({ length: 7 }).map((_, i) => (
@@ -74,7 +86,7 @@ function LevelDots({ level }: { level: number }) {
           )}
         />
       ))}
-      <span className="text-muted-foreground ml-1 text-sm">{filled}/7</span>
+      <span className="text-muted-foreground ml-1 text-sm">{normalized}/7</span>
     </div>
   );
 }
@@ -90,19 +102,42 @@ export function BookingDetailCard({
 }) {
   const displayName = booking.user.fullName ?? "Sin nombre";
   const phone = booking.user.phone?.trim() || null;
-  const email = booking.user.email?.trim() || null;
-  const bookerLevel = booking.user.level ?? null;
+  const email = booking.user.email?.trim() || booking.userEmail?.trim() || null;
+  const bookerLevel = normalizeLevel(booking.user.level);
   const isMatch = booking.isMatch === true;
   const max = booking.maxPlayers ?? 4;
-  const matchLevel = booking.level ?? 1;
+  const matchLevel = normalizeLevel(booking.level) ?? 1;
   const visibility = booking.visibility ?? "public";
   const participants = booking.participants ?? [];
-
-  const ordered = [...participants].sort((a, b) => {
-    if (a.profileId === booking.userId) return -1;
-    if (b.profileId === booking.userId) return 1;
-    return 0;
-  });
+  const organizerParticipant = participants.find(
+    (p) => p.profileId === booking.userId,
+  );
+  const otherParticipants = participants.filter(
+    (p) => p.profileId !== booking.userId,
+  );
+  const ordered = [
+    {
+      profileId: booking.userId,
+      fullName: booking.user.fullName,
+      avatarUrl: booking.user.avatarUrl,
+      level: bookerLevel,
+    },
+    ...(organizerParticipant
+      ? [
+          {
+            ...organizerParticipant,
+            level: normalizeLevel(organizerParticipant.level),
+          },
+        ]
+      : []),
+    ...otherParticipants.map((p) => ({
+      ...p,
+      level: normalizeLevel(p.level),
+    })),
+  ].filter(
+    (p, index, arr) =>
+      arr.findIndex((x) => x.profileId === p.profileId) === index,
+  );
 
   const slots: Array<{
     key: string;
@@ -110,6 +145,7 @@ export function BookingDetailCard({
     name?: string | null;
     avatarUrl?: string | null;
     organizer?: boolean;
+    level?: number | null;
   }> = [];
 
   for (let i = 0; i < max; i++) {
@@ -120,6 +156,7 @@ export function BookingDetailCard({
         name: p.fullName,
         avatarUrl: p.avatarUrl,
         organizer: p.profileId === booking.userId,
+        level: normalizeLevel(p.level),
       });
     } else {
       slots.push({ key: `empty-${i}`, empty: true });
@@ -183,7 +220,7 @@ export function BookingDetailCard({
                     <p className="text-muted-foreground mb-1.5 text-xs font-semibold uppercase tracking-wide">
                       Nivel del jugador
                     </p>
-                    <LevelDots level={bookerLevel} />
+                    <LevelDots level={bookerLevel} invert />
                   </div>
                 ) : null}
               </div>
@@ -247,13 +284,13 @@ export function BookingDetailCard({
                 </dt>
                 <dd className="text-foreground mt-0.5 inline-flex items-center gap-1.5 text-sm font-semibold">
                   <User className="text-muted-foreground size-4" />
-                  {isMatch ? "Partido" : "Reserva de pista"}
+                  {isMatch ? "Partido" : "Reserva de cancha"}
                 </dd>
               </div>
               {isMatch ? (
                 <div className="sm:col-span-2">
                   <dt className="text-muted-foreground text-xs font-medium">
-                    Visibilidad
+                    Tipo de partido
                   </dt>
                   <dd className="text-foreground mt-0.5 inline-flex items-center gap-1.5 text-sm font-semibold">
                     <Lock className="size-4 text-sky-600 dark:text-sky-400" />
@@ -344,6 +381,9 @@ export function BookingDetailCard({
                           Organizador
                         </span>
                       ) : null}
+                      <span className="text-muted-foreground text-xs">
+                        {s.level != null ? `(${s.level}/7)` : ""}
+                      </span>
                     </li>
                   ),
                 )}

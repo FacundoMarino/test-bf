@@ -114,15 +114,16 @@ const optionalWebUrlSchema = z.union([
     .trim()
     .refine(
       (s) => {
-        try {
-          const u = new URL(s);
-          return u.protocol === "http:" || u.protocol === "https:";
-        } catch {
-          return false;
-        }
+        // Acepta formato web simple:
+        // - www.midominio.com
+        // - midominio.com
+        // - también con http/https opcional
+        const simpleWebPattern =
+          /^(?:https?:\/\/)?(?:www\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+        return simpleWebPattern.test(s);
       },
       {
-        message: "Introduce una URL válida (incluye http:// o https://)",
+        message: "Introduce una web válida (ej: www.clubpadel.com)",
       },
     ),
 ]);

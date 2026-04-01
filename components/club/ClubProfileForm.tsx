@@ -35,11 +35,9 @@ import { buildInitialFormState } from "./club-form-utils";
 export function ClubProfileForm({
   initialClub,
   initialProfile,
-  hasCourts,
 }: {
   initialClub: ClubRecord | null;
   initialProfile: ProfileRecord | null;
-  hasCourts: boolean;
 }) {
   const router = useRouter();
   const initial = buildInitialFormState(initialClub, initialProfile);
@@ -54,7 +52,7 @@ export function ClubProfileForm({
   const [courtCount, setCourtCount] = useState(initial.courtCount);
   const [courtType, setCourtType] = useState(initial.courtType);
   const [amenities, setAmenities] = useState(initial.amenities);
-  const [weekdayPrice, setWeekdayPrice] = useState(() => {
+  const [weekdayPrice] = useState(() => {
     const weekdayKeys = [
       "monday",
       "tuesday",
@@ -65,7 +63,7 @@ export function ClubProfileForm({
     const first = initial.pricing.find((p) => weekdayKeys.includes(p.day));
     return first?.pricePerHour ?? 0;
   });
-  const [weekendPrice, setWeekendPrice] = useState(() => {
+  const [weekendPrice] = useState(() => {
     const first = initial.pricing.find(
       (p) => p.day === "saturday" || p.day === "sunday",
     );
@@ -211,19 +209,6 @@ export function ClubProfileForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {message?.type === "ok" ? (
-        <Alert>
-          <AlertTitle>Guardado</AlertTitle>
-          <AlertDescription>{message.text}</AlertDescription>
-        </Alert>
-      ) : null}
-      {message?.type === "err" ? (
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{message.text}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
@@ -358,66 +343,49 @@ export function ClubProfileForm({
           </section>
 
           <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
-            <h2 className="text-foreground mb-4 text-lg font-semibold">
-              Precios
-            </h2>
-            {!hasCourts ? (
-              <div className="border-border bg-muted/20 text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
-                Primero debés crear una cancha para configurar precios.
-                <div className="mt-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-lg"
-                    disabled={pending || redirectToCourtsState !== "idle"}
-                    onClick={() =>
-                      void submitProfile({ redirectToCourts: true })
-                    }
-                  >
-                    Guardar y crear cancha
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="weekdayPrice">
-                    Precio semana (Lun-Vie) por hora
-                  </Label>
-                  <Input
-                    id="weekdayPrice"
-                    type="number"
-                    min={0}
-                    step="0.5"
-                    value={weekdayPrice}
-                    onChange={(e) =>
-                      setWeekdayPrice(
-                        Math.max(0, Number.parseFloat(e.target.value) || 0),
-                      )
-                    }
-                    className="h-11 rounded-lg"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="weekendPrice">
-                    Precio fin de semana (Sáb-Dom) por hora
-                  </Label>
-                  <Input
-                    id="weekendPrice"
-                    type="number"
-                    min={0}
-                    step="0.5"
-                    value={weekendPrice}
-                    onChange={(e) =>
-                      setWeekendPrice(
-                        Math.max(0, Number.parseFloat(e.target.value) || 0),
-                      )
-                    }
-                    className="h-11 rounded-lg"
-                  />
-                </div>
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="submit"
+                disabled={pending}
+                className="h-11 rounded-xl px-8 font-semibold"
+              >
+                {pending ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Guardando…
+                  </>
+                ) : (
+                  "Guardar cambios"
+                )}
+              </Button>
+              {initialClub?.id ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={pending}
+                  className="h-11 rounded-xl"
+                  onClick={() => void handleDelete()}
+                >
+                  <Trash2 className="mr-2 size-4" />
+                  Eliminar club
+                </Button>
+              ) : null}
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {message?.type === "ok" ? (
+                <Alert>
+                  <AlertTitle>Guardado</AlertTitle>
+                  <AlertDescription>{message.text}</AlertDescription>
+                </Alert>
+              ) : null}
+              {message?.type === "err" ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{message.text}</AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
           </section>
         </div>
 
@@ -500,28 +468,6 @@ export function ClubProfileForm({
             </ul>
           </section>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          type="submit"
-          disabled={pending}
-          className="h-11 rounded-xl px-8 font-semibold"
-        >
-          {pending ? "Guardando…" : "Guardar cambios"}
-        </Button>
-        {initialClub?.id ? (
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={pending}
-            className="h-11 rounded-xl"
-            onClick={() => void handleDelete()}
-          >
-            <Trash2 className="mr-2 size-4" />
-            Eliminar club
-          </Button>
-        ) : null}
       </div>
 
       <Dialog open={redirectToCourtsState !== "idle"} disablePointerDismissal>
