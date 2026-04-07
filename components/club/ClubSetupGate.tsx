@@ -15,14 +15,16 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-const DISMISS_KEY = "serxus_club_setup_nudge";
+const DISMISS_KEY_PREFIX = "serxus_club_setup_nudge";
 
 export function ClubSetupGate({
   isClubUser,
   hasClub,
+  userId,
 }: {
   isClubUser: boolean;
   hasClub: boolean;
+  userId: string;
 }) {
   const [hydrated, setHydrated] = useState(false);
 
@@ -33,13 +35,14 @@ export function ClubSetupGate({
 
   if (!hydrated || !isClubUser || hasClub) return null;
 
-  return <ClubSetupDialog />;
+  return <ClubSetupDialog userId={userId} />;
 }
 
-function ClubSetupDialog() {
+function ClubSetupDialog({ userId }: { userId: string }) {
+  const dismissKey = `${DISMISS_KEY_PREFIX}:${userId}`;
   const [open, setOpen] = useState(() => {
     try {
-      return localStorage.getItem(DISMISS_KEY) !== "1";
+      return localStorage.getItem(dismissKey) !== "1";
     } catch {
       return true;
     }
@@ -47,7 +50,7 @@ function ClubSetupDialog() {
 
   function persistDismiss() {
     try {
-      localStorage.setItem(DISMISS_KEY, "1");
+      localStorage.setItem(dismissKey, "1");
     } catch {
       /* ignore */
     }

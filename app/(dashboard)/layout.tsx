@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { ClubSetupGate } from "@/components/club";
 import { DashboardShell, DashboardShellSkeleton } from "@/components/dashboard";
 import { AuthProvider } from "@/hooks";
-import { getDashboardContext, isClubAccount } from "@/lib/dashboard-context";
+import {
+  getDashboardContext,
+  isClubAccount,
+  isSuperAdminAccount,
+} from "@/lib/dashboard-context";
 
 export default function DashboardGroupLayout({
   children,
@@ -27,13 +31,19 @@ async function DashboardSessionLayout({
   if (!ctx) redirect("/login");
 
   const clubUser = isClubAccount(ctx);
+  const superAdminUser = isSuperAdminAccount(ctx);
 
   return (
     <AuthProvider user={ctx.session.user} isClubAccount={clubUser}>
       <DashboardShell
         showClubNav={clubUser}
+        showSuperAdminNav={superAdminUser}
         preContent={
-          <ClubSetupGate isClubUser={clubUser} hasClub={ctx.club !== null} />
+          <ClubSetupGate
+            isClubUser={clubUser}
+            hasClub={ctx.club !== null}
+            userId={ctx.session.user.id}
+          />
         }
       >
         {children}

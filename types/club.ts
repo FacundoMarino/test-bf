@@ -14,6 +14,7 @@ export type ClubRecord = {
   web: string | null;
   avatarUrl: string | null;
   pricing: unknown;
+  approvalStatus?: "PENDING" | "APPROVED" | "REJECTED" | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

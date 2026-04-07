@@ -8,6 +8,7 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
+  ShieldCheck,
   Grid3x3,
   Home,
   PanelLeftClose,
@@ -18,32 +19,48 @@ import { cn } from "@/lib/utils";
 
 const baseNav = [{ href: "/dashboard", label: "Inicio", icon: Home }] as const;
 
-export function Sidebar({ showClubNav = false }: { showClubNav?: boolean }) {
-  const nav = showClubNav
+export function Sidebar({
+  showClubNav = false,
+  showSuperAdminNav = false,
+}: {
+  showClubNav?: boolean;
+  showSuperAdminNav?: boolean;
+}) {
+  const nav = showSuperAdminNav
     ? ([
-        baseNav[0],
         {
-          href: "/dashboard/club",
-          label: "Editar club",
-          icon: Building2,
-        },
-        {
-          href: "/dashboard/club/pistas",
-          label: "Canchas",
-          icon: Grid3x3,
-        },
-        {
-          href: "/dashboard/club/reservas",
-          label: "Reservas",
-          icon: CalendarDays,
-        },
-        {
-          href: "/dashboard/club/metricas",
-          label: "Métricas",
-          icon: BarChart3,
+          href: "/dashboard/admin/clubs",
+          label: "Aprobar clubes",
+          icon: ShieldCheck,
         },
       ] as const)
-    : baseNav;
+    : ([
+        baseNav[0],
+        ...(showClubNav
+          ? ([
+              {
+                href: "/dashboard/club",
+                label: "Editar club",
+                icon: Building2,
+              },
+              {
+                href: "/dashboard/club/pistas",
+                label: "Canchas",
+                icon: Grid3x3,
+              },
+              {
+                href: "/dashboard/club/reservas",
+                label: "Reservas",
+                icon: CalendarDays,
+              },
+              {
+                href: "/dashboard/club/metricas",
+                label: "Métricas",
+                icon: BarChart3,
+              },
+            ] as const)
+          : []),
+      ] as const);
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 

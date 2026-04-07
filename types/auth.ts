@@ -42,7 +42,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "member";
+  role: "super_admin" | "admin" | "member";
   createdAt: string;
   isClub?: boolean;
 }

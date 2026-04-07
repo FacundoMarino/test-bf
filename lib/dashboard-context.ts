@@ -41,3 +41,7 @@ export const getDashboardContext = cache(readDashboardContext);
 export function isClubAccount(ctx: DashboardContext): boolean {
   return ctx.profile?.isClub === true || ctx.session.user.isClub === true;
 }
+
+export function isSuperAdminAccount(ctx: DashboardContext): boolean {
+  return ctx.session.user.role === "super_admin";
+}

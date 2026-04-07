@@ -12,8 +12,24 @@ export interface SupabaseUserLike {
 export function mapSupabaseUserToUser(u: SupabaseUserLike): User {
   const meta = u.user_metadata ?? undefined;
   const app = u.app_metadata ?? undefined;
-  const role: User["role"] =
-    meta?.role === "admin" || app?.role === "admin" ? "admin" : "member";
+  const roleList = Array.isArray(app?.roles)
+    ? app.roles.filter((r): r is string => typeof r === "string")
+    : [];
+  const roleFromMeta =
+    meta?.role === "super_admin" || meta?.role === "admin"
+      ? meta.role
+      : undefined;
+  const roleFromAppSingle =
+    app?.role === "super_admin" || app?.role === "admin" ? app.role : undefined;
+  const role: User["role"] = roleList.includes("super_admin")
+    ? "super_admin"
+    : roleFromMeta === "super_admin" || roleFromAppSingle === "super_admin"
+      ? "super_admin"
+      : roleList.includes("admin") ||
+          roleFromMeta === "admin" ||
+          roleFromAppSingle === "admin"
+        ? "admin"
+        : "member";
 
   const fullName =
     meta && typeof meta.full_name === "string" ? meta.full_name : null;
