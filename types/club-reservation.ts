@@ -36,5 +36,9 @@ export type ClubReservation = {
     fullName: string | null;
     avatarUrl: string | null;
     level?: number | null;
+    phone?: string | null;
   }>;
+  /** Invitados cargados en reserva manual (club). */
+  manualGuests?: Array<{ name: string; phone?: string | null }> | null;
+  manualClubNotes?: string | null;
 };

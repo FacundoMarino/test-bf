@@ -4,7 +4,15 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { apiFetch } from "@/lib/api";
 import { env } from "@/lib/env";
+import { normalizeClubReservation } from "@/lib/normalize-club-reservation";
+import type { ClubReservation } from "@/types/club-reservation";
+
+type ReservationsListResponse = {
+  data: unknown[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+};
 
 function normalizeMessage(body: unknown): string {
   if (body !== null && typeof body === "object" && "message" in body) {
@@ -114,6 +122,8 @@ export async function createManualCourtBookingAction(
   clubId: string,
   courtId: string,
   start: string,
+  manualGuests: Array<{ name: string; phone?: string }>,
+  manualNotes?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const cookieStore = await cookies();
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
@@ -128,7 +138,13 @@ export async function createManualCourtBookingAction(
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ start }),
+        body: JSON.stringify({
+          start,
+          manualGuests,
+          ...(manualNotes?.trim()
+            ? { manualNotes: manualNotes.trim() }
+            : {}),
+        }),
       },
     );
     const body: unknown = await res.json().catch(() => ({}));
@@ -142,6 +158,30 @@ export async function createManualCourtBookingAction(
   } catch {
     return { ok: false, error: "Error de red" };
   }
+}
+
+/** Lista actualizada de reservas (manualGuests incluido). Útil tras crear/cancelar sin depender solo de router.refresh. */
+export async function refreshClubReservationsAction(
+  clubId: string,
+): Promise<
+  { ok: true; reservations: ClubReservation[] } | { ok: false; error: string }
+> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
+  if (!token) return { ok: false, error: "Sesión no válida" };
+
+  const res = await apiFetch<ReservationsListResponse>(
+    `/clubs/${clubId}/bookings?limit=500`,
+    { authToken: token, cache: "no-store" },
+  );
+  if (res.error) {
+    await maybeLogoutOnInvalidToken(res.error.message);
+    return { ok: false, error: res.error.message };
+  }
+  const reservations = res.data.data
+    .map(normalizeClubReservation)
+    .filter((r): r is ClubReservation => r !== null);
+  return { ok: true, reservations };
 }
 
 /** Slots del día para la vista calendario del club (misma API que la app jugadores). */
@@ -160,6 +200,7 @@ export async function listCourtDaySlotsAction(
       `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${clubId}/courts/${courtId}/slots?${qs}`,
       {
         headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
       },
     );
     const body: unknown = await res.json().catch(() => ({}));

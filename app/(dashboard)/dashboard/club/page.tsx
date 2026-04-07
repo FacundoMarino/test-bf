@@ -28,7 +28,7 @@ export default async function ClubConfigPage() {
         >
           {approvalStatus === "REJECTED"
             ? "Tu club fue rechazado por un Administrador. Revisa los datos y guarda cambios para volver a enviarlo."
-            : "Tu club está pendiente de aprobación por un Administrador. Podés editar la información mientras tanto."}
+            : "Espera un poco más, el equipo de Puntoo está aprobando tu solicitud"}
         </div>
       ) : null}
       <ClubProfileForm initialClub={ctx.club} initialProfile={ctx.profile} />

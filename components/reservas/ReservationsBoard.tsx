@@ -19,6 +19,7 @@ import {
   cancelClubBookingAction,
   createManualCourtBookingAction,
   listCourtDaySlotsAction,
+  refreshClubReservationsAction,
   rejectClubBookingAction,
 } from "@/actions/reservas";
 import { BookingDetailCard } from "@/components/reservas/BookingDetailCard";
@@ -270,6 +271,21 @@ export function ReservationsBoard({
     Array<{ name: string; phone: string }>
   >([{ name: "", phone: "" }]);
   const [manualNotes, setManualNotes] = useState("");
+  /** Lista recién traída del API (p. ej. tras reserva manual); evita ver datos cacheados sin manualGuests. */
+  const [hotReservations, setHotReservations] = useState<
+    ClubReservation[] | null
+  >(null);
+
+  const initialBookingIdsKey = useMemo(
+    () => [...initialReservations.map((r) => r.id)].sort().join(","),
+    [initialReservations],
+  );
+
+  useEffect(() => {
+    setHotReservations(null);
+  }, [initialBookingIdsKey]);
+
+  const boardReservations = hotReservations ?? initialReservations;
 
   const loadSlots = useCallback(async () => {
     if (!validCourtId || !clubId) {
@@ -327,7 +343,7 @@ export function ReservationsBoard({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return initialReservations.filter((r) => {
+    return boardReservations.filter((r) => {
       if (status !== "ALL" && r.status !== status) return false;
       if (!q) return true;
       return (
@@ -335,38 +351,38 @@ export function ReservationsBoard({
         (r.user.fullName ?? "sin nombre").toLowerCase().includes(q)
       );
     });
-  }, [initialReservations, query, status]);
+  }, [boardReservations, query, status]);
 
   const grouped = useMemo(
     () => ({
-      ALL: initialReservations.length,
-      PENDING: initialReservations.filter((r) => r.status === "PENDING").length,
-      CONFIRMED: initialReservations.filter((r) => r.status === "CONFIRMED")
+      ALL: boardReservations.length,
+      PENDING: boardReservations.filter((r) => r.status === "PENDING").length,
+      CONFIRMED: boardReservations.filter((r) => r.status === "CONFIRMED")
         .length,
-      CANCELLED: initialReservations.filter((r) => r.status === "CANCELLED")
+      CANCELLED: boardReservations.filter((r) => r.status === "CANCELLED")
         .length,
-      REJECTED: initialReservations.filter((r) => r.status === "REJECTED")
+      REJECTED: boardReservations.filter((r) => r.status === "REJECTED")
         .length,
     }),
-    [initialReservations],
+    [boardReservations],
   );
 
   const markedDays = useMemo(() => {
     const s = new Set<string>();
-    for (const r of initialReservations) {
+    for (const r of boardReservations) {
       if (r.court.id !== validCourtId) continue;
       s.add(formatLocalYmd(new Date(r.start)));
     }
     return s;
-  }, [initialReservations, validCourtId]);
+  }, [boardReservations, validCourtId]);
 
   const bookingsForCourtDay = useMemo(() => {
-    return initialReservations.filter(
+    return boardReservations.filter(
       (r) =>
         r.court.id === validCourtId &&
         sameLocalDay(new Date(r.start), selectedDate),
     );
-  }, [initialReservations, validCourtId, selectedDate]);
+  }, [boardReservations, validCourtId, selectedDate]);
 
   const slotRows = useMemo(() => {
     return daySlots.map((slot) => {
@@ -458,17 +474,33 @@ export function ReservationsBoard({
 
   async function handleConfirmManualReservation() {
     if (!manualSlot || !validCourtId) return;
+    const guests = manualPlayers
+      .map((p) => ({
+        name: p.name.trim(),
+        phone: p.phone.trim(),
+      }))
+      .filter((p) => p.name.length > 0);
+    if (guests.length === 0) {
+      setError("Agregá al menos un jugador con nombre.");
+      return;
+    }
     setError(null);
     setManualBusy(true);
     const res = await createManualCourtBookingAction(
       clubId,
       validCourtId,
       manualSlot.start,
+      guests,
+      manualNotes.trim() || undefined,
     );
     setManualBusy(false);
     if (!res.ok) {
       setError(res.error);
       return;
+    }
+    const fresh = await refreshClubReservationsAction(clubId);
+    if (fresh.ok) {
+      setHotReservations(fresh.reservations);
     }
     setManualModalOpen(false);
     setManualSlot(null);
@@ -954,7 +986,7 @@ export function ReservationsBoard({
               {selectedCourt ? ` - ${selectedCourt.name}` : ""}
             </p>
             <p className="text-muted-foreground mt-1 text-sm">
-              Esta reserva será un partido cerrado.
+              Los datos de los jugadores se guardan para identificar la reserva.
             </p>
 
             <div className="mt-4 flex items-center justify-between">
@@ -1048,7 +1080,11 @@ export function ReservationsBoard({
               type="button"
               className="rounded-lg"
               onClick={() => void handleConfirmManualReservation()}
-              disabled={manualBusy || !manualSlot}
+              disabled={
+                manualBusy ||
+                !manualSlot ||
+                !manualPlayers.some((p) => p.name.trim().length > 0)
+              }
             >
               {manualBusy ? "Confirmando..." : "Confirmar reserva"}
             </Button>
