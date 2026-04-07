@@ -110,6 +110,40 @@ export type CourtSlotDay = {
   pricePerHour?: number;
 };
 
+export async function createManualCourtBookingAction(
+  clubId: string,
+  courtId: string,
+  start: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
+  if (!token) return { ok: false, error: "Sesión no válida" };
+
+  try {
+    const res = await fetch(
+      `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${clubId}/courts/${courtId}/bookings`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ start }),
+      },
+    );
+    const body: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
+    revalidatePath("/dashboard/club/reservas");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Error de red" };
+  }
+}
+
 /** Slots del día para la vista calendario del club (misma API que la app jugadores). */
 export async function listCourtDaySlotsAction(
   clubId: string,

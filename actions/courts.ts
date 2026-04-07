@@ -69,7 +69,7 @@ export async function createCourtAction(
     type: "indoor" | "outdoor" | "unspecified";
     surface: string;
     lighting: boolean;
-    schedule: ClubScheduleBlocks;
+    schedule?: ClubScheduleBlocks;
     schedulesPayload?: Array<{
       dayOfWeek: number;
       startTimeMinutes: number;
@@ -109,37 +109,41 @@ export async function createCourtAction(
 
     const court = body as { id: string };
     const rawSchedules =
-      data.schedulesPayload ?? clubBlocksToCourtSchedulePayload(data.schedule);
-    const schedules = rawSchedules.map((s) => ({
-      ...s,
-      pricePerHour:
-        "pricePerHour" in s &&
-        typeof s.pricePerHour === "number" &&
-        s.pricePerHour >= 1
-          ? s.pricePerHour
-          : 1,
-    }));
+      data.schedulesPayload ??
+      (data.schedule ? clubBlocksToCourtSchedulePayload(data.schedule) : []);
 
-    const sr = await fetch(
-      `${base}/clubs/${clubId}/courts/${court.id}/schedules`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+    if (rawSchedules.length > 0) {
+      const schedules = rawSchedules.map((s) => ({
+        ...s,
+        pricePerHour:
+          "pricePerHour" in s &&
+          typeof s.pricePerHour === "number" &&
+          s.pricePerHour >= 1
+            ? s.pricePerHour
+            : 1,
+      }));
+
+      const sr = await fetch(
+        `${base}/clubs/${clubId}/courts/${court.id}/schedules`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ schedules }),
         },
-        body: JSON.stringify({ schedules }),
-      },
-    );
-    const sbody: unknown = await sr.json().catch(() => ({}));
-    if (!sr.ok) {
-      await fetch(`${base}/clubs/${clubId}/courts/${court.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
-      const message = normalizeMessage(sbody);
-      await maybeLogoutOnInvalidToken(message);
-      return { ok: false, error: message };
+      );
+      const sbody: unknown = await sr.json().catch(() => ({}));
+      if (!sr.ok) {
+        await fetch(`${base}/clubs/${clubId}/courts/${court.id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+        const message = normalizeMessage(sbody);
+        await maybeLogoutOnInvalidToken(message);
+        return { ok: false, error: message };
+      }
     }
 
     revalidateCourts();

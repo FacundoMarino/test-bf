@@ -17,12 +17,15 @@ import {
 import {
   approveClubBookingAction,
   cancelClubBookingAction,
+  createManualCourtBookingAction,
   listCourtDaySlotsAction,
   rejectClubBookingAction,
 } from "@/actions/reservas";
 import { BookingDetailCard } from "@/components/reservas/BookingDetailCard";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -105,8 +108,8 @@ function fmtTime(iso: string) {
 
 function fmtTimeUtc(iso: string) {
   const d = new Date(iso);
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
 }
 
@@ -257,6 +260,16 @@ export function ReservationsBoard({
   >([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState<string | null>(null);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [manualBusy, setManualBusy] = useState(false);
+  const [manualSlot, setManualSlot] = useState<{
+    start: string;
+    end: string;
+  } | null>(null);
+  const [manualPlayers, setManualPlayers] = useState<
+    Array<{ name: string; phone: string }>
+  >([{ name: "", phone: "" }]);
+  const [manualNotes, setManualNotes] = useState("");
 
   const loadSlots = useCallback(async () => {
     if (!validCourtId || !clubId) {
@@ -288,6 +301,29 @@ export function ReservationsBoard({
       void loadSlots();
     });
   }, [loadSlots]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && document.hasFocus()) {
+        router.refresh();
+        void loadSlots();
+      }
+    };
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        router.refresh();
+        void loadSlots();
+      }
+    };
+
+    handleVisibility();
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [router, loadSlots]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -408,6 +444,34 @@ export function ReservationsBoard({
       return;
     }
     setExpandedBookingId(null);
+    router.refresh();
+    void loadSlots();
+  }
+
+  function openManualReservation(slot: { start: string; end: string }) {
+    setError(null);
+    setManualSlot(slot);
+    setManualPlayers([{ name: "", phone: "" }]);
+    setManualNotes("");
+    setManualModalOpen(true);
+  }
+
+  async function handleConfirmManualReservation() {
+    if (!manualSlot || !validCourtId) return;
+    setError(null);
+    setManualBusy(true);
+    const res = await createManualCourtBookingAction(
+      clubId,
+      validCourtId,
+      manualSlot.start,
+    );
+    setManualBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setManualModalOpen(false);
+    setManualSlot(null);
     router.refresh();
     void loadSlots();
   }
@@ -772,9 +836,19 @@ export function ReservationsBoard({
                               </div>
                               <div className="flex shrink-0 items-center gap-2">
                                 {isAvail ? (
-                                  <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                                  <button
+                                    type="button"
+                                    className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:hover:bg-emerald-900/60"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openManualReservation({
+                                        start: row.start,
+                                        end: row.end,
+                                      });
+                                    }}
+                                  >
                                     Libre
-                                  </span>
+                                  </button>
                                 ) : null}
                                 {isRes && row.booking ? (
                                   <>
@@ -857,6 +931,130 @@ export function ReservationsBoard({
           </section>
         </div>
       )}
+
+      <Dialog
+        open={manualModalOpen}
+        onOpenChange={(nextOpen) => {
+          setManualModalOpen(nextOpen);
+          if (!nextOpen) setManualSlot(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[640px] rounded-2xl p-0 overflow-hidden">
+          <div className="p-5 sm:p-6">
+            <DialogTitle className="text-base font-semibold">
+              Agendar reserva manual
+            </DialogTitle>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {selectedDate.toLocaleDateString("es-ES", {
+                weekday: "long",
+                day: "numeric",
+                month: "numeric",
+              })}
+              {manualSlot ? ` - ${fmtTimeUtc(manualSlot.start)}` : ""}
+              {selectedCourt ? ` - ${selectedCourt.name}` : ""}
+            </p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Esta reserva será un partido cerrado.
+            </p>
+
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-sm font-semibold">Jugadores</p>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:text-primary"
+                onClick={() =>
+                  setManualPlayers((prev) => [...prev, { name: "", phone: "" }])
+                }
+              >
+                + Agregar
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-3">
+              {manualPlayers.map((player, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-xl border border-border bg-muted/20 p-3"
+                >
+                  <p className="mb-2 text-xs font-semibold text-muted-foreground">
+                    Jugador {idx + 1}
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium">
+                        Nombre *
+                      </label>
+                      <Input
+                        value={player.name}
+                        onChange={(e) =>
+                          setManualPlayers((prev) =>
+                            prev.map((p, pIdx) =>
+                              pIdx === idx ? { ...p, name: e.target.value } : p,
+                            ),
+                          )
+                        }
+                        placeholder="Nombre"
+                        className="h-10 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium">
+                        Teléfono
+                      </label>
+                      <Input
+                        value={player.phone}
+                        onChange={(e) =>
+                          setManualPlayers((prev) =>
+                            prev.map((p, pIdx) =>
+                              pIdx === idx
+                                ? { ...p, phone: e.target.value }
+                                : p,
+                            ),
+                          )
+                        }
+                        placeholder="+34"
+                        className="h-10 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-1 block text-xs font-medium">
+                Notas (opcional)
+              </label>
+              <Textarea
+                value={manualNotes}
+                onChange={(e) => setManualNotes(e.target.value)}
+                placeholder="Ej: Reserva por teléfono, pagó en efectivo..."
+                className="min-h-[86px] rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border bg-background px-5 py-4 sm:px-6">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-lg"
+              onClick={() => setManualModalOpen(false)}
+              disabled={manualBusy}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="rounded-lg"
+              onClick={() => void handleConfirmManualReservation()}
+              disabled={manualBusy || !manualSlot}
+            >
+              {manualBusy ? "Confirmando..." : "Confirmar reserva"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

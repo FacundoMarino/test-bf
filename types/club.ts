@@ -107,26 +107,7 @@ const dayPricingSchema = z.object({
   pricePerHour: z.number().min(0),
 });
 
-const optionalWebUrlSchema = z.union([
-  z.literal(""),
-  z
-    .string()
-    .trim()
-    .refine(
-      (s) => {
-        // Acepta formato web simple:
-        // - www.midominio.com
-        // - midominio.com
-        // - también con http/https opcional
-        const simpleWebPattern =
-          /^(?:https?:\/\/)?(?:www\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
-        return simpleWebPattern.test(s);
-      },
-      {
-        message: "Introduce una web válida (ej: www.clubpadel.com)",
-      },
-    ),
-]);
+const optionalWebUrlSchema = z.union([z.literal(""), z.string().trim()]);
 
 const clubAvatarUrlSchema = z.union([
   z.literal(""),

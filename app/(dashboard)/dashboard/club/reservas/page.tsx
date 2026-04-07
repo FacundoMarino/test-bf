@@ -48,8 +48,17 @@ function normalizeReservation(raw: unknown): ClubReservation | null {
       ? (row.court as Record<string, unknown>)
       : {};
 
-  const participantsRaw = Array.isArray(row.participants)
-    ? row.participants
+  const nestedMatch =
+    row.match && typeof row.match === "object"
+      ? (row.match as Record<string, unknown>)
+      : null;
+  const participantsRawSource =
+    row.participants ??
+    row.matchParticipants ??
+    row.players ??
+    nestedMatch?.participants;
+  const participantsRaw = Array.isArray(participantsRawSource)
+    ? participantsRawSource
     : [];
   const participants = participantsRaw
     .map((p) => {

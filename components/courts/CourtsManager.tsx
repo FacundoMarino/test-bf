@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { COURT_PLAN_LIMIT_REACHED_MESSAGE } from "@/lib/court-plan-limit";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import type { ClubScheduleBlocks } from "@/types/club";
 import type { CourtRecord } from "@/types/club";
 
 import { CourtFormDialog } from "./CourtFormDialog";
@@ -29,7 +28,6 @@ export function CourtsManager({
   initialCourts,
   courtTotalCount,
   maxCourts,
-  defaultScheduleBlocks,
 }: {
   clubId: string;
   initialCourts: CourtRecord[];
@@ -37,7 +35,6 @@ export function CourtsManager({
   courtTotalCount: number;
   /** Límite según el plan (`club.courtCount`). */
   maxCourts: number;
-  defaultScheduleBlocks: ClubScheduleBlocks;
 }) {
   const router = useRouter();
   const [courts, setCourts] = useState(initialCourts);
@@ -270,7 +267,6 @@ export function CourtsManager({
           clubId={clubId}
           mode={dialogMode}
           court={editingCourt}
-          defaultScheduleBlocks={defaultScheduleBlocks}
           onSaved={() => {
             setDialogOpen(false);
             setEditingCourt(null);

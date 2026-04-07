@@ -170,19 +170,26 @@ export function CourtAvailabilityDialog({
         setSlots([]);
         return;
       }
-      const generated: Slot[] = [];
-      const row = dayRows[0];
-      let cur = row.startTimeMinutes;
-      while (cur + row.slotDurationMinutes <= row.endTimeMinutes) {
-        const end = cur + row.slotDurationMinutes;
-        generated.push({
-          start: cur,
-          end,
-          label: `${timeLabel(cur)} - ${timeLabel(end)}`,
-        });
-        cur = end;
+      const generatedByKey = new Map<string, Slot>();
+      const sortedRows = [...dayRows].sort(
+        (a, b) => a.startTimeMinutes - b.startTimeMinutes,
+      );
+      for (const row of sortedRows) {
+        let cur = row.startTimeMinutes;
+        while (cur + row.slotDurationMinutes <= row.endTimeMinutes) {
+          const end = cur + row.slotDurationMinutes;
+          const key = `${cur}-${end}`;
+          if (!generatedByKey.has(key)) {
+            generatedByKey.set(key, {
+              start: cur,
+              end,
+              label: `${timeLabel(cur)} - ${timeLabel(end)}`,
+            });
+          }
+          cur = end;
+        }
       }
-      setSlots(generated);
+      setSlots(Array.from(generatedByKey.values()));
     });
     return () => {
       cancelled = true;

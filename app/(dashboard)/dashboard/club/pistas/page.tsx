@@ -5,7 +5,6 @@ import { CourtsManager } from "@/components/courts";
 import { getDashboardContext, isClubAccount } from "@/lib/dashboard-context";
 import { apiFetch } from "@/lib/api";
 import { env } from "@/lib/env";
-import { defaultClubScheduleBlocks } from "@/types/club";
 import type { CourtRecord } from "@/types/club";
 
 export default async function canchasPage() {
@@ -30,8 +29,6 @@ export default async function canchasPage() {
     }
   }
 
-  const defaultScheduleBlocks = defaultClubScheduleBlocks();
-
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
@@ -47,7 +44,6 @@ export default async function canchasPage() {
         initialCourts={courts}
         courtTotalCount={courtTotalCount}
         maxCourts={ctx.club.courtCount}
-        defaultScheduleBlocks={defaultScheduleBlocks}
       />
     </div>
   );

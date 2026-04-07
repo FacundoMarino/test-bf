@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { ClubScheduleBlocks, CourtRecord } from "@/types/club";
+import type { CourtRecord } from "@/types/club";
 
 type CourtFormDialogProps = {
   open: boolean;
@@ -23,7 +23,6 @@ type CourtFormDialogProps = {
   clubId: string;
   mode: "create" | "edit";
   court: CourtRecord | null;
-  defaultScheduleBlocks: ClubScheduleBlocks;
   onSaved: () => void;
 };
 
@@ -33,7 +32,6 @@ export function CourtFormDialog({
   clubId,
   mode,
   court,
-  defaultScheduleBlocks,
   onSaved,
 }: CourtFormDialogProps) {
   const isEditMode = mode === "edit" && Boolean(court);
@@ -70,9 +68,8 @@ export function CourtFormDialog({
             type,
             surface: surface.trim(),
             lighting,
-            // Horarios se gestionan en el flujo de "Horarios por períodos".
-            // En alta enviamos el bloque base para crear la cancha.
-            schedule: defaultScheduleBlocks,
+            // No crear horarios por defecto al dar de alta la cancha.
+            // Los horarios se configuran explícitamente en "Horarios por períodos".
           })
         : court
           ? await updateCourtAction(clubId, court.id, {

@@ -55,10 +55,6 @@ const STATUS_DETAIL: Record<ReservationStatus, string> = {
   CANCELLED: "Cancelada",
 };
 
-function bookingEndIsInFuture(endIso: string): boolean {
-  return new Date(endIso).getTime() > Date.now();
-}
-
 function courtTypeLabel(t: string) {
   if (t === "indoor") return "Interior";
   if (t === "outdoor") return "Exterior";
@@ -215,12 +211,16 @@ export function BookingDetailCard({
                     </span>
                   </div>
                 </div>
-                {!isMatch && bookerLevel != null ? (
+                {(isMatch && matchLevel != null) ||
+                (!isMatch && bookerLevel != null) ? (
                   <div className="pt-1">
                     <p className="text-muted-foreground mb-1.5 text-xs font-semibold uppercase tracking-wide">
-                      Nivel del jugador
+                      {isMatch ? "Nivel del partido" : "Nivel del jugador"}
                     </p>
-                    <LevelDots level={bookerLevel} invert />
+                    <LevelDots
+                      level={isMatch ? matchLevel : (bookerLevel ?? 1)}
+                      invert={!isMatch}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -283,23 +283,18 @@ export function BookingDetailCard({
                   Tipo de reserva
                 </dt>
                 <dd className="text-foreground mt-0.5 inline-flex items-center gap-1.5 text-sm font-semibold">
-                  <User className="text-muted-foreground size-4" />
-                  {isMatch ? "Partido" : "Reserva de cancha"}
+                  {isMatch ? (
+                    <Lock className="size-4 text-sky-600 dark:text-sky-400" />
+                  ) : (
+                    <User className="text-muted-foreground size-4" />
+                  )}
+                  {isMatch
+                    ? visibility === "private"
+                      ? "Partido privado"
+                      : "Partido abierto"
+                    : "Reserva de cancha"}
                 </dd>
               </div>
-              {isMatch ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-muted-foreground text-xs font-medium">
-                    Tipo de partido
-                  </dt>
-                  <dd className="text-foreground mt-0.5 inline-flex items-center gap-1.5 text-sm font-semibold">
-                    <Lock className="size-4 text-sky-600 dark:text-sky-400" />
-                    {visibility === "private"
-                      ? "Partido privado"
-                      : "Partido abierto"}
-                  </dd>
-                </div>
-              ) : null}
               {isMatch && booking.title ? (
                 <div className="sm:col-span-2">
                   <dt className="text-muted-foreground text-xs font-medium">
@@ -320,15 +315,6 @@ export function BookingDetailCard({
               </div>
             </dl>
           </div>
-
-          {isMatch ? (
-            <div className="border-t border-slate-200/80 pt-5 dark:border-slate-700/80">
-              <p className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
-                Nivel del partido
-              </p>
-              <LevelDots level={matchLevel} />
-            </div>
-          ) : null}
 
           {isMatch ? (
             <div className="border-border space-y-3 border-t pt-4">
@@ -398,12 +384,7 @@ export function BookingDetailCard({
                 type="button"
                 variant="destructive"
                 className="rounded-lg font-semibold"
-                disabled={cancelling || !bookingEndIsInFuture(booking.end)}
-                title={
-                  !bookingEndIsInFuture(booking.end)
-                    ? "No se pueden cancelar reservas ya finalizadas"
-                    : undefined
-                }
+                disabled={cancelling}
                 onClick={onCancel}
               >
                 Cancelar reserva
