@@ -50,9 +50,7 @@ export function normalizeClubReservation(raw: unknown): ClubReservation | null {
         fullName: asNullableString(pr.fullName ?? pr.full_name),
         avatarUrl: asNullableString(pr.avatarUrl ?? pr.avatar_url),
         level: asNullableNumber(pr.level),
-        phone: asNullableString(
-          pr.phone ?? pr.phoneNumber ?? pr.phone_number,
-        ),
+        phone: asNullableString(pr.phone ?? pr.phoneNumber ?? pr.phone_number),
       };
     })
     .filter((p): p is NonNullable<typeof p> => p !== null);

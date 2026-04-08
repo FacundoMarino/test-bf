@@ -202,12 +202,7 @@ export function BookingDetailCard({
       seen.add(profileId);
       out.push({ key: profileId, fullName, avatarUrl, phone: tel });
     };
-    add(
-      booking.userId,
-      booking.user.fullName,
-      booking.user.avatarUrl,
-      phone,
-    );
+    add(booking.userId, booking.user.fullName, booking.user.avatarUrl, phone);
     for (const p of participants) {
       add(p.profileId, p.fullName, p.avatarUrl, p.phone);
     }

@@ -141,9 +141,7 @@ export async function createManualCourtBookingAction(
         body: JSON.stringify({
           start,
           manualGuests,
-          ...(manualNotes?.trim()
-            ? { manualNotes: manualNotes.trim() }
-            : {}),
+          ...(manualNotes?.trim() ? { manualNotes: manualNotes.trim() } : {}),
         }),
       },
     );

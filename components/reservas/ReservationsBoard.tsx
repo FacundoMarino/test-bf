@@ -281,11 +281,25 @@ export function ReservationsBoard({
     [initialReservations],
   );
 
-  useEffect(() => {
-    setHotReservations(null);
-  }, [initialBookingIdsKey]);
+  const hotBookingIdsKey = useMemo(
+    () =>
+      hotReservations
+        ? [...hotReservations.map((r) => r.id)].sort().join(",")
+        : null,
+    [hotReservations],
+  );
 
-  const boardReservations = hotReservations ?? initialReservations;
+  const boardReservations = useMemo(() => {
+    if (!hotReservations) return initialReservations;
+    // Si el servidor ya cambió el set base, ignoramos el cache local.
+    if (hotBookingIdsKey !== initialBookingIdsKey) return initialReservations;
+    return hotReservations;
+  }, [
+    hotReservations,
+    hotBookingIdsKey,
+    initialReservations,
+    initialBookingIdsKey,
+  ]);
 
   const loadSlots = useCallback(async () => {
     if (!validCourtId || !clubId) {
@@ -361,8 +375,7 @@ export function ReservationsBoard({
         .length,
       CANCELLED: boardReservations.filter((r) => r.status === "CANCELLED")
         .length,
-      REJECTED: boardReservations.filter((r) => r.status === "REJECTED")
-        .length,
+      REJECTED: boardReservations.filter((r) => r.status === "REJECTED").length,
     }),
     [boardReservations],
   );
