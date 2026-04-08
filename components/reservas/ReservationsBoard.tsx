@@ -250,6 +250,7 @@ export function ReservationsBoard({
   const [courtId, setCourtId] = useState<string>(
     () => initialCourts[0]?.id ?? "",
   );
+  const [listCourtId, setListCourtId] = useState<string>("ALL");
   const validCourtId = useMemo(() => {
     if (initialCourts.length === 0) return "";
     if (initialCourts.some((c) => c.id === courtId)) return courtId;
@@ -359,13 +360,14 @@ export function ReservationsBoard({
     const q = query.trim().toLowerCase();
     return boardReservations.filter((r) => {
       if (status !== "ALL" && r.status !== status) return false;
+      if (listCourtId !== "ALL" && r.court.id !== listCourtId) return false;
       if (!q) return true;
       return (
         r.court.name.toLowerCase().includes(q) ||
         (r.user.fullName ?? "sin nombre").toLowerCase().includes(q)
       );
     });
-  }, [boardReservations, query, status]);
+  }, [boardReservations, query, status, listCourtId]);
 
   const grouped = useMemo(
     () => ({
@@ -564,6 +566,26 @@ export function ReservationsBoard({
           </Button>
         </div>
       </div>
+
+      {mode === "list" ? (
+        <div className="flex items-center gap-2">
+          <label className="text-muted-foreground text-xs font-medium">
+            Cancha
+          </label>
+          <select
+            value={listCourtId}
+            onChange={(e) => setListCourtId(e.target.value)}
+            className="border-input bg-background text-foreground focus-visible:ring-ring h-9 min-w-[240px] rounded-lg border px-2.5 text-sm shadow-sm outline-none focus-visible:ring-2"
+          >
+            <option value="ALL">Todas</option>
+            {initialCourts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {courtSelectLine(c)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       {mode === "list" ? (
         <div className="flex flex-wrap gap-2">
@@ -814,14 +836,21 @@ export function ReservationsBoard({
                           )}
                         >
                           <div
-                            role={isRes ? "button" : undefined}
-                            tabIndex={isRes ? 0 : undefined}
+                            role={isRes || isAvail ? "button" : undefined}
+                            tabIndex={isRes || isAvail ? 0 : undefined}
                             className={cn(
                               "flex items-stretch",
-                              isRes &&
+                              (isRes || isAvail) &&
                                 "cursor-pointer hover:bg-sky-100/40 dark:hover:bg-sky-950/40",
                             )}
                             onClick={() => {
+                              if (isAvail) {
+                                openManualReservation({
+                                  start: row.start,
+                                  end: row.end,
+                                });
+                                return;
+                              }
                               if (isRes && row.booking) {
                                 setExpandedBookingId((prev) =>
                                   prev === row.booking!.id
@@ -831,6 +860,17 @@ export function ReservationsBoard({
                               }
                             }}
                             onKeyDown={(e) => {
+                              if (
+                                isAvail &&
+                                (e.key === "Enter" || e.key === " ")
+                              ) {
+                                e.preventDefault();
+                                openManualReservation({
+                                  start: row.start,
+                                  end: row.end,
+                                });
+                                return;
+                              }
                               if (
                                 !isRes ||
                                 !row.booking ||
