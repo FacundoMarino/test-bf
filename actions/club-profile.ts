@@ -46,6 +46,7 @@ export async function saveClubProfileAction(
     courtType: club.courtType,
     address: club.address,
     pricing: club.pricing,
+    location: club.location?.trim() ? club.location.trim() : null,
   };
   if (club.email) clubJson.email = club.email;
   if (club.web) clubJson.web = club.web;

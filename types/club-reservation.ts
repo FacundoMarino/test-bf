@@ -26,6 +26,11 @@ export type ClubReservation = {
   end: string;
   status: ReservationStatus;
   createdAt: string;
+  /**
+   * Si es false: partido público abierto sin completar plazas; el turno sigue
+   * disponible en calendario hasta confirmación o cancelación.
+   */
+  occupiesSlot?: boolean;
   isMatch?: boolean;
   title?: string | null;
   maxPlayers?: number | null;

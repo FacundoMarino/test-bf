@@ -30,6 +30,7 @@ export function RegisterForm() {
     defaultValues: {
       fullName: "",
       email: "",
+      confirmEmail: "",
       password: "",
       confirmPassword: "",
     },
@@ -57,6 +58,7 @@ export function RegisterForm() {
             const fd = new FormData();
             fd.set("fullName", values.fullName ?? "");
             fd.set("email", values.email);
+            fd.set("confirmEmail", values.confirmEmail);
             fd.set("password", values.password);
             fd.set("confirmPassword", values.confirmPassword);
             startTransition(() => {
@@ -103,6 +105,25 @@ export function RegisterForm() {
             {form.formState.errors.email ? (
               <p className="text-destructive text-xs">
                 {form.formState.errors.email.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirmEmail">Confirmar email</Label>
+            <Input
+              id="confirmEmail"
+              type="email"
+              autoComplete="email"
+              placeholder="Repetí tu email"
+              aria-invalid={!!form.formState.errors.confirmEmail}
+              className="h-[52px] rounded-xl border-border shadow-sm"
+              onPaste={(event) => event.preventDefault()}
+              {...form.register("confirmEmail")}
+            />
+            {form.formState.errors.confirmEmail ? (
+              <p className="text-destructive text-xs">
+                {form.formState.errors.confirmEmail.message}
               </p>
             ) : null}
           </div>

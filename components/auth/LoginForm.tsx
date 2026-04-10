@@ -70,8 +70,8 @@ export function LoginForm({
             <Alert>
               <AlertTitle>Listo</AlertTitle>
               <AlertDescription>
-                Si tu proveedor lo requiere, revisá el email para confirmar la
-                cuenta. Luego podés iniciar sesión.
+                Verifica tu correo y completa los datos de tu club, para que el
+                equipo de Puntoo pueda activar tu cuenta.
               </AlertDescription>
             </Alert>
           ) : null}

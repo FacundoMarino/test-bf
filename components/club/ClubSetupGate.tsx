@@ -91,6 +91,10 @@ function ClubSetupDialog({ userId }: { userId: string }) {
               buttonVariants(),
               "inline-flex w-full justify-center rounded-lg sm:w-auto",
             )}
+            onClick={() => {
+              persistDismiss();
+              setOpen(false);
+            }}
           >
             Editar mi club
           </Link>

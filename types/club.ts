@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import { PROFILE_CITIES } from "@/lib/profile-cities";
+
+const profileCityZ = z.enum(PROFILE_CITIES as unknown as [string, ...string[]]);
+const optionalProfileCityZ = z.union([z.literal(""), profileCityZ]);
+
 export type MyClubResponse = {
   club: ClubRecord | null;
 };
@@ -10,6 +15,8 @@ export type ClubRecord = {
   courtCount: number;
   courtType: string;
   address: string;
+  /** Ciudad (mismo catálogo que el perfil del jugador). */
+  location?: string | null;
   email: string | null;
   web: string | null;
   avatarUrl: string | null;
@@ -142,6 +149,7 @@ export const clubProfileSaveSchema = z.object({
   club: z.object({
     name: z.string().min(1, "El nombre del club es obligatorio"),
     address: z.string().min(1, "La dirección es obligatoria"),
+    location: optionalProfileCityZ,
     email: z.union([
       z.literal(""),
       z.string().email("Introduce un email válido"),
@@ -154,7 +162,7 @@ export const clubProfileSaveSchema = z.object({
   }),
   profile: z.object({
     description: z.string().optional(),
-    location: z.string().optional(),
+    location: optionalProfileCityZ.optional(),
     phone: z.string().optional(),
     amenities: z.record(z.string(), z.boolean()),
   }),

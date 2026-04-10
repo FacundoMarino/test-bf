@@ -1,5 +1,15 @@
-import type { ClubRecord, ProfileRecord } from "@/types/club";
-import { DEFAULT_AMENITY_KEYS, defaultPricingPayload } from "@/types/club";
+import { isProfileCity } from "@/lib/profile-cities";
+import {
+  DEFAULT_AMENITY_KEYS,
+  defaultPricingPayload,
+  type ClubRecord,
+  type ProfileRecord,
+} from "@/types/club";
+
+function sanitizeProfileCity(raw: string | null | undefined): string {
+  const t = (raw ?? "").trim();
+  return isProfileCity(t) ? t : "";
+}
 
 export function parsePricingFromClub(raw: unknown) {
   const fallback = defaultPricingPayload();
@@ -43,7 +53,7 @@ export function buildInitialFormState(
     email: club?.email ?? "",
     web: club?.web ?? "",
     phone: profile?.phone ?? "",
-    location: profile?.location ?? "",
+    location: sanitizeProfileCity(club?.location ?? profile?.location),
     address: club?.address ?? "",
     avatarUrl: club?.avatarUrl ?? "",
     courtCount: club?.courtCount ?? 1,

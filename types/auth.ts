@@ -20,11 +20,19 @@ export const registerSchema = z
       .string()
       .min(1, "El email es obligatorio")
       .email("Introduce un email válido"),
+    confirmEmail: z
+      .string()
+      .min(1, "Confirma el email")
+      .email("Introduce un email válido"),
     password: z
       .string()
       .min(1, "La contraseña es obligatoria")
       .min(6, "La contraseña debe tener al menos 6 caracteres"),
     confirmPassword: z.string().min(1, "Confirma la contraseña"),
+  })
+  .refine((data) => data.email === data.confirmEmail, {
+    message: "Los emails no coinciden",
+    path: ["confirmEmail"],
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Las contraseñas no coinciden",

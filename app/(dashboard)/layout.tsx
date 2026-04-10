@@ -30,8 +30,8 @@ async function DashboardSessionLayout({
   const ctx = await getDashboardContext();
   if (!ctx) redirect("/login");
 
-  const clubUser = isClubAccount(ctx);
   const superAdminUser = isSuperAdminAccount(ctx);
+  const clubUser = isClubAccount(ctx) && !superAdminUser;
 
   return (
     <AuthProvider user={ctx.session.user} isClubAccount={clubUser}>

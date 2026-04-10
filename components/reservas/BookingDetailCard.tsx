@@ -4,6 +4,7 @@ import Image from "next/image";
 import { CircleHelp, Lock, Mail, Phone, User, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { isTentativePublicOpenMatch } from "@/lib/club-reservation-utils";
 import { cn } from "@/lib/utils";
 import type {
   ClubReservation,
@@ -65,12 +66,15 @@ function courtTypeLabel(t: string) {
 function LevelDots({
   level,
   invert = false,
+  variant = "sky",
 }: {
   level: number;
   invert?: boolean;
+  variant?: "sky" | "amber";
 }) {
   const normalized = normalizeLevel(level) ?? 7;
   const filled = invert ? 8 - normalized : normalized;
+  const filledClass = variant === "amber" ? "bg-amber-500" : "bg-sky-500";
   return (
     <div className="flex items-center gap-1">
       {Array.from({ length: 7 }).map((_, i) => (
@@ -78,11 +82,20 @@ function LevelDots({
           key={i}
           className={cn(
             "size-2 rounded-full",
-            i < filled ? "bg-sky-500" : "bg-slate-200 dark:bg-slate-600",
+            i < filled ? filledClass : "bg-slate-200 dark:bg-slate-600",
           )}
         />
       ))}
-      <span className="text-muted-foreground ml-1 text-sm">{normalized}/7</span>
+      <span
+        className={cn(
+          "ml-1 text-sm",
+          variant === "amber"
+            ? "text-amber-900 dark:text-amber-200"
+            : "text-muted-foreground",
+        )}
+      >
+        {normalized}/7
+      </span>
     </div>
   );
 }
@@ -210,18 +223,42 @@ export function BookingDetailCard({
   })();
 
   const rangeLabel = `${fmtTime(booking.start)} – ${fmtTime(booking.end)}`;
+  const tentativeSlotStillFree = isTentativePublicOpenMatch(booking);
+  const maxPlayersTentative = booking.maxPlayers ?? 4;
 
   return (
-    <div className="border-border bg-sky-50/40 dark:bg-sky-950/20 border-t">
+    <div
+      className={cn(
+        "border-border border-t",
+        tentativeSlotStillFree
+          ? "bg-amber-50/50 dark:bg-amber-950/20"
+          : "bg-sky-50/40 dark:bg-sky-950/20",
+      )}
+    >
       <div className="space-y-0 px-4 py-4 sm:px-6">
         <div className="space-y-5 pt-1">
+          {tentativeSlotStillFree ? (
+            <div className="border-amber-200/90 bg-amber-50/90 dark:border-amber-800/50 dark:bg-amber-950/35 flex gap-3 rounded-xl border px-4 py-3">
+              <Users className="text-amber-600 dark:text-amber-400 mt-0.5 size-5 shrink-0" />
+              <p className="text-amber-950 dark:text-amber-50 text-sm font-medium leading-snug">
+                Partido pendiente de confirmación. Se confirmará cuando se
+                completen los {maxPlayersTentative} jugadores. El horario sigue
+                disponible para reservas.
+              </p>
+            </div>
+          ) : null}
           {/* Quién reservó */}
           <div>
             <p className="text-muted-foreground mb-3 text-xs font-semibold uppercase tracking-wide">
               Reservado por
             </p>
             <div className="flex flex-wrap items-start gap-4">
-              <span className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sky-600 text-lg font-bold text-white">
+              <span
+                className={cn(
+                  "relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full text-lg font-bold text-white",
+                  tentativeSlotStillFree ? "bg-amber-600" : "bg-sky-600",
+                )}
+              >
                 {!isManualGuestBooking && booking.user.avatarUrl ? (
                   <Image
                     src={booking.user.avatarUrl}
@@ -236,9 +273,17 @@ export function BookingDetailCard({
                 )}
               </span>
               <div className="min-w-0 flex-1 space-y-2">
-                <p className="text-foreground text-lg font-bold">
-                  {displayName}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-foreground text-lg font-bold">
+                    {displayName}
+                  </p>
+                  {tentativeSlotStillFree ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-200/90 px-2.5 py-0.5 text-xs font-semibold text-amber-950 dark:bg-amber-900/50 dark:text-amber-100">
+                      <Lock className="size-3 opacity-80" aria-hidden />
+                      Pendiente
+                    </span>
+                  ) : null}
+                </div>
                 {isManualGuestBooking ? (
                   <p className="text-muted-foreground text-xs font-medium">
                     Datos cargados en la reserva manual
@@ -274,6 +319,9 @@ export function BookingDetailCard({
                     <LevelDots
                       level={isMatch ? matchLevel : (bookerLevel ?? 1)}
                       invert={!isMatch}
+                      variant={
+                        tentativeSlotStillFree && isMatch ? "amber" : "sky"
+                      }
                     />
                   </div>
                 ) : null}
@@ -314,22 +362,37 @@ export function BookingDetailCard({
                 <dt className="text-muted-foreground text-xs font-medium">
                   Estado
                 </dt>
-                <dd className="mt-1">
-                  <span
-                    className={cn(
-                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                      booking.status === "CONFIRMED" &&
-                        "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200",
-                      booking.status === "PENDING" &&
-                        "bg-amber-500/15 text-amber-800 dark:text-amber-200",
-                      booking.status === "CANCELLED" &&
-                        "bg-slate-500/15 text-slate-700 dark:text-slate-200",
-                      booking.status === "REJECTED" &&
-                        "bg-rose-500/15 text-rose-800 dark:text-rose-200",
-                    )}
-                  >
-                    {STATUS_DETAIL[booking.status]}
-                  </span>
+                <dd className="mt-1 flex flex-wrap items-center gap-2">
+                  {tentativeSlotStillFree ? (
+                    <>
+                      <span className="inline-flex rounded-full bg-amber-200/90 px-2.5 py-0.5 text-xs font-semibold text-amber-950 dark:bg-amber-900/50 dark:text-amber-100">
+                        Pendiente
+                      </span>
+                      <span className="inline-flex rounded-full border-2 border-emerald-600/70 bg-transparent px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:border-emerald-500/80 dark:text-emerald-200">
+                        Libre
+                      </span>
+                      <span className="text-muted-foreground w-full text-xs font-medium">
+                        Hay un partido abierto esperando jugadores; el turno
+                        sigue disponible para reservar hasta completar el cupo.
+                      </span>
+                    </>
+                  ) : (
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                        booking.status === "CONFIRMED" &&
+                          "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200",
+                        booking.status === "PENDING" &&
+                          "bg-amber-500/15 text-amber-800 dark:text-amber-200",
+                        booking.status === "CANCELLED" &&
+                          "bg-slate-500/15 text-slate-700 dark:text-slate-200",
+                        booking.status === "REJECTED" &&
+                          "bg-rose-500/15 text-rose-800 dark:text-rose-200",
+                      )}
+                    >
+                      {STATUS_DETAIL[booking.status]}
+                    </span>
+                  )}
                 </dd>
               </div>
               <div>
@@ -388,12 +451,25 @@ export function BookingDetailCard({
             <div className="border-border space-y-3 border-t pt-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-foreground inline-flex items-center gap-2 font-semibold">
-                  <Users className="size-4 text-sky-600 dark:text-sky-400" />
+                  <Users
+                    className={cn(
+                      "size-4",
+                      tentativeSlotStillFree
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-sky-600 dark:text-sky-400",
+                    )}
+                  />
                   Jugadores
                 </span>
                 <span className="text-muted-foreground text-sm">
                   {filledCount}/{max}{" "}
-                  <span className="text-emerald-600 dark:text-emerald-400">
+                  <span
+                    className={cn(
+                      tentativeSlotStillFree
+                        ? "text-amber-700 dark:text-amber-300"
+                        : "text-emerald-600 dark:text-emerald-400",
+                    )}
+                  >
                     ({freeCount}{" "}
                     {freeCount === 1 ? "plaza libre" : "plazas libres"})
                   </span>
@@ -404,16 +480,35 @@ export function BookingDetailCard({
                   s.empty ? (
                     <li
                       key={s.key}
-                      className="text-muted-foreground flex items-center gap-3 text-sm italic"
+                      className={cn(
+                        "flex items-center gap-3 text-sm italic",
+                        tentativeSlotStillFree
+                          ? "text-amber-800/90 dark:text-amber-200/90"
+                          : "text-muted-foreground",
+                      )}
                     >
-                      <span className="border-muted-foreground/40 flex size-9 items-center justify-center rounded-full border border-dashed">
+                      <span
+                        className={cn(
+                          "flex size-9 items-center justify-center rounded-full border border-dashed",
+                          tentativeSlotStillFree
+                            ? "border-amber-400/70 dark:border-amber-600/60"
+                            : "border-muted-foreground/40",
+                        )}
+                      >
                         <CircleHelp className="size-4 opacity-60" />
                       </span>
                       Plaza libre
                     </li>
                   ) : (
                     <li key={s.key} className="flex items-center gap-3 text-sm">
-                      <span className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sky-600 text-xs font-bold text-white">
+                      <span
+                        className={cn(
+                          "relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white",
+                          tentativeSlotStillFree
+                            ? "bg-amber-600"
+                            : "bg-sky-600",
+                        )}
+                      >
                         {s.avatarUrl ? (
                           <Image
                             src={s.avatarUrl}

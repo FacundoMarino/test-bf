@@ -11,6 +11,7 @@ import {
   Eye,
   Search,
   User,
+  Users,
   X,
 } from "lucide-react";
 
@@ -33,6 +34,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  bookingBlocksCalendarSlot,
+  isTentativePublicOpenMatch,
+  matchParticipantsCount,
+} from "@/lib/club-reservation-utils";
 import { cn } from "@/lib/utils";
 import type {
   ClubReservation,
@@ -403,24 +409,35 @@ export function ReservationsBoard({
     return daySlots.map((slot) => {
       const s0 = new Date(slot.start).getTime();
       const s1 = new Date(slot.end).getTime();
-      const activeBooking =
-        bookingsForCourtDay.find(
-          (r) =>
-            (r.status === "PENDING" || r.status === "CONFIRMED") &&
-            intervalsOverlapMs(
-              s0,
-              s1,
-              new Date(r.start).getTime(),
-              new Date(r.end).getTime(),
-            ),
-        ) ?? null;
+      const overlapping = bookingsForCourtDay.filter(
+        (r) =>
+          (r.status === "PENDING" || r.status === "CONFIRMED") &&
+          intervalsOverlapMs(
+            s0,
+            s1,
+            new Date(r.start).getTime(),
+            new Date(r.end).getTime(),
+          ),
+      );
+      const blockingBooking =
+        overlapping.find((r) => bookingBlocksCalendarSlot(r)) ?? null;
+      const tentativeBooking =
+        overlapping.find((r) => isTentativePublicOpenMatch(r)) ?? null;
 
-      if (activeBooking) {
+      if (blockingBooking) {
         return {
           start: slot.start,
           end: slot.end,
           kind: "reserved" as const,
-          booking: activeBooking,
+          booking: blockingBooking,
+        };
+      }
+      if (tentativeBooking && slot.isAvailable) {
+        return {
+          start: slot.start,
+          end: slot.end,
+          kind: "tentativeOpen" as const,
+          booking: tentativeBooking,
         };
       }
       if (!slot.isAvailable) {
@@ -441,12 +458,17 @@ export function ReservationsBoard({
   }, [daySlots, bookingsForCourtDay]);
 
   const dayStats = useMemo(() => {
-    const disponibles = slotRows.filter((r) => r.kind === "available").length;
+    const disponibles = slotRows.filter(
+      (r) => r.kind === "available" || r.kind === "tentativeOpen",
+    ).length;
     const reservados = slotRows.filter((r) => r.kind === "reserved").length;
+    const tentativosAbiertos = slotRows.filter(
+      (r) => r.kind === "tentativeOpen",
+    ).length;
     const cancelados = bookingsForCourtDay.filter(
       (r) => r.status === "CANCELLED",
     ).length;
-    return { disponibles, reservados, cancelados };
+    return { disponibles, reservados, cancelados, tentativosAbiertos };
   }, [slotRows, bookingsForCourtDay]);
 
   async function onAction(bookingId: string, action: "approve" | "reject") {
@@ -649,14 +671,21 @@ export function ReservationsBoard({
                     <td className="px-4 py-3">{fmtDate(r.start)}</td>
                     <td className="px-4 py-3">{`${fmtTime(r.start)}-${fmtTime(r.end)}`}</td>
                     <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-                          STATUS_CLASSNAMES[r.status],
-                        )}
-                      >
-                        {STATUS_LABELS[r.status]}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
+                            STATUS_CLASSNAMES[r.status],
+                          )}
+                        >
+                          {STATUS_LABELS[r.status]}
+                        </span>
+                        {isTentativePublicOpenMatch(r) ? (
+                          <span className="text-amber-800 dark:text-amber-200 text-xs font-semibold">
+                            Turno libre (partido abierto)
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -762,6 +791,12 @@ export function ReservationsBoard({
                   <span className="text-muted-foreground">Reservado</span>
                 </li>
                 <li className="flex items-center gap-2">
+                  <span className="size-2.5 shrink-0 rounded-full bg-amber-400" />
+                  <span className="text-muted-foreground">
+                    Partido abierto pendiente (turno libre)
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
                   <span className="size-2.5 shrink-0 rounded-full bg-rose-400" />
                   <span className="text-muted-foreground">Cancelado</span>
                 </li>
@@ -788,6 +823,17 @@ export function ReservationsBoard({
                     <span className="text-sky-600 font-medium dark:text-sky-400">
                       {dayStats.reservados} reservados
                     </span>
+                    {dayStats.tentativosAbiertos > 0 ? (
+                      <>
+                        <span className="mx-2">·</span>
+                        <span className="text-amber-700 font-medium dark:text-amber-300">
+                          {dayStats.tentativosAbiertos}{" "}
+                          {dayStats.tentativosAbiertos === 1
+                            ? "partido abierto pendiente"
+                            : "partidos abiertos pendientes"}
+                        </span>
+                      </>
+                    ) : null}
                     <span className="mx-2">·</span>
                     <span className="text-rose-600 font-medium dark:text-rose-400">
                       {dayStats.cancelados} cancelados
@@ -815,12 +861,21 @@ export function ReservationsBoard({
                       const rangeLabel = `${fmtTimeUtc(row.start)} – ${fmtTimeUtc(row.end)}`;
                       const isAvail = row.kind === "available";
                       const isRes = row.kind === "reserved";
+                      const isTent =
+                        row.kind === "tentativeOpen" && row.booking != null;
                       const isClosed = row.kind === "closed";
+                      const tentBooking = isTent ? row.booking : null;
+                      const maxP = tentBooking?.maxPlayers ?? 4;
+                      const filledP = tentBooking
+                        ? matchParticipantsCount(tentBooking)
+                        : 0;
 
                       const isExpanded =
-                        isRes &&
+                        (isRes || isTent) &&
                         row.booking &&
                         expandedBookingId === row.booking.id;
+
+                      const interactiveHeader = isAvail || isRes || isTent;
 
                       return (
                         <li
@@ -831,17 +886,23 @@ export function ReservationsBoard({
                               "border-emerald-200/80 bg-emerald-50/50 dark:border-emerald-900/30 dark:bg-emerald-950/25",
                             isRes &&
                               "border-sky-200/80 bg-sky-50/50 dark:border-sky-900/30 dark:bg-sky-950/25",
+                            isTent &&
+                              "border-amber-200/90 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/30",
                             isClosed &&
                               "border-border bg-muted/30 text-muted-foreground",
                           )}
                         >
                           <div
-                            role={isRes || isAvail ? "button" : undefined}
-                            tabIndex={isRes || isAvail ? 0 : undefined}
+                            role={interactiveHeader ? "button" : undefined}
+                            tabIndex={interactiveHeader ? 0 : undefined}
                             className={cn(
                               "flex items-stretch",
-                              (isRes || isAvail) &&
+                              isAvail &&
+                                "cursor-pointer hover:bg-emerald-100/50 dark:hover:bg-emerald-950/40",
+                              isRes &&
                                 "cursor-pointer hover:bg-sky-100/40 dark:hover:bg-sky-950/40",
+                              isTent &&
+                                "cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-950/35",
                             )}
                             onClick={() => {
                               if (isAvail) {
@@ -851,7 +912,7 @@ export function ReservationsBoard({
                                 });
                                 return;
                               }
-                              if (isRes && row.booking) {
+                              if ((isRes || isTent) && row.booking) {
                                 setExpandedBookingId((prev) =>
                                   prev === row.booking!.id
                                     ? null
@@ -872,7 +933,7 @@ export function ReservationsBoard({
                                 return;
                               }
                               if (
-                                !isRes ||
+                                !(isRes || isTent) ||
                                 !row.booking ||
                                 (e.key !== "Enter" && e.key !== " ")
                               ) {
@@ -891,6 +952,7 @@ export function ReservationsBoard({
                                 "w-1.5 shrink-0",
                                 isAvail && "bg-emerald-500",
                                 isRes && "bg-sky-500",
+                                isTent && "bg-amber-500",
                                 isClosed && "bg-slate-400",
                               )}
                             />
@@ -913,6 +975,22 @@ export function ReservationsBoard({
                                     </span>
                                   </p>
                                 ) : null}
+                                {isTent && tentBooking ? (
+                                  <div className="mt-0.5 space-y-0.5">
+                                    <p className="inline-flex flex-wrap items-center gap-1.5 text-sm font-medium text-amber-800 dark:text-amber-200">
+                                      <Users className="size-3.5 shrink-0 opacity-90" />
+                                      <span>
+                                        Partido pendiente · {filledP}/{maxP}{" "}
+                                        jugadores
+                                      </span>
+                                    </p>
+                                    <p className="text-muted-foreground max-w-[min(100%,420px)] text-xs font-medium leading-snug">
+                                      Hay un partido esperando en este horario;
+                                      el turno sigue libre para otra reserva
+                                      hasta completar el cupo.
+                                    </p>
+                                  </div>
+                                ) : null}
                                 {isClosed ? (
                                   <p className="mt-0.5 text-sm">
                                     No disponible
@@ -934,6 +1012,33 @@ export function ReservationsBoard({
                                   >
                                     Libre
                                   </button>
+                                ) : null}
+                                {isTent ? (
+                                  <>
+                                    <span className="inline-flex rounded-full bg-amber-200/90 px-3 py-1 text-xs font-semibold text-amber-900 dark:bg-amber-900/50 dark:text-amber-100">
+                                      Pendiente
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="inline-flex rounded-full border-2 border-emerald-500/70 bg-transparent px-3 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openManualReservation({
+                                          start: row.start,
+                                          end: row.end,
+                                        });
+                                      }}
+                                    >
+                                      Libre
+                                    </button>
+                                    <ChevronDown
+                                      className={cn(
+                                        "size-4 shrink-0 text-amber-800 transition-transform dark:text-amber-200",
+                                        isExpanded && "rotate-180",
+                                      )}
+                                      aria-hidden
+                                    />
+                                  </>
                                 ) : null}
                                 {isRes && row.booking ? (
                                   <>
@@ -997,7 +1102,7 @@ export function ReservationsBoard({
                               </div>
                             </div>
                           </div>
-                          {isRes && row.booking && isExpanded ? (
+                          {(isRes || isTent) && row.booking && isExpanded ? (
                             <BookingDetailCard
                               booking={row.booking}
                               cancelling={cancelBusyId === row.booking.id}

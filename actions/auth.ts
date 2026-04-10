@@ -124,18 +124,22 @@ export async function registerAction(
 ): Promise<{ error: string | null }> {
   const fullNameRaw = formData.get("fullName");
   const emailRaw = formData.get("email");
+  const confirmEmailRaw = formData.get("confirmEmail");
   const passwordRaw = formData.get("password");
   const confirmRaw = formData.get("confirmPassword");
 
   const fullName =
     typeof fullNameRaw === "string" ? fullNameRaw.trim() : undefined;
   const email = typeof emailRaw === "string" ? emailRaw.trim() : "";
+  const confirmEmail =
+    typeof confirmEmailRaw === "string" ? confirmEmailRaw.trim() : "";
   const password = typeof passwordRaw === "string" ? passwordRaw : "";
   const confirmPassword = typeof confirmRaw === "string" ? confirmRaw : "";
 
   const parsed = registerSchema.safeParse({
     fullName: fullName && fullName.length > 0 ? fullName : undefined,
     email,
+    confirmEmail,
     password,
     confirmPassword,
   });

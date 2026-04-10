@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { PROFILE_CITIES } from "@/lib/profile-cities";
 import { buildInitialFormState } from "./club-form-utils";
 
 export function ClubProfileForm({
@@ -89,6 +90,7 @@ export function ClubProfileForm({
       club: {
         name: clubName,
         address,
+        location,
         email,
         web,
         avatarUrl,
@@ -283,13 +285,19 @@ export function ClubProfileForm({
                   <Label htmlFor="location">Ciudad</Label>
                   <div className="relative">
                     <MapPin className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-                    <Input
+                    <select
                       id="location"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
-                      className="h-11 rounded-lg pl-10"
-                      placeholder="Valencia"
-                    />
+                      className="border-input bg-background h-11 w-full appearance-none rounded-lg border py-2 pl-10 pr-3 text-sm shadow-sm"
+                    >
+                      <option value="">Seleccionar ciudad…</option>
+                      {PROFILE_CITIES.map((city) => (
+                        <option key={city} value={city}>
+                          {city}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
