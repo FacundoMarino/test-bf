@@ -117,32 +117,7 @@ const dayPricingSchema = z.object({
 
 const optionalWebUrlSchema = z.union([z.literal(""), z.string().trim()]);
 
-const clubAvatarUrlSchema = z.union([
-  z.literal(""),
-  z
-    .string()
-    .trim()
-    .refine(
-      (s) => {
-        const low = s.toLowerCase();
-        if (
-          low.startsWith("data:image/png") ||
-          low.startsWith("data:image/jpeg") ||
-          low.startsWith("data:image/jpg") ||
-          low.startsWith("data:image/webp")
-        ) {
-          return true;
-        }
-        try {
-          new URL(s);
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      { message: "URL de imagen no válida" },
-    ),
-]);
+const clubAvatarUrlSchema = z.union([z.literal(""), z.string()]);
 
 export const clubProfileSaveSchema = z.object({
   clubId: z.string().uuid().optional(),
