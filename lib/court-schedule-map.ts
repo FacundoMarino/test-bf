@@ -1,4 +1,5 @@
 import {
+  DEFAULT_COURT_SLOT_DURATION_MINUTES,
   SLOT_DURATION_OPTIONS,
   type ClubScheduleBlock,
   type ClubScheduleBlocks,
@@ -114,7 +115,7 @@ const INACTIVE_BLOCK: ClubScheduleBlock = {
   enabled: false,
   startTime: "07:00",
   endTime: "23:00",
-  slotDurationMinutes: 60,
+  slotDurationMinutes: DEFAULT_COURT_SLOT_DURATION_MINUTES,
 };
 
 function rowToActiveBlock(r: CourtScheduleRow): ClubScheduleBlock {

@@ -94,11 +94,14 @@ export const SLOT_DURATION_OPTIONS: ReadonlyArray<{
   { minutes: 120, label: "2 h" },
 ];
 
+/** Duración por defecto del combo al crear horarios de cancha (1 h 30). */
+export const DEFAULT_COURT_SLOT_DURATION_MINUTES = 90;
+
 export const DEFAULT_CLUB_SCHEDULE_BLOCK: ClubScheduleBlock = {
   enabled: true,
   startTime: "07:00",
   endTime: "23:00",
-  slotDurationMinutes: 60,
+  slotDurationMinutes: DEFAULT_COURT_SLOT_DURATION_MINUTES,
 };
 
 export function defaultClubScheduleBlocks(): ClubScheduleBlocks {

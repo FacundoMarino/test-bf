@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Pencil, Plus, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { getCourtSchedulesAction, updateCourtAction } from "@/actions/courts";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,8 @@ import {
   dailyBlocksToCourtSchedulePayload,
   hhmmToMinutes,
 } from "@/lib/court-schedule-map";
-import type { CourtRecord, DailyScheduleBlocks } from "@/types/club";
+import type { ClubScheduleBlock, CourtRecord, DailyScheduleBlocks } from "@/types/club";
+import { DEFAULT_COURT_SLOT_DURATION_MINUTES } from "@/types/club";
 
 type DayPrices = Record<keyof DailyScheduleBlocks, number>;
 
@@ -55,49 +57,23 @@ const GROUPED_ROWS: Array<{
   { key: "sunday", label: "Domingo" },
 ];
 
+function emptyDayBlock(): ClubScheduleBlock {
+  return {
+    enabled: false,
+    startTime: "07:00",
+    endTime: "23:00",
+    slotDurationMinutes: DEFAULT_COURT_SLOT_DURATION_MINUTES,
+  };
+}
+
 const EMPTY_DAILY: DailyScheduleBlocks = {
-  monday: {
-    enabled: false,
-    startTime: "07:00",
-    endTime: "23:00",
-    slotDurationMinutes: 60,
-  },
-  tuesday: {
-    enabled: false,
-    startTime: "07:00",
-    endTime: "23:00",
-    slotDurationMinutes: 60,
-  },
-  wednesday: {
-    enabled: false,
-    startTime: "07:00",
-    endTime: "23:00",
-    slotDurationMinutes: 60,
-  },
-  thursday: {
-    enabled: false,
-    startTime: "07:00",
-    endTime: "23:00",
-    slotDurationMinutes: 60,
-  },
-  friday: {
-    enabled: false,
-    startTime: "07:00",
-    endTime: "23:00",
-    slotDurationMinutes: 60,
-  },
-  saturday: {
-    enabled: false,
-    startTime: "07:00",
-    endTime: "23:00",
-    slotDurationMinutes: 60,
-  },
-  sunday: {
-    enabled: false,
-    startTime: "07:00",
-    endTime: "23:00",
-    slotDurationMinutes: 60,
-  },
+  monday: emptyDayBlock(),
+  tuesday: emptyDayBlock(),
+  wednesday: emptyDayBlock(),
+  thursday: emptyDayBlock(),
+  friday: emptyDayBlock(),
+  saturday: emptyDayBlock(),
+  sunday: emptyDayBlock(),
 };
 
 const EMPTY_PRICES: DayPrices = {
@@ -306,6 +282,7 @@ export function CourtScheduleDialog({
   court,
   onSaved,
 }: CourtScheduleDialogProps) {
+  const errorBannerRef = useRef<HTMLDivElement>(null);
   const [periods, setPeriods] = useState<PeriodConfig[]>([]);
   const [viewMode, setViewMode] = useState<"list" | "edit">("list");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -321,6 +298,16 @@ export function CourtScheduleDialog({
     () => `Horarios de ${court?.name?.trim() || "Cancha"}`,
     [court?.name],
   );
+
+  useEffect(() => {
+    if (!error) return;
+    queueMicrotask(() => {
+      errorBannerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+  }, [error]);
 
   useEffect(() => {
     if (!open || !court) return;
@@ -499,6 +486,7 @@ export function CourtScheduleDialog({
     setPending(false);
     if (!res.ok) {
       setError(res.error);
+      toast.error(res.error);
       return;
     }
     setPeriods(next);
@@ -539,6 +527,7 @@ export function CourtScheduleDialog({
     setPending(false);
     if (!res.ok) {
       setError(res.error);
+      toast.error(res.error);
       return;
     }
     setPeriods(next);
@@ -621,6 +610,20 @@ export function CourtScheduleDialog({
             </section>
           ))
         )}
+        {error ? (
+          <div
+            ref={errorBannerRef}
+            role="alert"
+            className="border-destructive/50 bg-destructive/10 text-destructive flex gap-3 rounded-xl border px-4 py-3 text-sm"
+          >
+            <AlertCircle
+              className="text-destructive mt-0.5 size-5 shrink-0"
+              aria-hidden
+            />
+            <p className="min-w-0 flex-1 font-medium leading-snug">{error}</p>
+          </div>
+        ) : null}
+
         <Button
           type="button"
           variant="outline"
@@ -902,6 +905,20 @@ export function CourtScheduleDialog({
           );
         })}
 
+        {error ? (
+          <div
+            ref={errorBannerRef}
+            role="alert"
+            className="border-destructive/50 bg-destructive/10 text-destructive flex gap-3 rounded-xl border px-4 py-3 text-sm"
+          >
+            <AlertCircle
+              className="text-destructive mt-0.5 size-5 shrink-0"
+              aria-hidden
+            />
+            <p className="min-w-0 flex-1 font-medium leading-snug">{error}</p>
+          </div>
+        ) : null}
+
         <Button
           type="button"
           className="h-11 w-full rounded-xl text-base font-semibold"
@@ -932,12 +949,6 @@ export function CourtScheduleDialog({
         ) : (
           renderPeriodEditor()
         )}
-
-        {error ? (
-          <p className="text-destructive text-sm" role="alert">
-            {error}
-          </p>
-        ) : null}
       </DialogContent>
     </Dialog>
   );

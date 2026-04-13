@@ -78,6 +78,7 @@ export async function loginAction(
         body: JSON.stringify({
           email: parsed.data.email,
           password: parsed.data.password,
+          client: "backoffice",
         }),
       },
     );

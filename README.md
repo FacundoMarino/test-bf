@@ -19,7 +19,7 @@ npm run dev
 ## Flujo de auth (alineado con `auth-service`)
 
 1. El formulario de login valida con Zod + React Hook Form.
-2. La **Server Action** `loginAction` hace `POST /auth/sign-in` con `{ email, password }` (Supabase requiere la contraseña real; no acepta un hash SHA-256 del cliente).
+2. La **Server Action** `loginAction` hace `POST /auth/sign-in` con `{ email, password, client: "backoffice" }` para permitir cuentas de club; la app móvil envía `client: "app"` y el API rechaza cuentas de panel (`is_club` / roles de staff).
 3. La respuesta incluye `accessToken`; Next lo guarda en una cookie **HttpOnly** (`SESSION_COOKIE_NAME`).
 4. `GET /auth/me` se llama desde el servidor con `Authorization: Bearer <accessToken>`.
 5. `logoutAction` borra la cookie en Next (no hay endpoint de logout en el auth-service actual).

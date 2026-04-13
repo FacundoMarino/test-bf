@@ -1,0 +1,9 @@
+"use client";
+
+import { Toaster } from "sonner";
+
+export function SonnerToaster() {
+  return (
+    <Toaster richColors position="top-center" closeButton duration={8000} />
+  );
+}
