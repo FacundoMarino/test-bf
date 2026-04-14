@@ -20,7 +20,11 @@ import {
   dailyBlocksToCourtSchedulePayload,
   hhmmToMinutes,
 } from "@/lib/court-schedule-map";
-import type { ClubScheduleBlock, CourtRecord, DailyScheduleBlocks } from "@/types/club";
+import type {
+  ClubScheduleBlock,
+  CourtRecord,
+  DailyScheduleBlocks,
+} from "@/types/club";
 import { DEFAULT_COURT_SLOT_DURATION_MINUTES } from "@/types/club";
 
 type DayPrices = Record<keyof DailyScheduleBlocks, number>;

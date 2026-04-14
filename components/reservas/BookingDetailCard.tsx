@@ -318,7 +318,7 @@ export function BookingDetailCard({
                     </p>
                     <LevelDots
                       level={isMatch ? matchLevel : (bookerLevel ?? 1)}
-                      invert={!isMatch}
+                      invert={isMatch ? visibility === "public" : true}
                       variant={
                         tentativeSlotStillFree && isMatch ? "amber" : "sky"
                       }
