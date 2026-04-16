@@ -112,7 +112,7 @@ export function ClubDashboardNextReservationsSection({
                       </p>
                     ) : (
                       <p className="text-muted-foreground text-xs">
-                        Sin reservas próximas
+                        Sin reservas hoy
                       </p>
                     )}
                   </div>

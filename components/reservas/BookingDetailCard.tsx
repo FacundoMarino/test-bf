@@ -11,6 +11,14 @@ import type {
   ReservationStatus,
 } from "@/types/club-reservation";
 
+const MAX_LEVEL = 8;
+const moneyFmt = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "ARS",
+  maximumFractionDigits: 0,
+  currencyDisplay: "narrowSymbol",
+});
+
 function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString("es-ES", {
     day: "2-digit",
@@ -39,6 +47,19 @@ function fmtTime(iso: string) {
   });
 }
 
+function bookingSlotPrice(
+  slotPricePerHour: number | null | undefined,
+): number | null {
+  if (
+    typeof slotPricePerHour !== "number" ||
+    !Number.isFinite(slotPricePerHour) ||
+    slotPricePerHour <= 0
+  ) {
+    return null;
+  }
+  return slotPricePerHour;
+}
+
 function initial(name: string | null | undefined): string {
   const t = (name ?? "?").trim();
   return t ? t.charAt(0).toUpperCase() : "?";
@@ -46,7 +67,7 @@ function initial(name: string | null | undefined): string {
 
 function normalizeLevel(raw: number | null | undefined): number | null {
   if (typeof raw !== "number" || Number.isNaN(raw)) return null;
-  return Math.min(7, Math.max(1, Math.round(raw)));
+  return Math.min(MAX_LEVEL, Math.max(1, Math.round(raw)));
 }
 
 const STATUS_DETAIL: Record<ReservationStatus, string> = {
@@ -65,19 +86,17 @@ function courtTypeLabel(t: string) {
 
 function LevelDots({
   level,
-  invert = false,
   variant = "sky",
 }: {
   level: number;
-  invert?: boolean;
   variant?: "sky" | "amber";
 }) {
-  const normalized = normalizeLevel(level) ?? 7;
-  const filled = invert ? 8 - normalized : normalized;
+  const normalized = normalizeLevel(level) ?? MAX_LEVEL;
+  const filled = normalized;
   const filledClass = variant === "amber" ? "bg-amber-500" : "bg-sky-500";
   return (
     <div className="flex items-center gap-1">
-      {Array.from({ length: 7 }).map((_, i) => (
+      {Array.from({ length: MAX_LEVEL }).map((_, i) => (
         <span
           key={i}
           className={cn(
@@ -94,7 +113,7 @@ function LevelDots({
             : "text-muted-foreground",
         )}
       >
-        {normalized}/7
+        {normalized}/{MAX_LEVEL}
       </span>
     </div>
   );
@@ -225,6 +244,7 @@ export function BookingDetailCard({
   const rangeLabel = `${fmtTime(booking.start)} – ${fmtTime(booking.end)}`;
   const tentativeSlotStillFree = isTentativePublicOpenMatch(booking);
   const maxPlayersTentative = booking.maxPlayers ?? 4;
+  const reservedSlotPrice = bookingSlotPrice(booking.slotPricePerHour);
 
   return (
     <div
@@ -318,7 +338,6 @@ export function BookingDetailCard({
                     </p>
                     <LevelDots
                       level={isMatch ? matchLevel : (bookerLevel ?? 1)}
-                      invert={isMatch ? visibility === "public" : true}
                       variant={
                         tentativeSlotStillFree && isMatch ? "amber" : "sky"
                       }
@@ -356,6 +375,16 @@ export function BookingDetailCard({
                 </dt>
                 <dd className="text-foreground mt-0.5 text-sm font-semibold capitalize">
                   {fmtDate(booking.start)} · {rangeLabel}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs font-medium">
+                  Precio reservado
+                </dt>
+                <dd className="text-foreground mt-0.5 text-sm font-semibold">
+                  {reservedSlotPrice != null
+                    ? moneyFmt.format(reservedSlotPrice)
+                    : "—"}
                 </dd>
               </div>
               <div>
@@ -531,7 +560,7 @@ export function BookingDetailCard({
                         </span>
                       ) : null}
                       <span className="text-muted-foreground text-xs">
-                        {s.level != null ? `(${s.level}/7)` : ""}
+                        {s.level != null ? `(${s.level}/${MAX_LEVEL})` : ""}
                       </span>
                     </li>
                   ),

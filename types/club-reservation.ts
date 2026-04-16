@@ -46,4 +46,5 @@ export type ClubReservation = {
   /** Invitados cargados en reserva manual (club). */
   manualGuests?: Array<{ name: string; phone?: string | null }> | null;
   manualClubNotes?: string | null;
+  slotPricePerHour?: number | null;
 };

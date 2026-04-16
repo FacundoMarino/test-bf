@@ -109,9 +109,10 @@ export function ClubMetricsView({
   range: ClubAnalyticsRange;
   data: ClubAnalyticsResponse;
 }) {
-  const eurFmt = new Intl.NumberFormat("es", {
+  const eurFmt = new Intl.NumberFormat("es-AR", {
     style: "currency",
-    currency: "EUR",
+    currency: "ARS",
+    currencyDisplay: "narrowSymbol",
     maximumFractionDigits: 0,
   });
   const suf = summarySuffix(range);
@@ -189,13 +190,13 @@ export function ClubMetricsView({
               Ingresos por día de la semana
             </CardTitle>
             <p className="text-muted-foreground text-sm font-normal">
-              Suma de ingresos confirmados en el periodo, por día UTC ({suf}).
+              Suma de ingresos del periodo, por día UTC ({suf}).
             </p>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">
             {data.revenueByWeekday.every((d) => d.amountEUR === 0) ? (
               <p className="text-muted-foreground py-6 text-center text-sm">
-                Sin ingresos confirmados en este periodo.
+                Sin ingresos en este periodo.
               </p>
             ) : (
               data.revenueByWeekday.map((d) => (
@@ -228,7 +229,7 @@ export function ClubMetricsView({
               Ocupación por cancha
             </CardTitle>
             <p className="text-muted-foreground text-sm font-normal">
-              Minutos reservados frente a minutos abiertos según horarios.
+              Reservas de cada cancha sobre el total de turnos del período.
             </p>
           </CardHeader>
           <CardContent className="space-y-4 pt-2">
@@ -270,7 +271,8 @@ export function ClubMetricsView({
               Horas más concurridas
             </CardTitle>
             <p className="text-muted-foreground text-sm font-normal">
-              Ocupación en franjas horarias (UTC) respecto al aforo programado.
+              Reservas por franja horaria (UTC) sobre el total de turnos del
+              período.
             </p>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">

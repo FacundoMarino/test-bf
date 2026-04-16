@@ -82,8 +82,9 @@ export function ClubDashboardHome({ data }: { data: ClubDashboardResponse }) {
   const cmp = data.comparisonLabel;
   const eurFmt = new Intl.NumberFormat("es", {
     style: "currency",
-    currency: "EUR",
+    currency: "ARS",
     maximumFractionDigits: 0,
+    currencyDisplay: "narrowSymbol",
   });
 
   return (

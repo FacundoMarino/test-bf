@@ -246,6 +246,9 @@ export function ReservationsBoard({
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(
     null,
   );
+  const [listDetailBooking, setListDetailBooking] =
+    useState<ClubReservation | null>(null);
+  const [listDetailOpen, setListDetailOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(() =>
     startOfLocalDay(new Date()),
@@ -339,28 +342,7 @@ export function ReservationsBoard({
     });
   }, [loadSlots]);
 
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible" && document.hasFocus()) {
-        router.refresh();
-        void loadSlots();
-      }
-    };
-    const handleFocus = () => {
-      if (document.visibilityState === "visible") {
-        router.refresh();
-        void loadSlots();
-      }
-    };
-
-    handleVisibility();
-    window.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("focus", handleFocus);
-    return () => {
-      window.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [router, loadSlots]);
+  // No auto-refetch on window/tab focus; only refresh after explicit user actions.
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -487,18 +469,19 @@ export function ReservationsBoard({
     void loadSlots();
   }
 
-  async function handleCancelBooking(bookingId: string) {
+  async function handleCancelBooking(bookingId: string): Promise<boolean> {
     setError(null);
     setCancelBusyId(bookingId);
     const res = await cancelClubBookingAction(clubId, bookingId);
     setCancelBusyId(null);
     if (!res.ok) {
       setError(res.error);
-      return;
+      return false;
     }
     setExpandedBookingId(null);
     router.refresh();
     void loadSlots();
+    return true;
   }
 
   function openManualReservation(slot: { start: string; end: string }) {
@@ -560,15 +543,19 @@ export function ReservationsBoard({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[260px] flex-1">
-          <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por jugador o cancha..."
-            className="h-11 rounded-lg pl-10"
-          />
-        </div>
+        {mode === "list" ? (
+          <div className="relative min-w-[260px] flex-1">
+            <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por jugador o cancha..."
+              className="h-11 rounded-lg pl-10"
+            />
+          </div>
+        ) : (
+          <div className="flex-1" />
+        )}
         <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
@@ -689,7 +676,14 @@ export function ReservationsBoard({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="icon-sm" variant="ghost" disabled>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setListDetailBooking(r);
+                            setListDetailOpen(true);
+                          }}
+                        >
                           <Eye className="size-4" />
                         </Button>
                         {r.status === "PENDING" ? (
@@ -1121,6 +1115,33 @@ export function ReservationsBoard({
           </section>
         </div>
       )}
+
+      <Dialog
+        open={listDetailOpen}
+        onOpenChange={(nextOpen) => {
+          setListDetailOpen(nextOpen);
+          if (!nextOpen) setListDetailBooking(null);
+        }}
+      >
+        <DialogContent className="w-[80vw] max-h-[90vh] overflow-y-auto rounded-2xl p-0">
+          <DialogTitle className="sr-only">Detalle de reserva</DialogTitle>
+          {listDetailBooking ? (
+            <BookingDetailCard
+              booking={listDetailBooking}
+              cancelling={cancelBusyId === listDetailBooking.id}
+              onCancel={() => {
+                void (async () => {
+                  const ok = await handleCancelBooking(listDetailBooking.id);
+                  if (ok) {
+                    setListDetailOpen(false);
+                    setListDetailBooking(null);
+                  }
+                })();
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={manualModalOpen}

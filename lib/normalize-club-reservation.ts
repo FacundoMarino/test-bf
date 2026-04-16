@@ -129,5 +129,8 @@ export function normalizeClubReservation(raw: unknown): ClubReservation | null {
     manualClubNotes: asNullableString(
       row.manualClubNotes ?? row.manual_club_notes,
     ),
+    slotPricePerHour: asNullableNumber(
+      row.slotPricePerHour ?? row.slot_price_per_hour,
+    ),
   };
 }
