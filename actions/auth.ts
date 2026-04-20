@@ -163,6 +163,7 @@ export async function registerAction(
             ? { fullName: parsed.data.fullName.trim() }
             : {}),
           isClub: true,
+          client: "backoffice",
         }),
       },
     );

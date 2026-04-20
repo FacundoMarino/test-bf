@@ -92,7 +92,8 @@ function LevelDots({
   variant?: "sky" | "amber";
 }) {
   const normalized = normalizeLevel(level) ?? MAX_LEVEL;
-  const filled = normalized;
+  // The visual scale is inverted: level 8 => 1 dot, level 1 => 8 dots.
+  const filled = MAX_LEVEL - normalized + 1;
   const filledClass = variant === "amber" ? "bg-amber-500" : "bg-sky-500";
   return (
     <div className="flex items-center gap-1">

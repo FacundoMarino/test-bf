@@ -16,7 +16,7 @@ function formatTimeRange(startIso: string, endIso: string): string {
   const opts: Intl.DateTimeFormatOptions = {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "UTC",
+    hour12: false,
   };
   const a = new Intl.DateTimeFormat("es", opts).format(new Date(startIso));
   const b = new Intl.DateTimeFormat("es", opts).format(new Date(endIso));

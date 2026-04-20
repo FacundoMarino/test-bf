@@ -346,15 +346,19 @@ export function ReservationsBoard({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return boardReservations.filter((r) => {
-      if (status !== "ALL" && r.status !== status) return false;
-      if (listCourtId !== "ALL" && r.court.id !== listCourtId) return false;
-      if (!q) return true;
-      return (
-        r.court.name.toLowerCase().includes(q) ||
-        (r.user.fullName ?? "sin nombre").toLowerCase().includes(q)
+    return boardReservations
+      .filter((r) => {
+        if (status !== "ALL" && r.status !== status) return false;
+        if (listCourtId !== "ALL" && r.court.id !== listCourtId) return false;
+        if (!q) return true;
+        return (
+          r.court.name.toLowerCase().includes(q) ||
+          (r.user.fullName ?? "sin nombre").toLowerCase().includes(q)
+        );
+      })
+      .sort(
+        (a, b) => new Date(b.start).getTime() - new Date(a.start).getTime(),
       );
-    });
   }, [boardReservations, query, status, listCourtId]);
 
   const grouped = useMemo(
