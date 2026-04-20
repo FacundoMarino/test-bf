@@ -130,8 +130,7 @@ export function ClubMetricsView({
             Métricas
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Rendimiento del club según el periodo seleccionado (UTC, mismo
-            criterio que reservas).
+            Rendimiento del club según el periodo seleccionado
           </p>
         </div>
         <div className="bg-muted/60 flex flex-wrap gap-1 rounded-lg p-1 ring-1 ring-foreground/5">
@@ -190,7 +189,7 @@ export function ClubMetricsView({
               Ingresos por día de la semana
             </CardTitle>
             <p className="text-muted-foreground text-sm font-normal">
-              Suma de ingresos del periodo, por día UTC ({suf}).
+              Suma de ingresos del periodo, por día ({suf}).
             </p>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">
@@ -271,8 +270,7 @@ export function ClubMetricsView({
               Horas más concurridas
             </CardTitle>
             <p className="text-muted-foreground text-sm font-normal">
-              Reservas por franja horaria (UTC) sobre el total de turnos del
-              período.
+              Reservas por franja horaria sobre el total de turnos del período.
             </p>
           </CardHeader>
           <CardContent className="space-y-3 pt-2">

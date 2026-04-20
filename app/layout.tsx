@@ -7,7 +7,7 @@ import "./globals.css";
 import { SonnerToaster } from "@/components/ui/sonner-toaster";
 
 export const metadata: Metadata = {
-  title: "Serxus",
+  title: "Puntoo",
   description: "SaaS base — Next.js + auth-service",
 };
 

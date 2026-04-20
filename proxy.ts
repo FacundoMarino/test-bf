@@ -27,11 +27,14 @@ export function proxy(request: NextRequest) {
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
   const sessionToken = sessionCookie?.value;
   const hasValidSession = sessionToken ? !isTokenExpired(sessionToken) : false;
+  const isConfirmAccountRoute =
+    request.nextUrl.pathname.startsWith("/confirm-account");
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/register");
+  const isPublicRoute = isAuthRoute || isConfirmAccountRoute;
 
-  if (!hasValidSession && !isAuthRoute) {
+  if (!hasValidSession && !isPublicRoute) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
     const res = NextResponse.redirect(loginUrl);
@@ -45,7 +48,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  if (!hasValidSession && isAuthRoute && sessionToken) {
+  if (!hasValidSession && isPublicRoute && sessionToken) {
     const res = NextResponse.next();
     res.cookies.delete(SESSION_COOKIE_NAME);
     return res;

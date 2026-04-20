@@ -19,6 +19,13 @@ import { cn } from "@/lib/utils";
 
 const baseNav = [{ href: "/dashboard", label: "Inicio", icon: Home }] as const;
 
+function isNavItemActive(pathname: string, href: string): boolean {
+  if (href === "/dashboard") {
+    return pathname === "/dashboard";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function Sidebar({
   showClubNav = false,
   showSuperAdminNav = false,
@@ -88,10 +95,10 @@ export function Sidebar({
         <div className="flex h-14 items-center justify-between gap-2 border-b border-border/80 px-3">
           {!collapsed ? (
             <span className="text-primary truncate text-sm font-semibold tracking-tight">
-              Serxus
+              Puntoo
             </span>
           ) : (
-            <span className="text-primary mx-auto text-xs font-bold">S</span>
+            <span className="text-primary mx-auto text-xs font-bold">P</span>
           )}
           <button
             type="button"
@@ -108,9 +115,7 @@ export function Sidebar({
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-2">
           {nav.map(({ href, label, icon: Icon }) => {
-            const active =
-              pathname === href ||
-              (href !== "/dashboard/club" && pathname.startsWith(`${href}/`));
+            const active = isNavItemActive(pathname, href);
             return (
               <Link
                 key={href}

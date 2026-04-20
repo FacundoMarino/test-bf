@@ -40,7 +40,7 @@ export function RegisterForm() {
     <AuthScreen>
       <AuthFormShell
         title="Crear cuenta"
-        subtitle="Registrate como club para gestionar tu espacio en Serxus."
+        subtitle="Registrate como club para gestionar tu espacio en Puntoo."
         footer={
           <p className="text-muted-foreground text-center text-base">
             ¿Ya tenés cuenta?{" "}
