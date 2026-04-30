@@ -490,7 +490,7 @@ export function ClubProfileForm({
               </>
             ) : (
               <>
-                <CheckCircle2 className="size-12 text-emerald-600" />
+                <CheckCircle2 className="size-12 text-[#788ce3]" />
                 <p className="text-sm font-medium">
                   Se guardó correctamente la información del club y será
                   redirigido a canchas.

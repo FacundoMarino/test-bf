@@ -94,7 +94,7 @@ function LevelDots({
   const normalized = normalizeLevel(level) ?? MAX_LEVEL;
   // The visual scale is inverted: level 8 => 1 dot, level 1 => 8 dots.
   const filled = MAX_LEVEL - normalized + 1;
-  const filledClass = variant === "amber" ? "bg-amber-500" : "bg-sky-500";
+  const filledClass = variant === "amber" ? "bg-[#405fd3]" : "bg-[#788ce3]";
   return (
     <div className="flex items-center gap-1">
       {Array.from({ length: MAX_LEVEL }).map((_, i) => (
@@ -109,9 +109,7 @@ function LevelDots({
       <span
         className={cn(
           "ml-1 text-sm",
-          variant === "amber"
-            ? "text-amber-900 dark:text-amber-200"
-            : "text-muted-foreground",
+          variant === "amber" ? "text-[#405fd3]" : "text-muted-foreground",
         )}
       >
         {normalized}/{MAX_LEVEL}
@@ -252,16 +250,16 @@ export function BookingDetailCard({
       className={cn(
         "border-border border-t",
         tentativeSlotStillFree
-          ? "bg-amber-50/50 dark:bg-amber-950/20"
+          ? "bg-[#405fd3]/10"
           : "bg-sky-50/40 dark:bg-sky-950/20",
       )}
     >
       <div className="space-y-0 px-4 py-4 sm:px-6">
         <div className="space-y-5 pt-1">
           {tentativeSlotStillFree ? (
-            <div className="border-amber-200/90 bg-amber-50/90 dark:border-amber-800/50 dark:bg-amber-950/35 flex gap-3 rounded-xl border px-4 py-3">
-              <Users className="text-amber-600 dark:text-amber-400 mt-0.5 size-5 shrink-0" />
-              <p className="text-amber-950 dark:text-amber-50 text-sm font-medium leading-snug">
+            <div className="border-[#405fd3]/30 bg-[#405fd3]/10 flex gap-3 rounded-xl border px-4 py-3">
+              <Users className="text-[#405fd3] mt-0.5 size-5 shrink-0" />
+              <p className="text-[#405fd3] text-sm font-medium leading-snug">
                 Partido pendiente de confirmación. Se confirmará cuando se
                 completen los {maxPlayersTentative} jugadores. El horario sigue
                 disponible para reservas.
@@ -277,7 +275,7 @@ export function BookingDetailCard({
               <span
                 className={cn(
                   "relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full text-lg font-bold text-white",
-                  tentativeSlotStillFree ? "bg-amber-600" : "bg-sky-600",
+                  tentativeSlotStillFree ? "bg-[#405fd3]" : "bg-[#788ce3]",
                 )}
               >
                 {!isManualGuestBooking && booking.user.avatarUrl ? (
@@ -299,7 +297,7 @@ export function BookingDetailCard({
                     {displayName}
                   </p>
                   {tentativeSlotStillFree ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-200/90 px-2.5 py-0.5 text-xs font-semibold text-amber-950 dark:bg-amber-900/50 dark:text-amber-100">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#405fd3]/20 px-2.5 py-0.5 text-xs font-semibold text-[#405fd3]">
                       <Lock className="size-3 opacity-80" aria-hidden />
                       Pendiente
                     </span>
@@ -395,10 +393,10 @@ export function BookingDetailCard({
                 <dd className="mt-1 flex flex-wrap items-center gap-2">
                   {tentativeSlotStillFree ? (
                     <>
-                      <span className="inline-flex rounded-full bg-amber-200/90 px-2.5 py-0.5 text-xs font-semibold text-amber-950 dark:bg-amber-900/50 dark:text-amber-100">
+                      <span className="inline-flex rounded-full bg-[#405fd3]/20 px-2.5 py-0.5 text-xs font-semibold text-[#405fd3]">
                         Pendiente
                       </span>
-                      <span className="inline-flex rounded-full border-2 border-emerald-600/70 bg-transparent px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:border-emerald-500/80 dark:text-emerald-200">
+                      <span className="inline-flex rounded-full border-2 border-[#788ce3]/70 bg-transparent px-2.5 py-0.5 text-xs font-semibold text-[#788ce3]">
                         Libre
                       </span>
                       <span className="text-muted-foreground w-full text-xs font-medium">
@@ -411,9 +409,9 @@ export function BookingDetailCard({
                       className={cn(
                         "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
                         booking.status === "CONFIRMED" &&
-                          "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200",
+                          "bg-[#788ce3]/15 text-[#788ce3]",
                         booking.status === "PENDING" &&
-                          "bg-amber-500/15 text-amber-800 dark:text-amber-200",
+                          "bg-[#405fd3]/15 text-[#405fd3]",
                         booking.status === "CANCELLED" &&
                           "bg-slate-500/15 text-slate-700 dark:text-slate-200",
                         booking.status === "REJECTED" &&
@@ -433,7 +431,7 @@ export function BookingDetailCard({
                   {isMatch ? (
                     <Lock className="size-4 text-sky-600 dark:text-sky-400" />
                   ) : isManualGuestBooking ? (
-                    <Lock className="size-4 text-amber-600 dark:text-amber-400" />
+                    <Lock className="size-4 text-[#405fd3]" />
                   ) : (
                     <User className="text-muted-foreground size-4" />
                   )}
@@ -485,8 +483,8 @@ export function BookingDetailCard({
                     className={cn(
                       "size-4",
                       tentativeSlotStillFree
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-sky-600 dark:text-sky-400",
+                        ? "text-[#405fd3]"
+                        : "text-[#788ce3]",
                     )}
                   />
                   Jugadores
@@ -496,8 +494,8 @@ export function BookingDetailCard({
                   <span
                     className={cn(
                       tentativeSlotStillFree
-                        ? "text-amber-700 dark:text-amber-300"
-                        : "text-emerald-600 dark:text-emerald-400",
+                        ? "text-[#405fd3]"
+                        : "text-[#788ce3]",
                     )}
                   >
                     ({freeCount}{" "}
@@ -513,7 +511,7 @@ export function BookingDetailCard({
                       className={cn(
                         "flex items-center gap-3 text-sm italic",
                         tentativeSlotStillFree
-                          ? "text-amber-800/90 dark:text-amber-200/90"
+                          ? "text-[#405fd3]"
                           : "text-muted-foreground",
                       )}
                     >
@@ -521,7 +519,7 @@ export function BookingDetailCard({
                         className={cn(
                           "flex size-9 items-center justify-center rounded-full border border-dashed",
                           tentativeSlotStillFree
-                            ? "border-amber-400/70 dark:border-amber-600/60"
+                            ? "border-[#405fd3]/70"
                             : "border-muted-foreground/40",
                         )}
                       >
@@ -535,8 +533,8 @@ export function BookingDetailCard({
                         className={cn(
                           "relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white",
                           tentativeSlotStillFree
-                            ? "bg-amber-600"
-                            : "bg-sky-600",
+                            ? "bg-[#405fd3]"
+                            : "bg-[#788ce3]",
                         )}
                       >
                         {s.avatarUrl ? (

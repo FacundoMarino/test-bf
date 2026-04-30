@@ -84,7 +84,7 @@ export default async function AdminClubsApprovalPage() {
                       >
                         <button
                           type="submit"
-                          className="inline-flex rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                          className="inline-flex rounded-lg bg-[#788ce3] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#405fd3]"
                         >
                           Aprobar
                         </button>

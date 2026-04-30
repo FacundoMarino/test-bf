@@ -62,8 +62,8 @@ const STATUS_LABELS: Record<ReservationStatus, string> = {
 };
 
 const STATUS_CLASSNAMES: Record<ReservationStatus, string> = {
-  PENDING: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  CONFIRMED: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  PENDING: "bg-[#405fd3]/15 text-[#405fd3]",
+  CONFIRMED: "bg-[#788ce3]/15 text-[#788ce3]",
   REJECTED: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
   CANCELLED: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
 };
@@ -672,7 +672,7 @@ export function ReservationsBoard({
                           {STATUS_LABELS[r.status]}
                         </span>
                         {isTentativePublicOpenMatch(r) ? (
-                          <span className="text-amber-800 dark:text-amber-200 text-xs font-semibold">
+                          <span className="text-[#405fd3] text-xs font-semibold">
                             Turno libre (partido abierto)
                           </span>
                         ) : null}
@@ -698,7 +698,7 @@ export function ReservationsBoard({
                               disabled={busyId === r.id}
                               onClick={() => void onAction(r.id, "approve")}
                             >
-                              <Check className="size-4 text-emerald-600" />
+                              <Check className="size-4 text-[#788ce3]" />
                             </Button>
                             <Button
                               size="icon-sm"
@@ -781,7 +781,7 @@ export function ReservationsBoard({
               </p>
               <ul className="space-y-2">
                 <li className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full bg-emerald-400" />
+                  <span className="size-2.5 shrink-0 rounded-full bg-[#788ce3]" />
                   <span className="text-muted-foreground">Disponible</span>
                 </li>
                 <li className="flex items-center gap-2">
@@ -789,7 +789,7 @@ export function ReservationsBoard({
                   <span className="text-muted-foreground">Reservado</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full bg-amber-400" />
+                  <span className="size-2.5 shrink-0 rounded-full bg-[#405fd3]" />
                   <span className="text-muted-foreground">
                     Partido abierto pendiente (turno libre)
                   </span>
@@ -814,7 +814,7 @@ export function ReservationsBoard({
                     {longDateLabel}
                   </h2>
                   <p className="text-muted-foreground text-sm">
-                    <span className="text-emerald-600 font-medium dark:text-emerald-400">
+                    <span className="text-[#788ce3] font-medium">
                       {dayStats.disponibles} disponibles
                     </span>
                     <span className="mx-2">·</span>
@@ -824,7 +824,7 @@ export function ReservationsBoard({
                     {dayStats.tentativosAbiertos > 0 ? (
                       <>
                         <span className="mx-2">·</span>
-                        <span className="text-amber-700 font-medium dark:text-amber-300">
+                        <span className="text-[#405fd3] font-medium">
                           {dayStats.tentativosAbiertos}{" "}
                           {dayStats.tentativosAbiertos === 1
                             ? "partido abierto pendiente"
@@ -880,12 +880,10 @@ export function ReservationsBoard({
                           key={`${validCourtId}-${formatLocalYmd(selectedDate)}-${rowIndex}-${row.kind}`}
                           className={cn(
                             "overflow-hidden rounded-xl border",
-                            isAvail &&
-                              "border-emerald-200/80 bg-emerald-50/50 dark:border-emerald-900/30 dark:bg-emerald-950/25",
+                            isAvail && "border-[#788ce3]/30 bg-[#788ce3]/10",
                             isRes &&
                               "border-sky-200/80 bg-sky-50/50 dark:border-sky-900/30 dark:bg-sky-950/25",
-                            isTent &&
-                              "border-amber-200/90 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/30",
+                            isTent && "border-[#405fd3]/30 bg-[#405fd3]/10",
                             isClosed &&
                               "border-border bg-muted/30 text-muted-foreground",
                           )}
@@ -895,12 +893,10 @@ export function ReservationsBoard({
                             tabIndex={interactiveHeader ? 0 : undefined}
                             className={cn(
                               "flex items-stretch",
-                              isAvail &&
-                                "cursor-pointer hover:bg-emerald-100/50 dark:hover:bg-emerald-950/40",
+                              isAvail && "cursor-pointer hover:bg-[#788ce3]/20",
                               isRes &&
                                 "cursor-pointer hover:bg-sky-100/40 dark:hover:bg-sky-950/40",
-                              isTent &&
-                                "cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-950/35",
+                              isTent && "cursor-pointer hover:bg-[#405fd3]/20",
                             )}
                             onClick={() => {
                               if (isAvail) {
@@ -948,9 +944,9 @@ export function ReservationsBoard({
                             <div
                               className={cn(
                                 "w-1.5 shrink-0",
-                                isAvail && "bg-emerald-500",
+                                isAvail && "bg-[#788ce3]",
                                 isRes && "bg-sky-500",
-                                isTent && "bg-amber-500",
+                                isTent && "bg-[#405fd3]",
                                 isClosed && "bg-slate-400",
                               )}
                             />
@@ -975,7 +971,7 @@ export function ReservationsBoard({
                                 ) : null}
                                 {isTent && tentBooking ? (
                                   <div className="mt-0.5 space-y-0.5">
-                                    <p className="inline-flex flex-wrap items-center gap-1.5 text-sm font-medium text-amber-800 dark:text-amber-200">
+                                    <p className="inline-flex flex-wrap items-center gap-1.5 text-sm font-medium text-[#405fd3]">
                                       <Users className="size-3.5 shrink-0 opacity-90" />
                                       <span>
                                         Partido pendiente · {filledP}/{maxP}{" "}
@@ -999,7 +995,7 @@ export function ReservationsBoard({
                                 {isAvail ? (
                                   <button
                                     type="button"
-                                    className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:hover:bg-emerald-900/60"
+                                    className="inline-flex rounded-full bg-[#788ce3]/15 px-3 py-1 text-xs font-semibold text-[#788ce3] transition-colors hover:bg-[#788ce3]/25"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openManualReservation({
@@ -1013,12 +1009,12 @@ export function ReservationsBoard({
                                 ) : null}
                                 {isTent ? (
                                   <>
-                                    <span className="inline-flex rounded-full bg-amber-200/90 px-3 py-1 text-xs font-semibold text-amber-900 dark:bg-amber-900/50 dark:text-amber-100">
+                                    <span className="inline-flex rounded-full bg-[#405fd3]/20 px-3 py-1 text-xs font-semibold text-[#405fd3]">
                                       Pendiente
                                     </span>
                                     <button
                                       type="button"
-                                      className="inline-flex rounded-full border-2 border-emerald-500/70 bg-transparent px-3 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+                                      className="inline-flex rounded-full border-2 border-[#788ce3]/70 bg-transparent px-3 py-1 text-xs font-semibold text-[#788ce3] transition-colors hover:bg-[#788ce3]/10"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         openManualReservation({
@@ -1031,7 +1027,7 @@ export function ReservationsBoard({
                                     </button>
                                     <ChevronDown
                                       className={cn(
-                                        "size-4 shrink-0 text-amber-800 transition-transform dark:text-amber-200",
+                                        "size-4 shrink-0 text-[#405fd3] transition-transform",
                                         isExpanded && "rotate-180",
                                       )}
                                       aria-hidden
@@ -1227,7 +1223,7 @@ export function ReservationsBoard({
                             ),
                           )
                         }
-                        placeholder="+34"
+                        placeholder="+54 9 11 1234-5678"
                         className="h-10 rounded-lg"
                       />
                     </div>

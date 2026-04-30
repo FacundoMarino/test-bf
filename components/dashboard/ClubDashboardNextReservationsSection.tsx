@@ -31,8 +31,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_CLASS: Record<string, string> = {
-  PENDING: "bg-amber-500/15 text-amber-800 dark:text-amber-200",
-  CONFIRMED: "bg-emerald-600 text-white dark:bg-emerald-600 dark:text-white",
+  PENDING: "bg-[#405fd3]/15 text-[#405fd3]",
+  CONFIRMED: "bg-[#788ce3] text-white",
   REJECTED: "bg-red-500/15 text-red-800 dark:text-red-200",
   CANCELLED: "bg-muted text-muted-foreground",
 };
@@ -65,9 +65,9 @@ export function ClubDashboardNextReservationsSection({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<ClubDashboardNextByCourt | null>(null);
 
-  const eurFmt = new Intl.NumberFormat("es", {
+  const arsFmt = new Intl.NumberFormat("es-AR", {
     style: "currency",
-    currency: "EUR",
+    currency: "ARS",
     maximumFractionDigits: 0,
   });
 
@@ -101,7 +101,7 @@ export function ClubDashboardNextReservationsSection({
                 )}
               >
                 <div className="flex min-w-0 items-start gap-3">
-                  <MapPin className="text-teal-600 dark:text-teal-400 mt-0.5 size-4 shrink-0" />
+                  <MapPin className="text-[#788ce3] mt-0.5 size-4 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-foreground text-sm font-medium">
                       {row.courtName}
@@ -156,7 +156,7 @@ export function ClubDashboardNextReservationsSection({
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <MapPin className="text-teal-600 dark:text-teal-400 size-4" />
+                    <MapPin className="text-[#788ce3] size-4" />
                     <span className="text-foreground font-semibold">
                       {active.courtName}
                     </span>
@@ -204,7 +204,7 @@ export function ClubDashboardNextReservationsSection({
                     Precio
                   </p>
                   <p className="text-foreground mt-1 text-sm font-bold">
-                    {eurFmt.format(booking.priceEUR)}
+                    {arsFmt.format(booking.priceEUR)}
                   </p>
                 </div>
               </div>

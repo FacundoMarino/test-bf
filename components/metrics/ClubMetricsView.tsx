@@ -52,9 +52,7 @@ function TrendLine({ pct, label }: { pct: number | null; label: string }) {
     <span
       className={cn(
         "text-xs font-medium",
-        up
-          ? "text-emerald-600 dark:text-emerald-400"
-          : "text-red-600 dark:text-red-400",
+        up ? "text-[#788ce3]" : "text-red-600 dark:text-red-400",
       )}
     >
       {up ? "+" : ""}
@@ -97,8 +95,8 @@ function MetricCard({
 }
 
 function barTone(pct: number): string {
-  if (pct >= 70) return "bg-emerald-500";
-  if (pct >= 45) return "bg-amber-500";
+  if (pct >= 70) return "bg-[#788ce3]";
+  if (pct >= 45) return "bg-[#405fd3]";
   return "bg-muted-foreground/40";
 }
 

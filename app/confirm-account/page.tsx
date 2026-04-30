@@ -9,7 +9,9 @@ function ConfirmAccountFallback() {
         <h1 className="text-2xl font-semibold text-neutral-900">
           Cuenta confirmada
         </h1>
-        <p className="text-muted-foreground mt-3 text-sm">Preparando redirección…</p>
+        <p className="text-muted-foreground mt-3 text-sm">
+          Preparando redirección…
+        </p>
       </section>
     </main>
   );

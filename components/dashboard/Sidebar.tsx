@@ -19,11 +19,36 @@ import { cn } from "@/lib/utils";
 
 const baseNav = [{ href: "/dashboard", label: "Inicio", icon: Home }] as const;
 
-function isNavItemActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard") {
-    return pathname === "/dashboard";
+function normalizePathname(pathname: string): string {
+  if (pathname.length > 1 && pathname.endsWith("/")) {
+    return pathname.slice(0, -1);
   }
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return pathname;
+}
+
+function getActiveNavHref(
+  pathname: string,
+  nav: ReadonlyArray<{ href: string }>,
+): string | null {
+  const current = normalizePathname(pathname);
+
+  let best: string | null = null;
+  let bestLen = -1;
+  for (const item of nav) {
+    const href = normalizePathname(item.href);
+    const isMatch =
+      href === "/dashboard"
+        ? current === href
+        : current === href || current.startsWith(`${href}/`);
+
+    if (!isMatch) continue;
+    if (href.length > bestLen) {
+      best = item.href;
+      bestLen = href.length;
+    }
+  }
+
+  return best;
 }
 
 export function Sidebar({
@@ -69,6 +94,7 @@ export function Sidebar({
           : []),
       ] as const);
   const pathname = usePathname();
+  const activeHref = getActiveNavHref(pathname, nav);
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -115,7 +141,7 @@ export function Sidebar({
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-2">
           {nav.map(({ href, label, icon: Icon }) => {
-            const active = isNavItemActive(pathname, href);
+            const active = activeHref === href;
             return (
               <Link
                 key={href}

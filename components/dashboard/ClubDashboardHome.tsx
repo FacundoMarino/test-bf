@@ -14,7 +14,6 @@ function formatPeriodSubtitle(periodStartIso: string): string {
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: "UTC",
   }).format(d);
   return `Resumen del día — ${longDate}`;
 }
@@ -32,9 +31,7 @@ function TrendLine({ pct, label }: { pct: number | null; label: string }) {
     <span
       className={cn(
         "text-xs font-medium",
-        up
-          ? "text-emerald-600 dark:text-emerald-400"
-          : "text-red-600 dark:text-red-400",
+        up ? "text-[#788ce3]" : "text-red-600 dark:text-red-400",
       )}
     >
       {up ? "+" : ""}
@@ -62,7 +59,7 @@ function MetricCard({
         <CardTitle className="text-muted-foreground text-sm font-medium">
           {title}
         </CardTitle>
-        <span className="bg-teal-500/15 text-teal-700 dark:text-teal-300 flex size-9 shrink-0 items-center justify-center rounded-lg">
+        <span className="bg-[#788ce3]/15 text-[#788ce3] flex size-9 shrink-0 items-center justify-center rounded-lg">
           <Icon className="size-4" />
         </span>
       </CardHeader>
@@ -80,11 +77,8 @@ function MetricCard({
 
 export function ClubDashboardHome({ data }: { data: ClubDashboardResponse }) {
   const cmp = data.comparisonLabel;
-  const eurFmt = new Intl.NumberFormat("es", {
-    style: "currency",
-    currency: "ARS",
+  const arsFmt = new Intl.NumberFormat("es-AR", {
     maximumFractionDigits: 0,
-    currencyDisplay: "narrowSymbol",
   });
 
   return (
@@ -108,7 +102,7 @@ export function ClubDashboardHome({ data }: { data: ClubDashboardResponse }) {
         />
         <MetricCard
           title="Ingresos hoy"
-          value={eurFmt.format(data.metrics.revenue.valueEUR)}
+          value={`$ ${arsFmt.format(data.metrics.revenue.valueEUR)}`}
           changePercent={data.metrics.revenue.changePercent}
           comparisonLabel={cmp}
           icon={DollarSign}

@@ -91,13 +91,20 @@ const EMPTY_PRICES: DayPrices = {
 };
 
 function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+  return formatLocalIsoDate(new Date());
 }
 
 function nextMonthIsoDate() {
   const d = new Date();
   d.setMonth(d.getMonth() + 1);
-  return d.toISOString().slice(0, 10);
+  return formatLocalIsoDate(d);
+}
+
+function formatLocalIsoDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function newPeriodDraft(): PeriodConfig {
@@ -276,6 +283,8 @@ type CourtScheduleDialogProps = {
   onOpenChange: (open: boolean) => void;
   clubId: string;
   court: CourtRecord | null;
+  selectableCourts?: CourtRecord[];
+  onSelectCourt?: (courtId: string) => void;
   onSaved: () => void;
 };
 
@@ -284,6 +293,8 @@ export function CourtScheduleDialog({
   onOpenChange,
   clubId,
   court,
+  selectableCourts,
+  onSelectCourt,
   onSaved,
 }: CourtScheduleDialogProps) {
   const errorBannerRef = useRef<HTMLDivElement>(null);
@@ -943,6 +954,25 @@ export function CourtScheduleDialog({
             {title}
           </DialogTitle>
         </DialogHeader>
+        {selectableCourts && selectableCourts.length > 1 && onSelectCourt ? (
+          <div className="space-y-1">
+            <Label htmlFor="schedule-court-select" className="text-sm">
+              Cancha
+            </Label>
+            <select
+              id="schedule-court-select"
+              className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm shadow-sm"
+              value={court?.id ?? ""}
+              onChange={(e) => onSelectCourt(e.target.value)}
+            >
+              {selectableCourts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         {loading ? (
           <p className="text-muted-foreground py-8 text-center text-sm">

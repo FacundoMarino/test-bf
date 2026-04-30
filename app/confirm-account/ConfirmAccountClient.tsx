@@ -68,7 +68,9 @@ export function ConfirmAccountClient() {
         <div className="mt-6 rounded-xl bg-neutral-100 px-4 py-3">
           <p className="text-sm text-neutral-700">
             Redirigiendo en{" "}
-            <span className="font-semibold text-neutral-900">{secondsLeft}</span>{" "}
+            <span className="font-semibold text-neutral-900">
+              {secondsLeft}
+            </span>{" "}
             segundos...
           </p>
         </div>

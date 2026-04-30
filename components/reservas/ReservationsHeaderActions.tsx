@@ -29,22 +29,34 @@ export function ReservationsHeaderActions({
 }) {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
+  const [selectedCourtId, setSelectedCourtId] = useState<string>(
+    () => courts[0]?.id ?? "",
+  );
+
+  const dialogCourts = useMemo<CourtDialogCourt[]>(
+    () =>
+      courts.map((court) => ({
+        ...court,
+        lighting: false,
+        clubId,
+        createdAt: "",
+        updatedAt: "",
+      })),
+    [courts, clubId],
+  );
 
   const selectedCourt = useMemo<CourtDialogCourt | null>(() => {
-    const first = courts[0];
-    if (!first) return null;
-    return {
-      ...first,
-      lighting: false,
-      clubId,
-      createdAt: "",
-      updatedAt: "",
-    };
-  }, [courts, clubId]);
+    const picked =
+      dialogCourts.find((c) => c.id === selectedCourtId) ??
+      dialogCourts[0] ??
+      null;
+    if (!picked) return null;
+    return picked;
+  }, [dialogCourts, selectedCourtId]);
 
   return (
     <>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           className="border-input bg-background hover:bg-muted inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium shadow-sm transition-colors disabled:opacity-50"
@@ -70,6 +82,8 @@ export function ReservationsHeaderActions({
         onOpenChange={setScheduleOpen}
         clubId={clubId}
         court={selectedCourt}
+        selectableCourts={dialogCourts}
+        onSelectCourt={setSelectedCourtId}
         onSaved={() => window.location.reload()}
       />
       <CourtAvailabilityDialog

@@ -23,7 +23,7 @@ export default async function ClubConfigPage() {
           className={
             approvalStatus === "REJECTED"
               ? "rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-              : "rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              : "rounded-xl border border-[#405fd3]/30 bg-[#405fd3]/10 px-4 py-3 text-sm text-[#405fd3]"
           }
         >
           {approvalStatus === "REJECTED"

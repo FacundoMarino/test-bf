@@ -177,7 +177,7 @@ export function CourtsManager({
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium",
                     court.type === "outdoor"
-                      ? "border-amber-200 bg-amber-100/80 text-amber-900 dark:border-amber-300/25 dark:bg-amber-400/15 dark:text-amber-200"
+                      ? "border-[#405fd3]/30 bg-[#405fd3]/10 text-[#405fd3]"
                       : court.type === "indoor"
                         ? "border-slate-200 bg-slate-100/80 text-slate-800 dark:border-slate-300/25 dark:bg-slate-400/15 dark:text-slate-200"
                         : "border-muted-foreground/25 bg-muted/50 text-muted-foreground",
@@ -209,7 +209,7 @@ export function CourtsManager({
               <div className="border-border/80 mt-4 border-t" />
               <div className="mt-3 flex items-center justify-between gap-3">
                 <p className="text-muted-foreground inline-flex items-center gap-1.5 text-sm">
-                  <Lightbulb className="size-3.5 text-amber-500" />
+                  <Lightbulb className="size-3.5 text-[#405fd3]" />
                   {court.lighting ? "Con iluminación" : "Sin iluminación"}
                 </p>
                 <div className="flex items-center gap-1">

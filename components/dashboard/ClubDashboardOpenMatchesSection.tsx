@@ -56,9 +56,9 @@ export function ClubDashboardOpenMatchesSection({
             const levelLabel = m.level != null ? `Nivel ${m.level}` : "Partido";
             const dayTone =
               m.dayLabel === "Hoy"
-                ? "bg-orange-500/15 text-orange-800 dark:text-orange-200"
+                ? "bg-[#405fd3]/15 text-[#405fd3]"
                 : m.dayLabel === "Mañana"
-                  ? "bg-amber-500/15 text-amber-900 dark:text-amber-200"
+                  ? "bg-[#405fd3]/15 text-[#405fd3]"
                   : "bg-muted text-muted-foreground";
             return (
               <button
@@ -71,7 +71,7 @@ export function ClubDashboardOpenMatchesSection({
                 className="bg-muted/40 hover:bg-muted/60 flex w-full items-center justify-between gap-3 rounded-lg px-4 py-3 text-left transition-colors"
               >
                 <div className="flex min-w-0 items-start gap-3">
-                  <Users className="text-teal-600 dark:text-teal-400 mt-0.5 size-4 shrink-0" />
+                  <Users className="text-[#788ce3] mt-0.5 size-4 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-foreground text-sm font-medium">
                       {m.courtName} · {levelLabel}
@@ -83,7 +83,7 @@ export function ClubDashboardOpenMatchesSection({
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                  <span className="bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 rounded-full px-2 py-0.5 text-xs font-medium">
+                  <span className="bg-[#788ce3]/15 text-[#788ce3] rounded-full px-2 py-0.5 text-xs font-medium">
                     {m.freeSlots} libres
                   </span>
                   <span
@@ -120,7 +120,7 @@ export function ClubDashboardOpenMatchesSection({
                 </div>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <MapPin className="text-emerald-600 dark:text-emerald-400 size-4 shrink-0" />
+                    <MapPin className="text-[#788ce3] size-4 shrink-0" />
                     <span className="text-foreground font-semibold">
                       {active.courtName}
                     </span>
@@ -133,11 +133,11 @@ export function ClubDashboardOpenMatchesSection({
                 </div>
                 <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
                   <span className="inline-flex items-center gap-1.5">
-                    <Clock className="text-emerald-600 dark:text-emerald-400 size-4" />
+                    <Clock className="text-[#788ce3] size-4" />
                     {formatTimeRange(active.start, active.end)}
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <CalendarDays className="text-emerald-600 dark:text-emerald-400 size-4" />
+                    <CalendarDays className="text-[#788ce3] size-4" />
                     {active.dayLabel}
                   </span>
                 </div>
@@ -168,7 +168,7 @@ export function ClubDashboardOpenMatchesSection({
                         </div>
                       ) : (
                         <div className="flex gap-3">
-                          <span className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-600 text-sm font-bold text-white">
+                          <span className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#788ce3] text-sm font-bold text-white">
                             {slot.avatarUrl ? (
                               <Image
                                 src={slot.avatarUrl}
@@ -188,7 +188,7 @@ export function ClubDashboardOpenMatchesSection({
                                 {slot.fullName?.trim() || "Jugador"}
                               </p>
                               {slot.isOrganizer ? (
-                                <span className="bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 rounded-full px-2 py-0.5 text-xs font-medium">
+                                <span className="bg-[#788ce3]/15 text-[#788ce3] rounded-full px-2 py-0.5 text-xs font-medium">
                                   Organizador
                                 </span>
                               ) : null}

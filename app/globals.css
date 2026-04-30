@@ -6,26 +6,26 @@
 /* Alineado con events-starter/constants/theme (light por defecto) */
 :root {
   --radius: 0.75rem;
-  --brand-green: #1fb585;
-  --brand-green-hover: #1aa875;
+  --brand-green: #788ce3;
+  --brand-green-hover: #405fd3;
   --background: #ffffff;
   --foreground: #212121;
   --card: #ffffff;
   --card-foreground: #212121;
   --popover: #ffffff;
   --popover-foreground: #212121;
-  --primary: #1fb585;
+  --primary: #788ce3;
   --primary-foreground: #ffffff;
   --secondary: #f9fafb;
   --secondary-foreground: #212121;
   --muted: #f3f4f6;
   --muted-foreground: #6b7280;
-  --accent: #ecfdf5;
-  --accent-foreground: #065f46;
+  --accent: #eef2ff;
+  --accent-foreground: #405fd3;
   --destructive: #dc2626;
   --border: #e5e7eb;
   --input: #e5e7eb;
-  --ring: #1fb585;
+  --ring: #788ce3;
   --sidebar: #ffffff;
   --sidebar-foreground: #212121;
 }
@@ -37,18 +37,18 @@
   --card-foreground: #ecedee;
   --popover: #1c1f21;
   --popover-foreground: #ecedee;
-  --primary: #1fb585;
+  --primary: #788ce3;
   --primary-foreground: #ffffff;
   --secondary: #272a2c;
   --secondary-foreground: #ecedee;
   --muted: #272a2c;
   --muted-foreground: #9ba1a6;
-  --accent: #134e4a;
-  --accent-foreground: #a7f3d0;
+  --accent: #1e2b57;
+  --accent-foreground: #9db0ff;
   --destructive: #ef4444;
   --border: #2d3134;
   --input: #2d3134;
-  --ring: #1fb585;
+  --ring: #788ce3;
   --sidebar: #1c1f21;
   --sidebar-foreground: #ecedee;
 }
@@ -95,7 +95,7 @@
 .auth-screen {
   background: linear-gradient(
     180deg,
-    #f0fdf9 0%,
+    #eef2ff 0%,
     var(--background) 45%,
     var(--background) 100%
   );
@@ -104,7 +104,7 @@
 .dark .auth-screen {
   background: linear-gradient(
     180deg,
-    #0d1f1a 0%,
+    #161f40 0%,
     var(--background) 50%,
     var(--background) 100%
   );
