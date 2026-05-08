@@ -17,6 +17,7 @@ import {
   deleteClubAction,
   saveClubProfileAction,
 } from "@/actions/club-profile";
+import { uploadImageAction } from "@/actions/upload-image";
 import type { ClubRecord, ProfileRecord } from "@/types/club";
 import {
   AMENITY_LABELS,
@@ -71,6 +72,7 @@ export function ClubProfileForm({
     return first?.pricePerHour ?? 0;
   });
   const [pending, setPending] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [redirectToCourtsState, setRedirectToCourtsState] = useState<
     "idle" | "saving" | "success"
   >("idle");
@@ -173,16 +175,15 @@ export function ClubProfileForm({
 
   const showAvatar =
     Boolean(avatarUrl) &&
-    (avatarUrl.toLowerCase().startsWith("data:image/") ||
-      (() => {
-        try {
-          return Boolean(new URL(avatarUrl));
-        } catch {
-          return false;
-        }
-      })());
+    (() => {
+      try {
+        return Boolean(new URL(avatarUrl));
+      } catch {
+        return false;
+      }
+    })();
 
-  function onLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -200,13 +201,27 @@ export function ClubProfileForm({
       });
       return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage({
+        type: "err",
+        text: "La imagen supera el máximo de 5MB",
+      });
+      return;
+    }
     setMessage(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const r = reader.result;
-      if (typeof r === "string") setAvatarUrl(r);
-    };
-    reader.readAsDataURL(file);
+    setUploadingAvatar(true);
+    const result = await uploadImageAction(file);
+    setUploadingAvatar(false);
+
+    if (!result.ok) {
+      setMessage({ type: "err", text: result.error });
+      return;
+    }
+    setAvatarUrl(result.url);
+    setMessage({
+      type: "ok",
+      text: "Imagen subida correctamente. Recordá guardar el perfil.",
+    });
   }
 
   return (
@@ -354,7 +369,7 @@ export function ClubProfileForm({
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="submit"
-                disabled={pending}
+                disabled={pending || uploadingAvatar}
                 className="h-11 rounded-xl px-8 font-semibold"
               >
                 {pending ? (
@@ -424,16 +439,8 @@ export function ClubProfileForm({
               </div>
             </div>
             <div className="mt-3 space-y-2">
-              <Label htmlFor="avatarUrl">URL de imagen</Label>
-              <Input
-                id="avatarUrl"
-                value={avatarUrl.startsWith("data:") ? "" : avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="https://…"
-                className="h-11 rounded-lg"
-              />
               <p className="text-muted-foreground text-xs">
-                O subí un archivo (PNG, JPG o WEBP).
+                Subí un archivo (PNG, JPG o WEBP).
               </p>
               <Input
                 id="club-logo-file"
@@ -441,17 +448,14 @@ export function ClubProfileForm({
                 accept="image/png,image/jpeg,image/jpg,image/webp,.png,.jpg,.jpeg,.webp"
                 className="text-muted-foreground text-sm file:mr-3 file:rounded-lg file:border file:border-border file:bg-background file:px-3 file:py-1.5 file:text-sm"
                 onChange={onLogoFileChange}
+                disabled={uploadingAvatar}
               />
+              {uploadingAvatar ? (
+                <p className="text-muted-foreground text-xs">
+                  Subiendo imagen...
+                </p>
+              ) : null}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-3 w-full rounded-lg"
-              disabled
-            >
-              <Camera className="mr-2 size-4" />
-              Más fotos (próximamente)
-            </Button>
           </section>
 
           <section className="border-border bg-card rounded-xl border p-6 shadow-sm">

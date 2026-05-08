@@ -91,6 +91,8 @@ export function ReservationsHeaderActions({
         onOpenChange={setAvailabilityOpen}
         clubId={clubId}
         court={selectedCourt}
+        selectableCourts={dialogCourts}
+        onSelectCourt={setSelectedCourtId}
         onSaved={() => window.location.reload()}
       />
     </>

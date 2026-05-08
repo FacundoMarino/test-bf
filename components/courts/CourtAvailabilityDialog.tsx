@@ -23,6 +23,8 @@ type CourtAvailabilityDialogProps = {
   onOpenChange: (open: boolean) => void;
   clubId: string;
   court: CourtRecord | null;
+  selectableCourts?: CourtRecord[];
+  onSelectCourt?: (courtId: string) => void;
   onSaved: () => void;
 };
 
@@ -59,6 +61,8 @@ export function CourtAvailabilityDialog({
   onOpenChange,
   clubId,
   court,
+  selectableCourts,
+  onSelectCourt,
   onSaved,
 }: CourtAvailabilityDialogProps) {
   const [currentMonth, setCurrentMonth] = useState(
@@ -312,6 +316,25 @@ export function CourtAvailabilityDialog({
             {title}
           </DialogTitle>
         </DialogHeader>
+        {selectableCourts && selectableCourts.length > 1 && onSelectCourt ? (
+          <div className="space-y-1">
+            <label htmlFor="availability-court-select" className="text-sm">
+              Cancha
+            </label>
+            <select
+              id="availability-court-select"
+              className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm shadow-sm"
+              value={court?.id ?? ""}
+              onChange={(e) => onSelectCourt(e.target.value)}
+            >
+              {selectableCourts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <p className="text-muted-foreground text-sm">
           Seleccioná una fecha en el calendario para ver los turnos. Tocá un
           turno para cancelarlo o reactivarlo.

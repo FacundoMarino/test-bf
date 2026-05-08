@@ -298,6 +298,11 @@ export function CourtsManager({
           }}
           clubId={clubId}
           court={availabilityCourt}
+          selectableCourts={courts}
+          onSelectCourt={(courtId) => {
+            const nextCourt = courts.find((c) => c.id === courtId) ?? null;
+            setAvailabilityCourt(nextCourt);
+          }}
           onSaved={() => {
             router.refresh();
           }}
