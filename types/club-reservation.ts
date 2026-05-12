@@ -31,6 +31,8 @@ export type ClubReservation = {
    * disponible en calendario hasta confirmación o cancelación.
    */
   occupiesSlot?: boolean;
+  isFixedSeries?: boolean;
+  fixedSeriesId?: string | null;
   isMatch?: boolean;
   title?: string | null;
   maxPlayers?: number | null;

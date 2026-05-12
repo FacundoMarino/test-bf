@@ -1,7 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { CircleHelp, Lock, Mail, Phone, User, Users } from "lucide-react";
+import {
+  CircleHelp,
+  Lock,
+  Mail,
+  Phone,
+  Repeat,
+  User,
+  Users,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { isTentativePublicOpenMatch } from "@/lib/club-reservation-utils";
@@ -143,6 +151,7 @@ export function BookingDetailCard({
   const email = booking.user.email?.trim() || booking.userEmail?.trim() || null;
   const bookerLevel = normalizeLevel(booking.user.level);
   const isMatch = booking.isMatch === true;
+  const isFixedSeries = booking.isFixedSeries === true;
   const max = booking.maxPlayers ?? 4;
   const matchLevel = normalizeLevel(booking.level) ?? 1;
   const visibility = booking.visibility ?? "public";
@@ -428,20 +437,24 @@ export function BookingDetailCard({
                   Tipo de reserva
                 </dt>
                 <dd className="text-foreground mt-0.5 inline-flex items-center gap-1.5 text-sm font-semibold">
-                  {isMatch ? (
+                  {isFixedSeries ? (
+                    <Repeat className="size-4 text-[#405fd3]" />
+                  ) : isMatch ? (
                     <Lock className="size-4 text-sky-600 dark:text-sky-400" />
                   ) : isManualGuestBooking ? (
                     <Lock className="size-4 text-[#405fd3]" />
                   ) : (
                     <User className="text-muted-foreground size-4" />
                   )}
-                  {isMatch
-                    ? visibility === "private"
-                      ? "Partido privado"
-                      : "Partido abierto"
-                    : isManualGuestBooking
-                      ? "Reserva manual"
-                      : "Reserva de cancha"}
+                  {isFixedSeries
+                    ? "Turno recurrente"
+                    : isMatch
+                      ? visibility === "private"
+                        ? "Partido privado"
+                        : "Partido abierto"
+                      : isManualGuestBooking
+                        ? "Reserva manual"
+                        : "Reserva de cancha"}
                 </dd>
               </div>
               {booking.manualClubNotes?.trim() ? (

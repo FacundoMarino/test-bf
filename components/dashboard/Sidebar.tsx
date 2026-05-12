@@ -8,6 +8,7 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
+  Repeat,
   ShieldCheck,
   Grid3x3,
   Home,
@@ -84,6 +85,11 @@ export function Sidebar({
                 href: "/dashboard/club/reservas",
                 label: "Reservas",
                 icon: CalendarDays,
+              },
+              {
+                href: "/dashboard/club/turnos-fijos",
+                label: "Turnos fijos",
+                icon: Repeat,
               },
               {
                 href: "/dashboard/club/metricas",

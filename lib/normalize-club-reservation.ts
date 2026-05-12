@@ -66,6 +66,8 @@ export function normalizeClubReservation(raw: unknown): ClubReservation | null {
   const occupiesSlotRaw = row.occupiesSlot ?? row.occupies_slot;
   const occupiesSlot =
     typeof occupiesSlotRaw === "boolean" ? occupiesSlotRaw : true;
+  const isFixedSeriesRaw = row.isFixedSeries ?? row.is_fixed_series;
+  const fixedSeriesIdRaw = row.fixedSeriesId ?? row.fixed_series_id;
 
   return {
     id,
@@ -97,6 +99,12 @@ export function normalizeClubReservation(raw: unknown): ClubReservation | null {
     status,
     createdAt,
     occupiesSlot,
+    isFixedSeries:
+      typeof isFixedSeriesRaw === "boolean" ? isFixedSeriesRaw : false,
+    fixedSeriesId:
+      typeof fixedSeriesIdRaw === "string" && fixedSeriesIdRaw.trim().length > 0
+        ? fixedSeriesIdRaw
+        : null,
     isMatch: Boolean(row.isMatch ?? row.is_match),
     title: asNullableString(row.title),
     maxPlayers: asNullableNumber(row.maxPlayers ?? row.max_players),
