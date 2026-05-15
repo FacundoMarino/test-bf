@@ -32,6 +32,7 @@ import {
   DAY_LABELS,
   addMinutes,
   alignDateToDayOfWeek,
+  normalizeDateYmd,
   buildNonEmptyDaySections,
   formatDatePill,
   groupFixedSeriesByDay,
@@ -40,7 +41,7 @@ import {
   parseYmd,
   scheduleActiveInRange,
   toHm,
-  validateAlignedDateRange,
+  validateSeriesDateRange,
   validateSubmitBasics,
   type FixedSeriesFormState,
 } from "@/lib/fixed-series/fixed-series-board-utils";
@@ -233,9 +234,6 @@ export function FixedSeriesBoard({
         ...p,
         dayOfWeek: nextDow,
         startDate: alignDateToDayOfWeek(p.startDate, nextDow),
-        ...(p.endDate
-          ? { endDate: alignDateToDayOfWeek(p.endDate, nextDow) }
-          : {}),
       }));
     },
     [],
@@ -261,6 +259,7 @@ export function FixedSeriesBoard({
 
   const handleSubmit = useCallback(() => {
     const basicsError = validateSubmitBasics({
+      guestName: form.guestName,
       courtId: form.courtId,
       startDate: form.startDate,
       durationMinutes: form.durationMinutes,
@@ -278,11 +277,11 @@ export function FixedSeriesBoard({
       form.startDate,
       effectiveDayOfWeek,
     );
-    const alignedEndDate = form.endDate
-      ? alignDateToDayOfWeek(form.endDate, effectiveDayOfWeek)
+    const endDateYmd = form.endDate.trim()
+      ? normalizeDateYmd(form.endDate)
       : "";
 
-    const dateErr = validateAlignedDateRange(alignedStartDate, alignedEndDate);
+    const dateErr = validateSeriesDateRange(alignedStartDate, endDateYmd);
     if (dateErr) {
       toast.error(dateErr);
       return;
@@ -305,9 +304,12 @@ export function FixedSeriesBoard({
         courtId: form.courtId,
         dayOfWeek: effectiveDayOfWeek,
         startDate: alignedStartDate,
-        endDate: alignedEndDate || undefined,
+        endDate: endDateYmd || undefined,
         startTimeMinutes: parseHmToMinutes(effectiveStartTime),
         durationMinutes: form.durationMinutes,
+        guestName: form.guestName.trim(),
+        guestPhone: form.guestPhone.trim() || undefined,
+        notes: form.notes.trim() || undefined,
       });
 
       if (!res.ok) {

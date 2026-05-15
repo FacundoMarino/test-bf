@@ -65,16 +65,54 @@ type ParsedOccurrence = {
   seed: FixedSeriesView;
 };
 
+function ruleString(
+  rule: Record<string, unknown> | null,
+  key: string,
+): string | null {
+  if (!rule) return null;
+  const value = rule[key];
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function buildGuestName(
   row: Record<string, unknown>,
   firstGuest: Record<string, unknown> | null,
+  rule: Record<string, unknown> | null,
 ): string {
+  const fromRule = ruleString(rule, "guestName");
+  if (fromRule) return fromRule;
   const fromGuest =
-    firstGuest && typeof firstGuest.name === "string" ? firstGuest.name : null;
+    firstGuest && typeof firstGuest.name === "string"
+      ? firstGuest.name.trim() || null
+      : null;
   const user = row.user;
   const fromUser =
-    isRecord(user) && typeof user.fullName === "string" ? user.fullName : null;
+    isRecord(user) && typeof user.fullName === "string"
+      ? user.fullName.trim() || null
+      : null;
   return fromGuest ?? fromUser ?? "Reserva fija";
+}
+
+function buildGuestPhone(
+  row: Record<string, unknown>,
+  firstGuest: Record<string, unknown> | null,
+  rule: Record<string, unknown> | null,
+): string | null {
+  const fromRule = ruleString(rule, "guestPhone");
+  if (fromRule) return fromRule;
+  const fromGuest =
+    firstGuest && typeof firstGuest.phone === "string"
+      ? firstGuest.phone.trim() || null
+      : null;
+  if (fromGuest) return fromGuest;
+  const user = row.user;
+  if (isRecord(user) && typeof user.phone === "string") {
+    const trimmed = user.phone.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
 }
 
 function parseOccurrence(
@@ -147,12 +185,9 @@ function parseOccurrence(
         ? String(rule.startDate)
         : sliceYmd(startIso),
     endDate: rule && typeof rule.endDate === "string" ? rule.endDate : null,
-    guestName: buildGuestName(row, firstGuest),
-    guestPhone:
-      firstGuest && typeof firstGuest.phone === "string"
-        ? firstGuest.phone
-        : null,
-    notes: readManualClubNotes(row),
+    guestName: buildGuestName(row, firstGuest, rule),
+    guestPhone: buildGuestPhone(row, firstGuest, rule),
+    notes: ruleString(rule, "notes") ?? readManualClubNotes(row),
   };
 
   return { seriesId, rowId, cancellable, seed };

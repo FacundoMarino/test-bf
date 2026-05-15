@@ -19,6 +19,8 @@ import {
   COURT_SLOT_DURATION_OPTIONS,
   dailyBlocksToCourtSchedulePayload,
   hhmmToMinutes,
+  isValidScheduleTimeRange,
+  scheduleTimeRangesOverlap,
 } from "@/lib/court-schedule-map";
 import type {
   ClubScheduleBlock,
@@ -175,7 +177,12 @@ function validateDailySchedule(blocks: DailyScheduleBlocks): string | null {
   for (const k of Object.keys(blocks) as Array<keyof DailyScheduleBlocks>) {
     const b = blocks[k];
     if (!b.enabled) continue;
-    if (hhmmToMinutes(b.endTime) <= hhmmToMinutes(b.startTime)) {
+    if (
+      !isValidScheduleTimeRange(
+        hhmmToMinutes(b.startTime),
+        hhmmToMinutes(b.endTime),
+      )
+    ) {
       return "La hora de fin debe ser posterior a la de inicio";
     }
     if (!Number.isFinite(b.slotDurationMinutes) || b.slotDurationMinutes < 1) {
@@ -213,9 +220,11 @@ function scheduleRowsOverlap(
     !periodRangesOverlap(a.periodStart, a.periodEnd, b.periodStart, b.periodEnd)
   )
     return false;
-  return (
-    a.startTimeMinutes < b.endTimeMinutes &&
-    b.startTimeMinutes < a.endTimeMinutes
+  return scheduleTimeRangesOverlap(
+    a.startTimeMinutes,
+    a.endTimeMinutes,
+    b.startTimeMinutes,
+    b.endTimeMinutes,
   );
 }
 

@@ -25,9 +25,52 @@ export type CourtScheduleRow = {
   periodEnd?: string | null;
 };
 
+export const MINUTES_PER_DAY = 24 * 60;
+
 export function hhmmToMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
+}
+
+/** Fin efectivo del turno (00:00 o 01:00 = cierre después de medianoche). */
+export function effectiveEndTimeMinutes(
+  startTimeMinutes: number,
+  endTimeMinutes: number,
+): number {
+  if (endTimeMinutes > startTimeMinutes) {
+    return endTimeMinutes;
+  }
+  return endTimeMinutes + MINUTES_PER_DAY;
+}
+
+export function isValidScheduleTimeRange(
+  startTimeMinutes: number,
+  endTimeMinutes: number,
+): boolean {
+  if (
+    startTimeMinutes < 0 ||
+    endTimeMinutes < 0 ||
+    startTimeMinutes >= MINUTES_PER_DAY ||
+    endTimeMinutes >= MINUTES_PER_DAY
+  ) {
+    return false;
+  }
+  if (startTimeMinutes === endTimeMinutes) return false;
+  const duration =
+    effectiveEndTimeMinutes(startTimeMinutes, endTimeMinutes) -
+    startTimeMinutes;
+  return duration > 0 && duration <= MINUTES_PER_DAY;
+}
+
+export function scheduleTimeRangesOverlap(
+  aStart: number,
+  aEnd: number,
+  bStart: number,
+  bEnd: number,
+): boolean {
+  const aEffEnd = effectiveEndTimeMinutes(aStart, aEnd);
+  const bEffEnd = effectiveEndTimeMinutes(bStart, bEnd);
+  return aStart < bEffEnd && bStart < aEffEnd;
 }
 
 export function minutesToHHmm(total: number): string {

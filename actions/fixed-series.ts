@@ -31,6 +31,9 @@ export type CreateFixedSeriesInput = {
   dayOfWeek: number;
   startTimeMinutes: number;
   durationMinutes: number;
+  guestName?: string;
+  guestPhone?: string;
+  notes?: string;
   preview?: boolean;
   confirmRemoveOverlapping?: boolean;
 };
@@ -60,6 +63,13 @@ export async function createFixedSeriesAction(
           dayOfWeek: payload.dayOfWeek,
           startTimeMinutes: payload.startTimeMinutes,
           durationMinutes: payload.durationMinutes,
+          ...(payload.guestName?.trim()
+            ? { guestName: payload.guestName.trim() }
+            : {}),
+          ...(payload.guestPhone?.trim()
+            ? { guestPhone: payload.guestPhone.trim() }
+            : {}),
+          ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
           ...(payload.preview ? { preview: true } : {}),
           ...(payload.confirmRemoveOverlapping
             ? { confirmRemoveOverlapping: true }

@@ -11,6 +11,7 @@ import {
   Eye,
   Search,
   User,
+  Phone,
   Users,
   X,
 } from "lucide-react";
@@ -38,6 +39,10 @@ import {
   bookingBlocksCalendarSlot,
   isTentativePublicOpenMatch,
   matchParticipantsCount,
+  mergeConsecutiveCalendarSlotRows,
+  reservationGuestLabel,
+  reservationGuestPhone,
+  type CalendarSlotRow,
 } from "@/lib/club-reservation-utils";
 import { cn } from "@/lib/utils";
 import type {
@@ -392,7 +397,7 @@ export function ReservationsBoard({
   }, [boardReservations, validCourtId, selectedDate]);
 
   const slotRows = useMemo(() => {
-    return daySlots.map((slot) => {
+    const raw: CalendarSlotRow[] = daySlots.map((slot) => {
       const s0 = new Date(slot.start).getTime();
       const s1 = new Date(slot.end).getTime();
       const overlapping = bookingsForCourtDay.filter(
@@ -441,6 +446,7 @@ export function ReservationsBoard({
         booking: null,
       };
     });
+    return mergeConsecutiveCalendarSlotRows(raw);
   }, [daySlots, bookingsForCourtDay]);
 
   const dayStats = useMemo(() => {
@@ -856,9 +862,14 @@ export function ReservationsBoard({
                 ) : (
                   <ul className="mt-6 space-y-3">
                     {slotRows.map((row, rowIndex) => {
-                      const rangeLabel = `${fmtTimeUtc(row.start)} – ${fmtTimeUtc(row.end)}`;
                       const isAvail = row.kind === "available";
                       const isRes = row.kind === "reserved";
+                      const isFixedSeries =
+                        isRes && row.booking?.isFixedSeries === true;
+                      const rangeLabel =
+                        isRes && row.booking
+                          ? `${fmtTimeUtc(row.booking.start)} – ${fmtTimeUtc(row.booking.end)}`
+                          : `${fmtTimeUtc(row.start)} – ${fmtTimeUtc(row.end)}`;
                       const isTent =
                         row.kind === "tentativeOpen" && row.booking != null;
                       const isClosed = row.kind === "closed";
@@ -1046,7 +1057,9 @@ export function ReservationsBoard({
                                             className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800 outline-none hover:bg-sky-200/80 dark:bg-sky-900/50 dark:text-sky-100 dark:hover:bg-sky-900/70"
                                             disabled={busyId === row.booking.id}
                                           >
-                                            Reservado
+                                            {isFixedSeries
+                                              ? "Turno fijo"
+                                              : "Reservado"}
                                             <ChevronDown className="size-3.5 opacity-70" />
                                           </DropdownMenuTrigger>
                                           <DropdownMenuContent align="end">
@@ -1075,7 +1088,9 @@ export function ReservationsBoard({
                                         </DropdownMenu>
                                       ) : (
                                         <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800 dark:bg-sky-900/50 dark:text-sky-100">
-                                          Reservado
+                                          {isFixedSeries
+                                            ? "Turno fijo"
+                                            : "Reservado"}
                                         </span>
                                       )}
                                     </div>
