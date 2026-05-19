@@ -1,4 +1,7 @@
-import type { CourtScheduleRow } from "@/lib/court-schedule-map";
+import {
+  effectiveEndTimeMinutes,
+  type CourtScheduleRow,
+} from "@/lib/court-schedule-map";
 import type { FixedSeriesView } from "@/lib/turnos-fijos/aggregate-fixed-series";
 
 export type FixedSeriesFormState = {
@@ -73,6 +76,32 @@ export function normalizeDateYmd(dateStr: string): string {
 
 function rangeOverlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
   return aStart <= bEnd && bStart <= aEnd;
+}
+
+/** Opciones de inicio (minutos) para un turno fijo según horarios activos del día. */
+export function buildFixedSeriesStartTimeOptions(
+  schedules: CourtScheduleRow[],
+  dayOfWeek: number,
+  durationMinutes: number,
+  stepMinutes = 5,
+): number[] {
+  const options = new Set<number>();
+  const daySchedules = schedules.filter((s) => s.dayOfWeek === dayOfWeek);
+
+  for (const s of daySchedules) {
+    const effEnd = effectiveEndTimeMinutes(
+      s.startTimeMinutes,
+      s.endTimeMinutes,
+    );
+    const latestStart = effEnd - durationMinutes;
+    for (let min = s.startTimeMinutes; min <= latestStart; min += stepMinutes) {
+      if (min >= 0 && min < 24 * 60) {
+        options.add(min);
+      }
+    }
+  }
+
+  return [...options].sort((a, b) => a - b);
 }
 
 export function scheduleActiveInRange(

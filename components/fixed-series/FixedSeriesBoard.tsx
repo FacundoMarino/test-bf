@@ -33,6 +33,7 @@ import {
   addMinutes,
   alignDateToDayOfWeek,
   normalizeDateYmd,
+  buildFixedSeriesStartTimeOptions,
   buildNonEmptyDaySections,
   formatDatePill,
   groupFixedSeriesByDay,
@@ -119,19 +120,15 @@ export function FixedSeriesBoard({
     return dayOptions.includes(form.dayOfWeek) ? form.dayOfWeek : dayOptions[0];
   }, [dayOptions, form.dayOfWeek]);
 
-  const startTimeOptions = useMemo(() => {
-    const options = new Set<number>();
-    const daySchedules = activeSchedules.filter(
-      (s) => s.dayOfWeek === effectiveDayOfWeek,
-    );
-    for (const s of daySchedules) {
-      const latestStart = s.endTimeMinutes - form.durationMinutes;
-      for (let min = s.startTimeMinutes; min <= latestStart; min += 5) {
-        options.add(min);
-      }
-    }
-    return [...options].sort((a, b) => a - b);
-  }, [activeSchedules, effectiveDayOfWeek, form.durationMinutes]);
+  const startTimeOptions = useMemo(
+    () =>
+      buildFixedSeriesStartTimeOptions(
+        activeSchedules,
+        effectiveDayOfWeek,
+        form.durationMinutes,
+      ),
+    [activeSchedules, effectiveDayOfWeek, form.durationMinutes],
+  );
 
   const effectiveStartTime = useMemo(() => {
     if (!startTimeOptions.length) return form.startTime;
