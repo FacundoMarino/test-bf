@@ -1,0 +1,14 @@
+services:
+  auth-service:
+    build: .
+    container_name: auth-service
+    restart: unless-stopped
+    ports:
+      - '${APP_PORT:-3000}:3000'
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3000
+    command: npm run start:prod
+

@@ -1,0 +1,276 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Profile {
+  id                String   @id @db.Uuid
+  fullName          String?  @map("full_name")
+  avatarUrl         String?  @map("avatar_url")
+  description       String?
+  location          String?
+  phone             String?  @map("phone")
+  email             String?  @map("email")
+  amenities         Json     @default("{}") @map("amenities")
+  level             Int?     @db.SmallInt
+  preferredPosition String?  @map("preferred_position")
+  courtType         String?  @map("court_type")
+  availability      Json     @default("[]")
+  isClub            Boolean  @default(false) @map("is_club")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  bookingParticipants CourtBookingParticipant[]
+  bookingBoardMessages CourtBookingBoardMessage[]
+  looseMatches        LooseMatch[]
+  looseMatchParticipants LooseMatchParticipant[]
+  looseMatchBoardMessages LooseMatchBoardMessage[]
+
+  @@map("profiles")
+}
+
+model Club {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  courtCount Int      @default(1) @map("court_count") @db.SmallInt
+  courtType  String   @map("court_type")
+  address    String
+  /// Ciudad (catálogo alineado con perfil de jugador) para recomendaciones por ubicación.
+  location   String?
+  email      String?
+  web        String?
+  avatarUrl  String?  @map("avatar_url")
+  pricing    Json     @default("[]")
+  approvalStatus ClubApprovalStatus @default(PENDING) @map("approval_status")
+  createdBy  String?  @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  courts     Court[]
+
+  @@map("clubs")
+}
+
+enum ClubApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Court {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  type      String          // "indoor" | "outdoor" | "unspecified"
+  surface   String
+  lighting  Boolean         @default(false)
+  /// Si es false, la cancha no se lista ni reserva para jugadores (solo el club la gestiona).
+  listed    Boolean         @default(true)
+  clubId    String          @map("club_id") @db.Uuid
+  club      Club            @relation(fields: [clubId], references: [id])
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime        @updatedAt @map("updated_at") @db.Timestamptz()
+
+  schedules CourtSchedule[]
+  exceptions CourtScheduleException[]
+  customSlots CourtCustomSlot[]
+  bookings  CourtBooking[]
+
+  @@map("courts")
+}
+
+model CourtCustomSlot {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courtId          String   @map("court_id") @db.Uuid
+  court            Court    @relation(fields: [courtId], references: [id])
+  date             DateTime @db.Date
+  startTimeMinutes Int      @map("start_time_minutes")
+  endTimeMinutes   Int      @map("end_time_minutes")
+  price            Int      @default(0)
+  note             String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("court_custom_slots")
+  @@index([courtId, date])
+}
+
+model CourtScheduleException {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courtId            String   @map("court_id") @db.Uuid
+  court              Court    @relation(fields: [courtId], references: [id])
+  date               DateTime @db.Date
+  startTimeMinutes   Int?     @map("start_time_minutes")
+  endTimeMinutes     Int?     @map("end_time_minutes")
+  isClosedAllDay     Boolean  @default(false) @map("is_closed_all_day")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("court_schedule_exceptions")
+  @@index([courtId, date])
+}
+
+model CourtSchedule {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courtId             String   @map("court_id") @db.Uuid
+  court               Court    @relation(fields: [courtId], references: [id])
+  dayOfWeek           Int      @map("day_of_week") // 0 = Sunday, 1 = Monday, ...
+  startTimeMinutes    Int      @map("start_time_minutes") // minutos desde 00:00 (ej. 9*60)
+  endTimeMinutes      Int      @map("end_time_minutes") // minutos desde 00:00 (ej. 18*60)
+  slotDurationMinutes Int      @map("slot_duration_minutes") // duración del turno en minutos
+  pricePerHour        Int      @default(0) @map("price_per_hour")
+  periodName          String?  @map("period_name")
+  periodStart         DateTime? @map("period_start") @db.Date
+  periodEnd           DateTime? @map("period_end") @db.Date
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("court_schedules")
+  @@index([courtId, dayOfWeek])
+}
+
+enum CourtBookingStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+model CourtBooking {
+  id         String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courtId    String             @map("court_id") @db.Uuid
+  court      Court              @relation(fields: [courtId], references: [id])
+  userId     String             @map("user_id") @db.Uuid
+  start      DateTime           @db.Timestamptz()
+  end        DateTime           @db.Timestamptz()
+  status     CourtBookingStatus @default(PENDING)
+  createdAt  DateTime           @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime           @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // match-specific fields
+  isMatch    Boolean            @default(false) @map("is_match")
+  title      String?            @db.Text
+  maxPlayers Int?               @map("max_players") @db.SmallInt
+  level      Int?               @db.SmallInt
+  visibility String             @default("public") @map("visibility")
+  inviteCode String?           @map("invite_code") @unique
+
+  /// Jugadores cargados en reserva manual desde el club: [{ "name": string, "phone": string | null }]
+  manualGuests     Json?        @map("manual_guests")
+  manualClubNotes  String?      @map("manual_club_notes") @db.Text
+
+  /// Si false: partido público abierto aún sin llenar plazas — no bloquea el turno para reservas privadas.
+  occupiesSlot     Boolean      @default(true) @map("occupies_slot")
+  
+  /// Turno fijo recurrente (serie materializada en la tabla).
+  isFixedSeries              Boolean  @default(false) @map("is_fixed_series")
+  fixedSeriesId              String?  @map("fixed_series_id") @db.Uuid
+  fixedSeriesOccurrenceIndex Int?     @map("fixed_series_occurrence_index")
+  fixedSeriesRule            Json?    @map("fixed_series_rule")
+
+  participants CourtBookingParticipant[]
+  boardMessages CourtBookingBoardMessage[]
+
+  @@map("court_bookings")
+  @@index([courtId, start])
+  @@index([courtId, isFixedSeries])
+  @@index([fixedSeriesId])
+}
+
+model CourtBookingParticipant {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId String        @map("booking_id") @db.Uuid
+  booking   CourtBooking  @relation(fields: [bookingId], references: [id])
+  profileId String        @map("profile_id") @db.Uuid
+  profile   Profile       @relation(fields: [profileId], references: [id])
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("court_booking_participants")
+  @@unique([bookingId, profileId])
+}
+
+model LooseMatch {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId  String   @map("profile_id") @db.Uuid
+  profile    Profile  @relation(fields: [profileId], references: [id])
+  title      String
+  startLabel String   @map("start_label")
+  level      Int      @db.SmallInt
+  courtType  String   @map("court_type")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  inviteCode String? @map("invite_code") @unique
+
+  participants LooseMatchParticipant[]
+  boardMessages LooseMatchBoardMessage[]
+
+  @@map("loose_matches")
+  @@index([profileId])
+}
+
+model CourtBookingBoardMessage {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId         String       @map("booking_id") @db.Uuid
+  booking           CourtBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  authorProfileId   String       @map("author_profile_id") @db.Uuid
+  author            Profile      @relation(fields: [authorProfileId], references: [id])
+  body              String       @db.Text
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("court_booking_board_messages")
+  @@index([bookingId, createdAt])
+}
+
+model LooseMatchBoardMessage {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  looseMatchId      String     @map("loose_match_id") @db.Uuid
+  looseMatch        LooseMatch @relation(fields: [looseMatchId], references: [id], onDelete: Cascade)
+  authorProfileId   String     @map("author_profile_id") @db.Uuid
+  author            Profile    @relation(fields: [authorProfileId], references: [id])
+  body              String     @db.Text
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("loose_match_board_messages")
+  @@index([looseMatchId, createdAt])
+}
+
+model LooseMatchParticipant {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  looseMatchId  String     @map("loose_match_id") @db.Uuid
+  profileId     String     @map("profile_id") @db.Uuid
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+
+  looseMatch    LooseMatch @relation(fields: [looseMatchId], references: [id])
+  profile       Profile    @relation(fields: [profileId], references: [id])
+
+  @@map("loose_match_participants")
+  @@unique([looseMatchId, profileId])
+  @@index([looseMatchId])
+}
+
+enum EmailSendStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model EmailSendLog {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status      EmailSendStatus   @default(SENT)
+  eventType   String          @map("event_type")
+  fromEmail   String          @map("from_email")
+  toEmail     String          @map("to_email")
+  subject     String
+  bodyText    String          @map("body_text") @db.Text
+  bodyHtml    String?         @map("body_html") @db.Text
+  errorDetail String?         @map("error_detail") @db.Text
+  sentAt      DateTime        @default(now()) @map("sent_at") @db.Timestamptz()
+
+  @@map("email_send_logs")
+  @@index([eventType, sentAt])
+  @@index([toEmail, sentAt])
+}
