@@ -1,2 +1,0 @@
-ALTER TABLE "courts"
-ADD COLUMN "listed" BOOLEAN NOT NULL DEFAULT true;

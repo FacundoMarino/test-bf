@@ -16,6 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  buildCourtScheduleSlotIntervals,
+  minutesToHHmm,
+} from "@/lib/court-schedule-map";
 import type { CourtRecord } from "@/types/club";
 
 type CourtAvailabilityDialogProps = {
@@ -52,8 +56,8 @@ function formatDateLabel(d: Date) {
     month: "long",
   });
 }
-function timeLabel(minutes: number) {
-  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+function slotTimeLabel(minutes: number) {
+  return minutesToHHmm(minutes % (24 * 60));
 }
 
 export function CourtAvailabilityDialog({
@@ -174,26 +178,14 @@ export function CourtAvailabilityDialog({
         setSlots([]);
         return;
       }
-      const generatedByKey = new Map<string, Slot>();
-      const sortedRows = [...dayRows].sort(
-        (a, b) => a.startTimeMinutes - b.startTimeMinutes,
+      const intervals = buildCourtScheduleSlotIntervals(dayRows);
+      setSlots(
+        intervals.map(({ start, end }) => ({
+          start,
+          end,
+          label: `${slotTimeLabel(start)} - ${slotTimeLabel(end)}`,
+        })),
       );
-      for (const row of sortedRows) {
-        let cur = row.startTimeMinutes;
-        while (cur + row.slotDurationMinutes <= row.endTimeMinutes) {
-          const end = cur + row.slotDurationMinutes;
-          const key = `${cur}-${end}`;
-          if (!generatedByKey.has(key)) {
-            generatedByKey.set(key, {
-              start: cur,
-              end,
-              label: `${timeLabel(cur)} - ${timeLabel(end)}`,
-            });
-          }
-          cur = end;
-        }
-      }
-      setSlots(Array.from(generatedByKey.values()));
     });
     return () => {
       cancelled = true;
@@ -298,7 +290,7 @@ export function CourtAvailabilityDialog({
       1,
     );
     const start = new Date(first);
-    start.setDate(1 - ((first.getDay() + 6) % 7));
+    start.setDate(1 - first.getDay());
     const out: Date[] = [];
     for (let i = 0; i < 42; i++) {
       const d = new Date(start);
@@ -497,7 +489,7 @@ export function CourtAvailabilityDialog({
                       className="bg-muted text-muted-foreground inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
                     >
                       {date.slice(8, 10)}/{date.slice(5, 7)}{" "}
-                      {timeLabel(s.start)}-{timeLabel(s.end)}
+                      {slotTimeLabel(s.start)}-{slotTimeLabel(s.end)}
                     </span>
                   ))
                 ),

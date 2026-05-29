@@ -37,11 +37,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   bookingBlocksCalendarSlot,
+  filterReservationsByListPeriod,
   isTentativePublicOpenMatch,
   matchParticipantsCount,
   mergeConsecutiveCalendarSlotRows,
   reservationGuestLabel,
   reservationGuestPhone,
+  sortReservationsForList,
   type CalendarSlotRow,
 } from "@/lib/club-reservation-utils";
 import { cn } from "@/lib/utils";
@@ -265,6 +267,7 @@ export function ReservationsBoard({
     () => initialCourts[0]?.id ?? "",
   );
   const [listCourtId, setListCourtId] = useState<string>("ALL");
+  const [listShowPast, setListShowPast] = useState(false);
   const validCourtId = useMemo(() => {
     if (initialCourts.length === 0) return "";
     if (initialCourts.some((c) => c.id === courtId)) return courtId;
@@ -349,34 +352,38 @@ export function ReservationsBoard({
 
   // No auto-refetch on window/tab focus; only refresh after explicit user actions.
 
+  const listPeriodReservations = useMemo(
+    () => filterReservationsByListPeriod(boardReservations, listShowPast),
+    [boardReservations, listShowPast],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return boardReservations
-      .filter((r) => {
-        if (status !== "ALL" && r.status !== status) return false;
-        if (listCourtId !== "ALL" && r.court.id !== listCourtId) return false;
-        if (!q) return true;
-        return (
-          r.court.name.toLowerCase().includes(q) ||
-          (r.user.fullName ?? "sin nombre").toLowerCase().includes(q)
-        );
-      })
-      .sort(
-        (a, b) => new Date(b.start).getTime() - new Date(a.start).getTime(),
+    const matched = listPeriodReservations.filter((r) => {
+      if (status !== "ALL" && r.status !== status) return false;
+      if (listCourtId !== "ALL" && r.court.id !== listCourtId) return false;
+      if (!q) return true;
+      return (
+        r.court.name.toLowerCase().includes(q) ||
+        (r.user.fullName ?? "sin nombre").toLowerCase().includes(q)
       );
-  }, [boardReservations, query, status, listCourtId]);
+    });
+    return sortReservationsForList(matched, listShowPast);
+  }, [listPeriodReservations, query, status, listCourtId, listShowPast]);
 
   const grouped = useMemo(
     () => ({
-      ALL: boardReservations.length,
-      PENDING: boardReservations.filter((r) => r.status === "PENDING").length,
-      CONFIRMED: boardReservations.filter((r) => r.status === "CONFIRMED")
+      ALL: listPeriodReservations.length,
+      PENDING: listPeriodReservations.filter((r) => r.status === "PENDING")
         .length,
-      CANCELLED: boardReservations.filter((r) => r.status === "CANCELLED")
+      CONFIRMED: listPeriodReservations.filter((r) => r.status === "CONFIRMED")
         .length,
-      REJECTED: boardReservations.filter((r) => r.status === "REJECTED").length,
+      CANCELLED: listPeriodReservations.filter((r) => r.status === "CANCELLED")
+        .length,
+      REJECTED: listPeriodReservations.filter((r) => r.status === "REJECTED")
+        .length,
     }),
-    [boardReservations],
+    [listPeriodReservations],
   );
 
   const markedDays = useMemo(() => {
@@ -463,6 +470,17 @@ export function ReservationsBoard({
     return { disponibles, reservados, cancelados, tentativosAbiertos };
   }, [slotRows, bookingsForCourtDay]);
 
+  async function syncBoardReservations() {
+    const fresh = await refreshClubReservationsAction(clubId);
+    if (fresh.ok) {
+      setHotReservations(fresh.reservations);
+    } else {
+      setHotReservations(null);
+    }
+    router.refresh();
+    void loadSlots();
+  }
+
   async function onAction(bookingId: string, action: "approve" | "reject") {
     setError(null);
     setBusyId(bookingId);
@@ -475,8 +493,7 @@ export function ReservationsBoard({
       setError(res.error);
       return;
     }
-    router.refresh();
-    void loadSlots();
+    await syncBoardReservations();
   }
 
   async function handleCancelBooking(bookingId: string): Promise<boolean> {
@@ -489,8 +506,7 @@ export function ReservationsBoard({
       return false;
     }
     setExpandedBookingId(null);
-    router.refresh();
-    void loadSlots();
+    await syncBoardReservations();
     return true;
   }
 
@@ -528,14 +544,9 @@ export function ReservationsBoard({
       setError(res.error);
       return;
     }
-    const fresh = await refreshClubReservationsAction(clubId);
-    if (fresh.ok) {
-      setHotReservations(fresh.reservations);
-    }
     setManualModalOpen(false);
     setManualSlot(null);
-    router.refresh();
-    void loadSlots();
+    await syncBoardReservations();
   }
 
   const selectedCourt = initialCourts.find((c) => c.id === validCourtId);
@@ -587,22 +598,50 @@ export function ReservationsBoard({
       </div>
 
       {mode === "list" ? (
-        <div className="flex items-center gap-2">
-          <label className="text-muted-foreground text-xs font-medium">
-            Cancha
-          </label>
-          <select
-            value={listCourtId}
-            onChange={(e) => setListCourtId(e.target.value)}
-            className="border-input bg-background text-foreground focus-visible:ring-ring h-9 min-w-[240px] rounded-lg border px-2.5 text-sm shadow-sm outline-none focus-visible:ring-2"
-          >
-            <option value="ALL">Todas</option>
-            {initialCourts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {courtSelectLine(c)}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-muted-foreground text-xs font-medium">
+              Cancha
+            </label>
+            <select
+              value={listCourtId}
+              onChange={(e) => setListCourtId(e.target.value)}
+              className="border-input bg-background text-foreground focus-visible:ring-ring h-9 min-w-[240px] rounded-lg border px-2.5 text-sm shadow-sm outline-none focus-visible:ring-2"
+            >
+              <option value="ALL">Todas</option>
+              {initialCourts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {courtSelectLine(c)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setListShowPast(false)}
+              className={cn(
+                "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                !listShowPast
+                  ? "bg-primary/15 text-primary border-primary/30"
+                  : "border-border text-muted-foreground hover:bg-muted",
+              )}
+            >
+              Próximas
+            </button>
+            <button
+              type="button"
+              onClick={() => setListShowPast(true)}
+              className={cn(
+                "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                listShowPast
+                  ? "bg-primary/15 text-primary border-primary/30"
+                  : "border-border text-muted-foreground hover:bg-muted",
+              )}
+            >
+              Pasadas
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -726,7 +765,9 @@ export function ReservationsBoard({
                       colSpan={7}
                       className="text-muted-foreground px-4 py-8 text-center"
                     >
-                      No hay reservas para los filtros seleccionados.
+                      {listShowPast
+                        ? "No hay reservas pasadas para los filtros seleccionados."
+                        : "No hay reservas próximas para los filtros seleccionados."}
                     </td>
                   </tr>
                 ) : null}

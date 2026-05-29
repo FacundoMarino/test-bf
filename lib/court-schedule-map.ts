@@ -79,6 +79,37 @@ export function minutesToHHmm(total: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+export type ScheduleSlotInterval = { start: number; end: number };
+
+export function buildCourtScheduleSlotIntervals(
+  rows: Array<{
+    startTimeMinutes: number;
+    endTimeMinutes: number;
+    slotDurationMinutes: number;
+  }>,
+): ScheduleSlotInterval[] {
+  const generatedByKey = new Map<string, ScheduleSlotInterval>();
+  const sortedRows = [...rows].sort(
+    (a, b) => a.startTimeMinutes - b.startTimeMinutes,
+  );
+  for (const row of sortedRows) {
+    let cur = row.startTimeMinutes;
+    const effectiveEnd = effectiveEndTimeMinutes(
+      row.startTimeMinutes,
+      row.endTimeMinutes,
+    );
+    while (cur + row.slotDurationMinutes <= effectiveEnd) {
+      const end = cur + row.slotDurationMinutes;
+      const key = `${cur}-${end}`;
+      if (!generatedByKey.has(key)) {
+        generatedByKey.set(key, { start: cur, end });
+      }
+      cur = end;
+    }
+  }
+  return Array.from(generatedByKey.values()).sort((a, b) => a.start - b.start);
+}
+
 export function clubBlocksToCourtSchedulePayload(
   blocks: ClubScheduleBlocks,
 ): Array<{
