@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   Search,
   User,
@@ -24,6 +22,7 @@ import {
   refreshClubReservationsAction,
   rejectClubBookingAction,
 } from "@/actions/reservas";
+import { MiniMonthCalendar } from "@/components/calendar/mini-month-calendar";
 import { BookingDetailCard } from "@/components/reservas/BookingDetailCard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -37,13 +36,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   bookingBlocksCalendarSlot,
-  filterReservationsByListPeriod,
   isTentativePublicOpenMatch,
   matchParticipantsCount,
   mergeConsecutiveCalendarSlotRows,
   reservationGuestLabel,
   reservationGuestPhone,
-  sortReservationsForList,
   type CalendarSlotRow,
 } from "@/lib/club-reservation-utils";
 import { cn } from "@/lib/utils";
@@ -136,105 +133,6 @@ function intervalsOverlapMs(
   return a0 < b1 && a1 > b0;
 }
 
-/** Vista calendario: lunes = primer columna */
-function MiniMonthCalendar({
-  viewMonth,
-  onViewMonthChange,
-  selectedDate,
-  onSelectDate,
-  markedDays,
-}: {
-  viewMonth: Date;
-  onViewMonthChange: (d: Date) => void;
-  selectedDate: Date;
-  onSelectDate: (d: Date) => void;
-  markedDays: Set<string>;
-}) {
-  const y = viewMonth.getFullYear();
-  const m = viewMonth.getMonth();
-  const first = new Date(y, m, 1);
-  const lastDay = new Date(y, m + 1, 0).getDate();
-  const lead = (first.getDay() + 6) % 7; // Mon=0
-  const today = startOfLocalDay(new Date());
-
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < lead; i++) cells.push(null);
-  for (let d = 1; d <= lastDay; d++) cells.push(d);
-
-  const title = viewMonth.toLocaleDateString("es-ES", {
-    month: "long",
-    year: "numeric",
-  });
-
-  return (
-    <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-lg"
-          onClick={() => onViewMonthChange(new Date(y, m - 1, 1))}
-          aria-label="Mes anterior"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-        <span className="text-foreground flex-1 text-center text-sm font-semibold capitalize">
-          {title}
-        </span>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground hover:bg-muted inline-flex size-8 items-center justify-center rounded-lg"
-          onClick={() => onViewMonthChange(new Date(y, m + 1, 1))}
-          aria-label="Mes siguiente"
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-      <div className="mb-1 grid grid-cols-7 gap-0.5 text-center">
-        {["L", "M", "X", "J", "V", "S", "D"].map((w) => (
-          <div
-            key={w}
-            className="text-muted-foreground pb-1 text-[10px] font-medium"
-          >
-            {w}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-sm">
-        {cells.map((day, idx) => {
-          if (day === null) {
-            return <div key={`e-${idx}`} className="aspect-square" />;
-          }
-          const cellDate = new Date(y, m, day);
-          const ymd = formatLocalYmd(cellDate);
-          const isSelected = sameLocalDay(cellDate, selectedDate);
-          const isToday = sameLocalDay(cellDate, today);
-          const hasMark = markedDays.has(ymd);
-
-          return (
-            <button
-              key={ymd}
-              type="button"
-              onClick={() => onSelectDate(cellDate)}
-              className={cn(
-                "relative flex aspect-square items-center justify-center rounded-lg text-sm font-medium transition-colors",
-                isSelected
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-foreground hover:bg-muted",
-                isToday && !isSelected && "ring-primary/40 ring-2",
-              )}
-            >
-              {day}
-              {hasMark && !isSelected ? (
-                <span className="bg-primary absolute bottom-1 size-1 rounded-full" />
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 export function ReservationsBoard({
   clubId,
   initialCourts,
@@ -267,7 +165,6 @@ export function ReservationsBoard({
     () => initialCourts[0]?.id ?? "",
   );
   const [listCourtId, setListCourtId] = useState<string>("ALL");
-  const [listShowPast, setListShowPast] = useState(false);
   const validCourtId = useMemo(() => {
     if (initialCourts.length === 0) return "";
     if (initialCourts.some((c) => c.id === courtId)) return courtId;
@@ -275,7 +172,13 @@ export function ReservationsBoard({
   }, [initialCourts, courtId]);
 
   const [daySlots, setDaySlots] = useState<
-    Array<{ start: string; end: string; isAvailable: boolean }>
+    Array<{
+      start: string;
+      end: string;
+      isAvailable: boolean;
+      isPersonalized?: boolean;
+      holdLabel?: string | null;
+    }>
   >([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState<string | null>(null);
@@ -350,40 +253,45 @@ export function ReservationsBoard({
     });
   }, [loadSlots]);
 
-  // No auto-refetch on window/tab focus; only refresh after explicit user actions.
+  useEffect(() => {
+    const onRefresh = () => {
+      void loadSlots();
+    };
+    window.addEventListener("club-reservations-refresh", onRefresh);
+    return () =>
+      window.removeEventListener("club-reservations-refresh", onRefresh);
+  }, [loadSlots]);
 
-  const listPeriodReservations = useMemo(
-    () => filterReservationsByListPeriod(boardReservations, listShowPast),
-    [boardReservations, listShowPast],
-  );
+  // No auto-refetch on window/tab focus; only refresh after explicit user actions.
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matched = listPeriodReservations.filter((r) => {
-      if (status !== "ALL" && r.status !== status) return false;
-      if (listCourtId !== "ALL" && r.court.id !== listCourtId) return false;
-      if (!q) return true;
-      return (
-        r.court.name.toLowerCase().includes(q) ||
-        (r.user.fullName ?? "sin nombre").toLowerCase().includes(q)
+    return boardReservations
+      .filter((r) => {
+        if (status !== "ALL" && r.status !== status) return false;
+        if (listCourtId !== "ALL" && r.court.id !== listCourtId) return false;
+        if (!q) return true;
+        return (
+          r.court.name.toLowerCase().includes(q) ||
+          (r.user.fullName ?? "sin nombre").toLowerCase().includes(q)
+        );
+      })
+      .sort(
+        (a, b) => new Date(b.start).getTime() - new Date(a.start).getTime(),
       );
-    });
-    return sortReservationsForList(matched, listShowPast);
-  }, [listPeriodReservations, query, status, listCourtId, listShowPast]);
+  }, [boardReservations, query, status, listCourtId]);
 
   const grouped = useMemo(
     () => ({
-      ALL: listPeriodReservations.length,
-      PENDING: listPeriodReservations.filter((r) => r.status === "PENDING")
+      ALL: boardReservations.length,
+      PENDING: boardReservations.filter((r) => r.status === "PENDING").length,
+      CONFIRMED: boardReservations.filter((r) => r.status === "CONFIRMED")
         .length,
-      CONFIRMED: listPeriodReservations.filter((r) => r.status === "CONFIRMED")
+      CANCELLED: boardReservations.filter((r) => r.status === "CANCELLED")
         .length,
-      CANCELLED: listPeriodReservations.filter((r) => r.status === "CANCELLED")
-        .length,
-      REJECTED: listPeriodReservations.filter((r) => r.status === "REJECTED")
-        .length,
+      REJECTED: boardReservations.filter((r) => r.status === "REJECTED").length,
     }),
-    [listPeriodReservations],
+    [boardReservations],
   );
 
   const markedDays = useMemo(() => {
@@ -438,6 +346,15 @@ export function ReservationsBoard({
           booking: tentativeBooking,
         };
       }
+      if (!slot.isAvailable && slot.isPersonalized) {
+        return {
+          start: slot.start,
+          end: slot.end,
+          kind: "personalized" as const,
+          booking: null,
+          holdLabel: slot.holdLabel ?? null,
+        };
+      }
       if (!slot.isAvailable) {
         return {
           start: slot.start,
@@ -460,7 +377,10 @@ export function ReservationsBoard({
     const disponibles = slotRows.filter(
       (r) => r.kind === "available" || r.kind === "tentativeOpen",
     ).length;
-    const reservados = slotRows.filter((r) => r.kind === "reserved").length;
+    const reservados =
+      slotRows.filter(
+        (r) => r.kind === "reserved" || r.kind === "personalized",
+      ).length;
     const tentativosAbiertos = slotRows.filter(
       (r) => r.kind === "tentativeOpen",
     ).length;
@@ -469,17 +389,6 @@ export function ReservationsBoard({
     ).length;
     return { disponibles, reservados, cancelados, tentativosAbiertos };
   }, [slotRows, bookingsForCourtDay]);
-
-  async function syncBoardReservations() {
-    const fresh = await refreshClubReservationsAction(clubId);
-    if (fresh.ok) {
-      setHotReservations(fresh.reservations);
-    } else {
-      setHotReservations(null);
-    }
-    router.refresh();
-    void loadSlots();
-  }
 
   async function onAction(bookingId: string, action: "approve" | "reject") {
     setError(null);
@@ -493,7 +402,8 @@ export function ReservationsBoard({
       setError(res.error);
       return;
     }
-    await syncBoardReservations();
+    router.refresh();
+    void loadSlots();
   }
 
   async function handleCancelBooking(bookingId: string): Promise<boolean> {
@@ -506,7 +416,8 @@ export function ReservationsBoard({
       return false;
     }
     setExpandedBookingId(null);
-    await syncBoardReservations();
+    router.refresh();
+    void loadSlots();
     return true;
   }
 
@@ -544,9 +455,14 @@ export function ReservationsBoard({
       setError(res.error);
       return;
     }
+    const fresh = await refreshClubReservationsAction(clubId);
+    if (fresh.ok) {
+      setHotReservations(fresh.reservations);
+    }
     setManualModalOpen(false);
     setManualSlot(null);
-    await syncBoardReservations();
+    router.refresh();
+    void loadSlots();
   }
 
   const selectedCourt = initialCourts.find((c) => c.id === validCourtId);
@@ -598,50 +514,22 @@ export function ReservationsBoard({
       </div>
 
       {mode === "list" ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-muted-foreground text-xs font-medium">
-              Cancha
-            </label>
-            <select
-              value={listCourtId}
-              onChange={(e) => setListCourtId(e.target.value)}
-              className="border-input bg-background text-foreground focus-visible:ring-ring h-9 min-w-[240px] rounded-lg border px-2.5 text-sm shadow-sm outline-none focus-visible:ring-2"
-            >
-              <option value="ALL">Todas</option>
-              {initialCourts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {courtSelectLine(c)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setListShowPast(false)}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                !listShowPast
-                  ? "bg-primary/15 text-primary border-primary/30"
-                  : "border-border text-muted-foreground hover:bg-muted",
-              )}
-            >
-              Próximas
-            </button>
-            <button
-              type="button"
-              onClick={() => setListShowPast(true)}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                listShowPast
-                  ? "bg-primary/15 text-primary border-primary/30"
-                  : "border-border text-muted-foreground hover:bg-muted",
-              )}
-            >
-              Pasadas
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <label className="text-muted-foreground text-xs font-medium">
+            Cancha
+          </label>
+          <select
+            value={listCourtId}
+            onChange={(e) => setListCourtId(e.target.value)}
+            className="border-input bg-background text-foreground focus-visible:ring-ring h-9 min-w-[240px] rounded-lg border px-2.5 text-sm shadow-sm outline-none focus-visible:ring-2"
+          >
+            <option value="ALL">Todas</option>
+            {initialCourts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {courtSelectLine(c)}
+              </option>
+            ))}
+          </select>
         </div>
       ) : null}
 
@@ -765,9 +653,7 @@ export function ReservationsBoard({
                       colSpan={7}
                       className="text-muted-foreground px-4 py-8 text-center"
                     >
-                      {listShowPast
-                        ? "No hay reservas pasadas para los filtros seleccionados."
-                        : "No hay reservas próximas para los filtros seleccionados."}
+                      No hay reservas para los filtros seleccionados.
                     </td>
                   </tr>
                 ) : null}
@@ -811,6 +697,7 @@ export function ReservationsBoard({
             </div>
 
             <MiniMonthCalendar
+              className="border-border bg-card rounded-xl border p-3 shadow-sm"
               viewMonth={viewMonth}
               onViewMonthChange={setViewMonth}
               selectedDate={selectedDate}
@@ -827,6 +714,12 @@ export function ReservationsBoard({
                 Leyenda
               </p>
               <ul className="space-y-2">
+                <li className="flex items-center gap-2">
+                  <span className="size-2.5 shrink-0 rounded-full bg-[#c5e835]" />
+                  <span className="text-muted-foreground">
+                    Personalizado (ocupado)
+                  </span>
+                </li>
                 <li className="flex items-center gap-2">
                   <span className="size-2.5 shrink-0 rounded-full bg-[#788ce3]" />
                   <span className="text-muted-foreground">Disponible</span>
@@ -904,6 +797,7 @@ export function ReservationsBoard({
                   <ul className="mt-6 space-y-3">
                     {slotRows.map((row, rowIndex) => {
                       const isAvail = row.kind === "available";
+                      const isPersonalized = row.kind === "personalized";
                       const isRes = row.kind === "reserved";
                       const isFixedSeries =
                         isRes && row.booking?.isFixedSeries === true;
@@ -911,6 +805,8 @@ export function ReservationsBoard({
                         isRes && row.booking
                           ? `${fmtTimeUtc(row.booking.start)} – ${fmtTimeUtc(row.booking.end)}`
                           : `${fmtTimeUtc(row.start)} – ${fmtTimeUtc(row.end)}`;
+                      const personalizedLabel =
+                        row.holdLabel?.trim() || "Turno personalizado";
                       const isTent =
                         row.kind === "tentativeOpen" && row.booking != null;
                       const isClosed = row.kind === "closed";
@@ -933,6 +829,8 @@ export function ReservationsBoard({
                           className={cn(
                             "overflow-hidden rounded-xl border",
                             isAvail && "border-[#788ce3]/30 bg-[#788ce3]/10",
+                            isPersonalized &&
+                              "border-[#c5e835]/70 bg-[#d4f542]/30",
                             isRes &&
                               "border-sky-200/80 bg-sky-50/50 dark:border-sky-900/30 dark:bg-sky-950/25",
                             isTent && "border-[#405fd3]/30 bg-[#405fd3]/10",
@@ -996,6 +894,7 @@ export function ReservationsBoard({
                             <div
                               className={cn(
                                 "w-1.5 shrink-0",
+                                isPersonalized && "bg-[#c5e835]",
                                 isAvail && "bg-[#788ce3]",
                                 isRes && "bg-sky-500",
                                 isTent && "bg-[#405fd3]",
@@ -1010,6 +909,12 @@ export function ReservationsBoard({
                                 {isAvail ? (
                                   <p className="text-muted-foreground mt-0.5 text-sm">
                                     Disponible
+                                  </p>
+                                ) : null}
+                                {isPersonalized ? (
+                                  <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm font-medium text-[#5a7a12] dark:text-[#c5e835]">
+                                    <User className="size-3.5 shrink-0 opacity-80" />
+                                    {personalizedLabel}
                                   </p>
                                 ) : null}
                                 {isRes && row.booking ? (
@@ -1044,6 +949,11 @@ export function ReservationsBoard({
                                 ) : null}
                               </div>
                               <div className="flex shrink-0 items-center gap-2">
+                                {isPersonalized ? (
+                                  <span className="inline-flex rounded-full bg-[#c5e835]/25 px-3 py-1 text-xs font-semibold text-[#5a7a12] dark:text-[#d4f542]">
+                                    Ocupado
+                                  </span>
+                                ) : null}
                                 {isAvail ? (
                                   <button
                                     type="button"

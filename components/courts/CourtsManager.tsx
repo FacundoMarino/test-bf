@@ -304,6 +304,7 @@ export function CourtsManager({
             setAvailabilityCourt(nextCourt);
           }}
           onSaved={() => {
+            window.dispatchEvent(new CustomEvent("club-reservations-refresh"));
             router.refresh();
           }}
         />

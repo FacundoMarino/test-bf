@@ -454,6 +454,174 @@ export async function getCourtAvailabilityExceptionsAction(
   }
 }
 
+export type CourtCustomSlot = {
+  id: string;
+  date: string;
+  startTimeMinutes: number;
+  endTimeMinutes: number;
+  price: number;
+  note: string | null;
+};
+
+export async function getCourtCustomSlotsAction(
+  clubId: string,
+  courtId: string,
+  month: string,
+): Promise<
+  | { ok: true; rows: CourtCustomSlot[] }
+  | { ok: false; error: string }
+> {
+  const token = await getToken();
+  if (!token) return { ok: false, error: "Sesión no válida" };
+  try {
+    const res = await fetch(
+      `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${clubId}/courts/${courtId}/custom-slots?month=${encodeURIComponent(month)}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const body: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
+    const rows = Array.isArray(body) ? body : [];
+    return {
+      ok: true,
+      rows: rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        const snake = r as {
+          start_time_minutes?: number;
+          end_time_minutes?: number;
+        };
+        return {
+          id: String(r.id ?? ""),
+          date: String(r.date ?? "").slice(0, 10),
+          startTimeMinutes: Number(
+            r.startTimeMinutes ?? snake.start_time_minutes ?? 0,
+          ),
+          endTimeMinutes: Number(
+            r.endTimeMinutes ?? snake.end_time_minutes ?? 0,
+          ),
+          price: Number(r.price ?? 0),
+          note:
+            typeof r.note === "string" && r.note.trim().length > 0
+              ? r.note.trim()
+              : null,
+        };
+      }),
+    };
+  } catch {
+    return { ok: false, error: "Error de red" };
+  }
+}
+
+/** Cancela excepciones + crea turno personalizado en un solo request (backend en transacción). */
+export async function createCourtCustomSlotAction(
+  clubId: string,
+  courtId: string,
+  data: {
+    date: string;
+    startTimeMinutes: number;
+    endTimeMinutes: number;
+    price?: number;
+    note?: string;
+    cancelledSlots: Array<{ start: number; end: number }>;
+  },
+): Promise<
+  | { ok: true; slot: CourtCustomSlot }
+  | { ok: false; error: string }
+> {
+  const token = await getToken();
+  if (!token) return { ok: false, error: "Sesión no válida" };
+  try {
+    const res = await fetch(
+      `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${clubId}/courts/${courtId}/custom-slots`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          date: data.date,
+          startTimeMinutes: data.startTimeMinutes,
+          endTimeMinutes: data.endTimeMinutes,
+          price: data.price,
+          note: data.note,
+          cancelledSlots: data.cancelledSlots.map((s) => ({
+            startTimeMinutes: s.start,
+            endTimeMinutes: s.end,
+          })),
+        }),
+      },
+    );
+    const body: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
+    const r = body as Record<string, unknown>;
+    const snake = r as {
+      start_time_minutes?: number;
+      end_time_minutes?: number;
+    };
+    revalidateCourts();
+    const { revalidatePath } = await import("next/cache");
+    revalidatePath("/dashboard/club/reservas");
+    return {
+      ok: true,
+      slot: {
+        id: String(r.id ?? ""),
+        date: String(r.date ?? data.date).slice(0, 10),
+        startTimeMinutes: Number(
+          r.startTimeMinutes ?? snake.start_time_minutes ?? data.startTimeMinutes,
+        ),
+        endTimeMinutes: Number(
+          r.endTimeMinutes ?? snake.end_time_minutes ?? data.endTimeMinutes,
+        ),
+        price: Number(r.price ?? data.price ?? 0),
+        note:
+          typeof r.note === "string" && r.note.trim().length > 0
+            ? r.note.trim()
+            : null,
+      },
+    };
+  } catch {
+    return { ok: false, error: "Error de red" };
+  }
+}
+
+export async function deleteCourtCustomSlotAction(
+  clubId: string,
+  courtId: string,
+  slotId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = await getToken();
+  if (!token) return { ok: false, error: "Sesión no válida" };
+  try {
+    const res = await fetch(
+      `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${clubId}/courts/${courtId}/custom-slots/${slotId}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    const body: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const message = normalizeMessage(body);
+      await maybeLogoutOnInvalidToken(message);
+      return { ok: false, error: message };
+    }
+    revalidateCourts();
+    const { revalidatePath } = await import("next/cache");
+    revalidatePath("/dashboard/club/reservas");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Error de red" };
+  }
+}
+
 export async function replaceCourtAvailabilityExceptionsAction(
   clubId: string,
   courtId: string,

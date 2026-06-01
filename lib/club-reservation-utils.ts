@@ -4,13 +4,16 @@ export type CalendarSlotRowKind =
   | "available"
   | "reserved"
   | "tentativeOpen"
-  | "closed";
+  | "closed"
+  | "personalized";
 
 export type CalendarSlotRow = {
   start: string;
   end: string;
   kind: CalendarSlotRowKind;
   booking: ClubReservation | null;
+  /** Nombre guardado en `note` del turno personalizado. */
+  holdLabel?: string | null;
 };
 
 /** Nombre del cliente en turno fijo o reserva manual. */
@@ -93,39 +96,4 @@ export function isTentativePublicOpenMatch(r: ClubReservation): boolean {
 export function matchParticipantsCount(r: ClubReservation): number {
   const n = r.participants?.length ?? 0;
   return n > 0 ? n : 1;
-}
-
-export function startOfLocalDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function reservationStartMs(r: ClubReservation): number {
-  return new Date(r.start).getTime();
-}
-
-/** Próximas: desde hoy inclusive. Pasadas: antes de hoy. */
-export function filterReservationsByListPeriod(
-  reservations: ClubReservation[],
-  showPast: boolean,
-  referenceDate: Date = new Date(),
-): ClubReservation[] {
-  const todayStart = startOfLocalDay(referenceDate).getTime();
-  return reservations.filter((r) => {
-    const t = reservationStartMs(r);
-    return showPast ? t < todayStart : t >= todayStart;
-  });
-}
-
-/** Próximas: fecha ascendente. Pasadas: fecha descendente. */
-export function sortReservationsForList(
-  reservations: ClubReservation[],
-  showPast: boolean,
-): ClubReservation[] {
-  return [...reservations].sort((a, b) => {
-    const ta = reservationStartMs(a);
-    const tb = reservationStartMs(b);
-    return showPast ? tb - ta : ta - tb;
-  });
 }
