@@ -96,10 +96,6 @@ export function ReservationsHeaderActions({
         court={selectedCourt}
         selectableCourts={dialogCourts}
         onSelectCourt={setSelectedCourtId}
-        onSaved={() => {
-          window.dispatchEvent(new CustomEvent("club-reservations-refresh"));
-          window.location.reload();
-        }}
       />
     </>
   );

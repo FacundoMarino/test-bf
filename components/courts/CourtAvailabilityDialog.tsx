@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Ban, Plus, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Ban, Plus, X } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   createCourtCustomSlotAction,
@@ -32,16 +33,18 @@ type CourtAvailabilityDialogProps = {
   court: CourtRecord | null;
   selectableCourts?: CourtRecord[];
   onSelectCourt?: (courtId: string) => void;
-  onSaved: () => void;
+  onSaved?: () => void;
 };
+
+function notifyReservationsRefresh() {
+  window.dispatchEvent(new CustomEvent("club-reservations-refresh"));
+}
 
 type RegularSlot = { start: number; end: number; label: string };
 type DateState = {
   allDayClosed: boolean;
   excluded: Array<{ start: number; end: number }>;
 };
-
-type CustomWizardPhase = null | "pick" | "define";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -79,6 +82,64 @@ function minutesOverlap(
   return aStart < bEnd && aEnd > bStart;
 }
 
+function slotsOverlappingRange(
+  slots: RegularSlot[],
+  startMin: number,
+  endMin: number,
+): Array<{ start: number; end: number }> {
+  return slots
+    .filter((s) => minutesOverlap(startMin, endMin, s.start, s.end))
+    .map((s) => ({ start: s.start, end: s.end }));
+}
+
+type MonthExceptionPayload = {
+  date: string;
+  isClosedAllDay: boolean;
+  startTimeMinutes?: number;
+  endTimeMinutes?: number;
+};
+
+function buildMonthExceptionsPayload(
+  exceptionsByDate: Record<string, DateState>,
+  monthStart: Date,
+): MonthExceptionPayload[] {
+  const end = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+  const exceptions: MonthExceptionPayload[] = [];
+  for (let d = new Date(monthStart); d < end; d.setDate(d.getDate() + 1)) {
+    const key = toDateKey(d);
+    const state = exceptionsByDate[key];
+    if (!state) continue;
+    if (state.allDayClosed) {
+      exceptions.push({ date: key, isClosedAllDay: true });
+    } else {
+      for (const s of state.excluded) {
+        exceptions.push({
+          date: key,
+          isClosedAllDay: false,
+          startTimeMinutes: s.start,
+          endTimeMinutes: s.end,
+        });
+      }
+    }
+  }
+  return exceptions;
+}
+
+function buildCustomSlotNote(parts: {
+  name?: string;
+  phone?: string;
+  note?: string;
+}): string | undefined {
+  const segments: string[] = [];
+  const name = parts.name?.trim();
+  const phone = parts.phone?.trim();
+  const note = parts.note?.trim();
+  if (name) segments.push(name);
+  if (phone) segments.push(`Tel: ${phone}`);
+  if (note) segments.push(note);
+  return segments.length > 0 ? segments.join(" · ") : undefined;
+}
+
 export function CourtAvailabilityDialog({
   open,
   onOpenChange,
@@ -103,22 +164,25 @@ export function CourtAvailabilityDialog({
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [customWizard, setCustomWizard] = useState<CustomWizardPhase>(null);
+  const [customFormOpen, setCustomFormOpen] = useState(false);
   const [customStart, setCustomStart] = useState("10:00");
   const [customEnd, setCustomEnd] = useState("11:30");
   const [customPrice, setCustomPrice] = useState("0");
   const [customGuestName, setCustomGuestName] = useState("");
+  const [customPhone, setCustomPhone] = useState("");
+  const [customNote, setCustomNote] = useState("");
   const [creatingCustom, setCreatingCustom] = useState(false);
+  const errorBannerRef = useRef<HTMLDivElement>(null);
 
   const title = `Gestionar disponibilidad - ${court?.name?.trim() || "Cancha"}`;
   const monthKey = toMonthKey(currentMonth);
 
-  function exitCustomWizard() {
-    setCustomWizard(null);
+  function closeCustomForm() {
+    setCustomFormOpen(false);
     setError(null);
   }
 
-  function startCustomWizard() {
+  function openCustomForm() {
     if (!selectedKey) {
       setError("Seleccioná una fecha en el calendario.");
       return;
@@ -129,15 +193,28 @@ export function CourtAvailabilityDialog({
       );
       return;
     }
-    if (regularSlots.length === 0) {
-      setError(
-        "No hay turnos regulares este día. Configurá horarios en la cancha.",
-      );
-      return;
-    }
     setError(null);
-    setCustomWizard("pick");
+    setCustomFormOpen(true);
   }
+
+  function resetCustomFormFields() {
+    setCustomStart("10:00");
+    setCustomEnd("11:30");
+    setCustomPrice("0");
+    setCustomGuestName("");
+    setCustomPhone("");
+    setCustomNote("");
+  }
+
+  useEffect(() => {
+    if (!error) return;
+    queueMicrotask(() => {
+      errorBannerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+  }, [error]);
 
   useEffect(() => {
     if (!open || !court) return;
@@ -150,7 +227,8 @@ export function CourtAvailabilityDialog({
       setExceptionsByDate({});
       setCustomSlotsByDate({});
       setMonthLoaded({});
-      setCustomWizard(null);
+      setCustomFormOpen(false);
+      resetCustomFormFields();
       setCurrentMonth(
         new Date(new Date().getFullYear(), new Date().getMonth(), 1),
       );
@@ -158,7 +236,7 @@ export function CourtAvailabilityDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, court]);
+  }, [open, court?.id]);
 
   useEffect(() => {
     if (!open || !court || monthLoaded[monthKey]) return;
@@ -278,8 +356,6 @@ export function CourtAvailabilityDialog({
     ? (customSlotsByDate[selectedKey] ?? [])
     : [];
 
-  const wizardExcluded = selectedState?.excluded ?? [];
-
   const regularSlotsVisible = useMemo(() => {
     const customOnDay = dayCustomSlots;
     return regularSlots.filter(
@@ -291,7 +367,7 @@ export function CourtAvailabilityDialog({
   }, [regularSlots, dayCustomSlots]);
 
   function toggleSlot(slot: RegularSlot) {
-    if (!selectedKey || customWizard === "define") return;
+    if (!selectedKey) return;
     const curr = exceptionsByDate[selectedKey] ?? {
       allDayClosed: false,
       excluded: [],
@@ -308,11 +384,11 @@ export function CourtAvailabilityDialog({
       ...exceptionsByDate,
       [selectedKey]: { ...curr, allDayClosed: false, excluded: nextExcluded },
     });
-    if (customWizard === "pick") setError(null);
+    setError(null);
   }
 
   function toggleAllDay() {
-    if (!selectedKey || customWizard) return;
+    if (!selectedKey || customFormOpen) return;
     const curr = exceptionsByDate[selectedKey] ?? {
       allDayClosed: false,
       excluded: [],
@@ -326,40 +402,27 @@ export function CourtAvailabilityDialog({
     });
   }
 
-  function tryContinueToDefine() {
-    if (wizardExcluded.length === 0) {
-      setError(
-        "Primero cancelá los turnos del horario habitual que querés reemplazar (tocá cada turno para marcarlo en rojo).",
-      );
-      return;
-    }
-    setError(null);
-    setCustomWizard("define");
-  }
-
-  function validateCustomAgainstCancellations(
+  function validateCustomSlotRange(
     startMin: number,
     endMin: number,
-    excluded: Array<{ start: number; end: number }>,
   ): string | null {
-    const overlapping = regularSlots.filter((s) =>
-      minutesOverlap(startMin, endMin, s.start, s.end),
+    const overlapsCustom = dayCustomSlots.some((c) =>
+      minutesOverlap(startMin, endMin, c.startTimeMinutes, c.endTimeMinutes),
     );
-    if (overlapping.length === 0) {
-      return null;
+    if (overlapsCustom) {
+      return "El horario se superpone con otro turno personalizado.";
     }
-    const missing = overlapping.filter(
-      (s) => !excluded.some((e) => e.start === s.start && e.end === s.end),
-    );
-    if (missing.length > 0) {
-      const m = missing[0]!;
-      return `Cancelá también el turno ${timeLabel(m.start)}-${timeLabel(m.end)}: forma parte del horario que querés reemplazar.`;
+
+    if (regularSlots.length === 0) {
+      return "No hay turnos configurados para este día.";
     }
-    if (
-      !excluded.some((e) => minutesOverlap(startMin, endMin, e.start, e.end))
-    ) {
-      return "Seleccioná al menos un turno cancelado que se solape con el horario personalizado que querés crear.";
+
+    const dayStart = Math.min(...regularSlots.map((s) => s.start));
+    const dayEnd = Math.max(...regularSlots.map((s) => s.end));
+    if (startMin < dayStart || endMin > dayEnd) {
+      return `El horario debe estar entre ${timeLabel(dayStart)} y ${timeLabel(dayEnd)}.`;
     }
+
     return null;
   }
 
@@ -375,14 +438,9 @@ export function CourtAvailabilityDialog({
       setError("La hora de fin debe ser posterior a la de inicio");
       return;
     }
-    const validationMsg = validateCustomAgainstCancellations(
-      startMin,
-      endMin,
-      wizardExcluded,
-    );
+    const validationMsg = validateCustomSlotRange(startMin, endMin);
     if (validationMsg) {
       setError(validationMsg);
-      if (customWizard !== "pick") setCustomWizard("pick");
       return;
     }
     const price = Number(customPrice);
@@ -391,6 +449,12 @@ export function CourtAvailabilityDialog({
       return;
     }
 
+    const cancelledSlots = slotsOverlappingRange(
+      regularSlots,
+      startMin,
+      endMin,
+    );
+
     setCreatingCustom(true);
     setError(null);
     const res = await createCourtCustomSlotAction(clubId, court.id, {
@@ -398,14 +462,30 @@ export function CourtAvailabilityDialog({
       startTimeMinutes: startMin,
       endTimeMinutes: endMin,
       price: Math.round(price),
-      note: customGuestName.trim() || undefined,
-      cancelledSlots: wizardExcluded,
+      note: buildCustomSlotNote({
+        name: customGuestName,
+        phone: customPhone,
+        note: customNote,
+      }),
+      cancelledSlots,
     });
     setCreatingCustom(false);
 
     if (!res.ok) {
       setError(res.error);
       return;
+    }
+
+    const prevExcluded = exceptionsByDate[selectedKey]?.excluded ?? [];
+    const mergedExcluded = [...prevExcluded];
+    for (const slot of cancelledSlots) {
+      if (
+        !mergedExcluded.some(
+          (e) => e.start === slot.start && e.end === slot.end,
+        )
+      ) {
+        mergedExcluded.push(slot);
+      }
     }
 
     setCustomSlotsByDate({
@@ -416,77 +496,106 @@ export function CourtAvailabilityDialog({
       ...exceptionsByDate,
       [selectedKey]: {
         allDayClosed: false,
-        excluded: wizardExcluded,
+        excluded: mergedExcluded,
       },
     });
-    exitCustomWizard();
-    setCustomGuestName("");
-    onSaved();
+    closeCustomForm();
+    resetCustomFormFields();
+    notifyReservationsRefresh();
+    toast.success("Turno personalizado creado");
+    onSaved?.();
   }
 
   async function handleDeleteCustomSlot(slotId: string) {
     if (!court || !selectedKey) return;
+    const slot = dayCustomSlots.find((s) => s.id === slotId);
+    if (!slot) return;
+
     setError(null);
     const res = await deleteCourtCustomSlotAction(clubId, court.id, slotId);
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    setCustomSlotsByDate({
-      ...customSlotsByDate,
-      [selectedKey]: dayCustomSlots.filter((s) => s.id !== slotId),
-    });
-    onSaved();
-  }
 
-  async function saveMonth() {
-    if (!court) return;
-    const start = new Date(
+    const curr = exceptionsByDate[selectedKey];
+    const nextExceptionsByDate = { ...exceptionsByDate };
+    if (curr && !curr.allDayClosed) {
+      const nextExcluded = curr.excluded.filter(
+        (e) =>
+          !minutesOverlap(
+            e.start,
+            e.end,
+            slot.startTimeMinutes,
+            slot.endTimeMinutes,
+          ),
+      );
+      if (nextExcluded.length === 0) {
+        delete nextExceptionsByDate[selectedKey];
+      } else {
+        nextExceptionsByDate[selectedKey] = {
+          ...curr,
+          excluded: nextExcluded,
+        };
+      }
+    }
+
+    const monthStart = new Date(
       currentMonth.getFullYear(),
       currentMonth.getMonth(),
       1,
     );
-    const end = new Date(
+    const exRes = await replaceCourtAvailabilityExceptionsAction(
+      clubId,
+      court.id,
+      {
+        month: monthKey,
+        exceptions: buildMonthExceptionsPayload(
+          nextExceptionsByDate,
+          monthStart,
+        ),
+      },
+    );
+    if (!exRes.ok) {
+      setError(exRes.error);
+      return;
+    }
+
+    setCustomSlotsByDate({
+      ...customSlotsByDate,
+      [selectedKey]: dayCustomSlots.filter((s) => s.id !== slotId),
+    });
+    setExceptionsByDate(nextExceptionsByDate);
+    notifyReservationsRefresh();
+    toast.success("Turno personalizado eliminado");
+    onSaved?.();
+  }
+
+  async function saveMonth() {
+    if (!court) return;
+    const monthStart = new Date(
       currentMonth.getFullYear(),
-      currentMonth.getMonth() + 1,
+      currentMonth.getMonth(),
       1,
     );
-    const exceptions: Array<{
-      date: string;
-      isClosedAllDay: boolean;
-      startTimeMinutes?: number;
-      endTimeMinutes?: number;
-    }> = [];
-    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-      const key = toDateKey(d);
-      const state = exceptionsByDate[key];
-      if (!state) continue;
-      if (state.allDayClosed) {
-        exceptions.push({ date: key, isClosedAllDay: true });
-      } else {
-        for (const s of state.excluded) {
-          exceptions.push({
-            date: key,
-            isClosedAllDay: false,
-            startTimeMinutes: s.start,
-            endTimeMinutes: s.end,
-          });
-        }
-      }
-    }
     setPending(true);
     const res = await replaceCourtAvailabilityExceptionsAction(
       clubId,
       court.id,
-      { month: monthKey, exceptions },
+      {
+        month: monthKey,
+        exceptions: buildMonthExceptionsPayload(exceptionsByDate, monthStart),
+      },
     );
     setPending(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    onSaved();
-    onOpenChange(false);
+    setError(null);
+    notifyReservationsRefresh();
+    toast.success("Excepciones guardadas");
+    onSaved?.();
   }
 
   const daysWithCustom = useMemo(() => {
@@ -501,7 +610,7 @@ export function CourtAvailabilityDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) exitCustomWizard();
+        if (!next) closeCustomForm();
         onOpenChange(next);
       }}
     >
@@ -533,32 +642,21 @@ export function CourtAvailabilityDialog({
         ) : null}
 
         <p className="text-muted-foreground text-sm">
-          {customWizard === "pick"
-            ? "Paso 1: Tocá los turnos habituales que querés reemplazar (quedan en rojo)."
-            : customWizard === "define"
-              ? "Paso 2: Definí el horario personalizado. Al crear, se cancelan esos turnos y se agrega el turno personalizado en un solo paso."
-              : "Seleccioná una fecha para cancelar turnos o crear horarios personalizados."}
+          Seleccioná una fecha para cancelar turnos o crear horarios
+          personalizados.
         </p>
 
-        {customWizard ? (
+        {error ? (
           <div
-            className={
-              customWizard === "pick"
-                ? "border-destructive/30 bg-destructive/5 rounded-xl border px-4 py-3 text-sm"
-                : "border-[#c5e835]/60 bg-[#d4f542]/15 rounded-xl border px-4 py-3 text-sm"
-            }
+            ref={errorBannerRef}
+            role="alert"
+            className="border-destructive/50 bg-destructive/10 text-destructive flex gap-3 rounded-xl border px-4 py-3 text-sm"
           >
-            {customWizard === "pick" ? (
-              <p>
-                <strong>Paso 1 de 2:</strong> Marcá en rojo cada turno del
-                horario que vas a reemplazar. Después continuá al paso 2.
-              </p>
-            ) : (
-              <p>
-                <strong>Paso 2 de 2:</strong> Horario personalizado. Se guardará
-                junto con las cancelaciones seleccionadas.
-              </p>
-            )}
+            <AlertCircle
+              className="text-destructive mt-0.5 size-5 shrink-0"
+              aria-hidden
+            />
+            <p className="min-w-0 flex-1 font-medium leading-snug">{error}</p>
           </div>
         ) : null}
 
@@ -571,7 +669,7 @@ export function CourtAvailabilityDialog({
               onSelectDate={(d) => {
                 setSelectedDate(d);
                 setCurrentMonth(new Date(d.getFullYear(), d.getMonth(), 1));
-                exitCustomWizard();
+                closeCustomForm();
               }}
               highlightedDays={daysWithCustom}
             />
@@ -598,30 +696,20 @@ export function CourtAvailabilityDialog({
                   <h3 className="text-lg font-semibold capitalize">
                     {formatDateLabel(selectedDate)}
                   </h3>
-                  {!customWizard ? (
-                    <Button
-                      type="button"
-                      variant={
-                        selectedState?.allDayClosed ? "destructive" : "outline"
-                      }
-                      className="rounded-xl"
-                      onClick={toggleAllDay}
-                    >
-                      <Ban className="mr-2 size-4" />
-                      {selectedState?.allDayClosed
-                        ? "Día cerrado"
-                        : "Cerrar día completo"}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="rounded-xl"
-                      onClick={exitCustomWizard}
-                    >
-                      Salir del asistente
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant={
+                      selectedState?.allDayClosed ? "destructive" : "outline"
+                    }
+                    className="rounded-xl"
+                    onClick={toggleAllDay}
+                    disabled={customFormOpen}
+                  >
+                    <Ban className="mr-2 size-4" />
+                    {selectedState?.allDayClosed
+                      ? "Día cerrado"
+                      : "Cerrar día completo"}
+                  </Button>
                 </div>
 
                 {selectedState?.allDayClosed ? (
@@ -652,103 +740,70 @@ export function CourtAvailabilityDialog({
                                     : "Ocupado · sin nombre"}
                                 </p>
                               </div>
-                              {!customWizard ? (
-                                <button
-                                  type="button"
-                                  className="text-muted-foreground hover:text-destructive"
-                                  aria-label="Eliminar turno personalizado"
-                                  onClick={() =>
-                                    void handleDeleteCustomSlot(custom.id)
-                                  }
-                                >
-                                  <X className="size-4" />
-                                </button>
-                              ) : null}
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-destructive"
+                                aria-label="Eliminar turno personalizado"
+                                onClick={() =>
+                                  void handleDeleteCustomSlot(custom.id)
+                                }
+                              >
+                                <X className="size-4" />
+                              </button>
                             </div>
                           ))}
                         </div>
                       </div>
                     ) : null}
 
-                    {customWizard !== "define" ? (
-                      <>
-                        {regularSlotsVisible.length === 0 &&
-                        dayCustomSlots.length === 0 ? (
-                          <p className="text-muted-foreground rounded-2xl border border-dashed p-6 text-center text-sm">
-                            No hay turnos configurados para este día.
-                          </p>
-                        ) : regularSlotsVisible.length > 0 ? (
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            {regularSlotsVisible.map((slot) => {
-                              const excluded =
-                                selectedState?.excluded.some(
-                                  (s) =>
-                                    s.start === slot.start &&
-                                    s.end === slot.end,
-                                ) ?? false;
-                              const highlightPick =
-                                customWizard === "pick" && excluded;
-                              return (
-                                <button
-                                  key={`${slot.start}-${slot.end}`}
-                                  type="button"
-                                  onClick={() => toggleSlot(slot)}
-                                  className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-colors ${
-                                    excluded
-                                      ? "border-destructive/40 bg-destructive/8 text-destructive"
-                                      : customWizard === "pick"
-                                        ? "border-primary/40 ring-primary/20 hover:bg-primary/5 ring-2"
-                                        : "border-border hover:bg-muted"
-                                  } ${highlightPick ? "ring-destructive/30" : ""}`}
-                                >
-                                  {excluded ? (
-                                    <span className="mr-1">×</span>
-                                  ) : null}
-                                  {slot.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : null}
-
-                    {customWizard === "pick" ? (
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button
-                          type="button"
-                          className="h-11 flex-1 rounded-xl font-semibold"
-                          onClick={tryContinueToDefine}
-                        >
-                          Continuar — definir horario personalizado
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-11 rounded-xl"
-                          onClick={exitCustomWizard}
-                        >
-                          Cancelar
-                        </Button>
+                    {regularSlotsVisible.length === 0 &&
+                    dayCustomSlots.length === 0 ? (
+                      <p className="text-muted-foreground rounded-2xl border border-dashed p-6 text-center text-sm">
+                        No hay turnos configurados para este día.
+                      </p>
+                    ) : regularSlotsVisible.length > 0 ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {regularSlotsVisible.map((slot) => {
+                          const excluded =
+                            selectedState?.excluded.some(
+                              (s) =>
+                                s.start === slot.start && s.end === slot.end,
+                            ) ?? false;
+                          return (
+                            <button
+                              key={`${slot.start}-${slot.end}`}
+                              type="button"
+                              onClick={() => toggleSlot(slot)}
+                              disabled={customFormOpen}
+                              className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-colors ${
+                                excluded
+                                  ? "border-destructive/40 bg-destructive/8 text-destructive"
+                                  : "border-border hover:bg-muted"
+                              }`}
+                            >
+                              {excluded ? (
+                                <span className="mr-1">×</span>
+                              ) : null}
+                              {slot.label}
+                            </button>
+                          );
+                        })}
                       </div>
                     ) : null}
 
-                    {customWizard === "define" ? (
-                      <div className="border-border space-y-3 rounded-2xl border p-4">
-                        <p className="font-semibold">
-                          Nuevo turno personalizado
-                        </p>
-                        {wizardExcluded.length > 0 ? (
-                          <p className="text-muted-foreground text-xs">
-                            Se cancelarán:{" "}
-                            {wizardExcluded
-                              .map(
-                                (s) =>
-                                  `${timeLabel(s.start)}-${timeLabel(s.end)}`,
-                              )
-                              .join(", ")}
-                          </p>
-                        ) : null}
+                    {customFormOpen ? (
+                      <div className="border-border space-y-4 rounded-2xl border p-4 shadow-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-semibold">Nuevo turno custom</p>
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            aria-label="Cerrar formulario"
+                            onClick={closeCustomForm}
+                          >
+                            <X className="size-5" />
+                          </button>
+                        </div>
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="space-y-1">
                             <label className="text-muted-foreground text-xs">
@@ -770,7 +825,7 @@ export function CourtAvailabilityDialog({
                               onChange={(e) => setCustomEnd(e.target.value)}
                             />
                           </div>
-                          <div className="space-y-1">
+                          <div className="space-y-1 sm:col-span-2">
                             <label className="text-muted-foreground text-xs">
                               Precio
                             </label>
@@ -787,60 +842,60 @@ export function CourtAvailabilityDialog({
                               />
                             </div>
                           </div>
-                          <div className="space-y-1 sm:col-span-2">
+                          <div className="space-y-1">
                             <label className="text-muted-foreground text-xs">
-                              Nombre del jugador
+                              Teléfono (opcional)
                             </label>
                             <Input
-                              placeholder="Ej: Juan Pérez"
+                              type="tel"
+                              placeholder="3412601900"
+                              value={customPhone}
+                              onChange={(e) => setCustomPhone(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-muted-foreground text-xs">
+                              Nombre (opcional)
+                            </label>
+                            <Input
+                              placeholder="Ej: Nicolás Pietrasant"
                               value={customGuestName}
                               onChange={(e) =>
                                 setCustomGuestName(e.target.value)
                               }
                             />
-                            <p className="text-muted-foreground text-xs">
-                              Se guarda como nota interna y se muestra en
-                              reservas.
-                            </p>
+                          </div>
+                          <div className="space-y-1 sm:col-span-2">
+                            <label className="text-muted-foreground text-xs">
+                              Nota (opcional)
+                            </label>
+                            <Input
+                              placeholder="Ej: Llamó Juan"
+                              value={customNote}
+                              onChange={(e) => setCustomNote(e.target.value)}
+                            />
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <Button
-                            type="button"
-                            className="h-11 flex-1 rounded-xl font-semibold"
-                            disabled={creatingCustom}
-                            onClick={() => void handleCreateCustomSlot()}
-                          >
-                            {creatingCustom
-                              ? "Guardando…"
-                              : "Crear turno personalizado"}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-11 rounded-xl"
-                            onClick={() => {
-                              setError(null);
-                              setCustomWizard("pick");
-                            }}
-                          >
-                            Volver al paso 1
-                          </Button>
-                        </div>
+                        <Button
+                          type="button"
+                          className="h-11 w-full rounded-xl font-semibold"
+                          disabled={creatingCustom}
+                          onClick={() => void handleCreateCustomSlot()}
+                        >
+                          {creatingCustom ? "Guardando…" : "Crear turno"}
+                        </Button>
                       </div>
-                    ) : null}
-
-                    {!customWizard ? (
+                    ) : (
                       <Button
                         type="button"
                         variant="outline"
                         className="border-[#c5e835]/60 bg-[#d4f542]/20 hover:bg-[#d4f542]/35 h-11 w-full rounded-xl font-semibold"
-                        onClick={startCustomWizard}
+                        onClick={openCustomForm}
                       >
                         <Plus className="mr-2 size-4" />
                         Crear turno personalizado
                       </Button>
-                    ) : null}
+                    )}
                   </>
                 )}
               </div>
@@ -880,23 +935,11 @@ export function CourtAvailabilityDialog({
             type="button"
             className="h-11 w-full rounded-xl text-base font-semibold"
             onClick={() => void saveMonth()}
-            disabled={loading || pending || !!customWizard}
+            disabled={loading || pending}
           >
             {pending ? "Guardando..." : "Listo"}
           </Button>
-          {customWizard ? (
-            <p className="text-muted-foreground mt-2 text-center text-xs">
-              Terminá el asistente de turno personalizado antes de cerrar con
-              Listo.
-            </p>
-          ) : null}
         </div>
-
-        {error ? (
-          <p className="text-destructive text-sm" role="alert">
-            {error}
-          </p>
-        ) : null}
       </DialogContent>
     </Dialog>
   );

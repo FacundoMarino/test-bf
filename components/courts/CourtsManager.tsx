@@ -303,10 +303,6 @@ export function CourtsManager({
             const nextCourt = courts.find((c) => c.id === courtId) ?? null;
             setAvailabilityCourt(nextCourt);
           }}
-          onSaved={() => {
-            window.dispatchEvent(new CustomEvent("club-reservations-refresh"));
-            router.refresh();
-          }}
         />
       ) : null}
     </div>

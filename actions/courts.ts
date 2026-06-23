@@ -468,8 +468,7 @@ export async function getCourtCustomSlotsAction(
   courtId: string,
   month: string,
 ): Promise<
-  | { ok: true; rows: CourtCustomSlot[] }
-  | { ok: false; error: string }
+  { ok: true; rows: CourtCustomSlot[] } | { ok: false; error: string }
 > {
   const token = await getToken();
   if (!token) return { ok: false, error: "Sesión no válida" };
@@ -527,10 +526,7 @@ export async function createCourtCustomSlotAction(
     note?: string;
     cancelledSlots: Array<{ start: number; end: number }>;
   },
-): Promise<
-  | { ok: true; slot: CourtCustomSlot }
-  | { ok: false; error: string }
-> {
+): Promise<{ ok: true; slot: CourtCustomSlot } | { ok: false; error: string }> {
   const token = await getToken();
   if (!token) return { ok: false, error: "Sesión no válida" };
   try {
@@ -575,7 +571,9 @@ export async function createCourtCustomSlotAction(
         id: String(r.id ?? ""),
         date: String(r.date ?? data.date).slice(0, 10),
         startTimeMinutes: Number(
-          r.startTimeMinutes ?? snake.start_time_minutes ?? data.startTimeMinutes,
+          r.startTimeMinutes ??
+            snake.start_time_minutes ??
+            data.startTimeMinutes,
         ),
         endTimeMinutes: Number(
           r.endTimeMinutes ?? snake.end_time_minutes ?? data.endTimeMinutes,

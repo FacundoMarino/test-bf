@@ -377,10 +377,9 @@ export function ReservationsBoard({
     const disponibles = slotRows.filter(
       (r) => r.kind === "available" || r.kind === "tentativeOpen",
     ).length;
-    const reservados =
-      slotRows.filter(
-        (r) => r.kind === "reserved" || r.kind === "personalized",
-      ).length;
+    const reservados = slotRows.filter(
+      (r) => r.kind === "reserved" || r.kind === "personalized",
+    ).length;
     const tentativosAbiertos = slotRows.filter(
       (r) => r.kind === "tentativeOpen",
     ).length;

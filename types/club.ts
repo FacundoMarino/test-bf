@@ -19,6 +19,7 @@ export type ClubRecord = {
   location?: string | null;
   email: string | null;
   web: string | null;
+  notifyReservationByEmail?: boolean | null;
   avatarUrl: string | null;
   pricing: unknown;
   approvalStatus?: "PENDING" | "APPROVED" | "REJECTED" | null;
@@ -132,6 +133,7 @@ export const clubProfileSaveSchema = z.object({
       z.literal(""),
       z.string().email("Introduce un email válido"),
     ]),
+    notifyReservationByEmail: z.boolean().optional(),
     web: optionalWebUrlSchema,
     avatarUrl: clubAvatarUrlSchema,
     courtCount: z.coerce.number().int().min(1),

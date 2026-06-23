@@ -51,6 +51,7 @@ export function buildInitialFormState(
     clubName: club?.name ?? profile?.fullName ?? "",
     description: profile?.description ?? "",
     email: club?.email ?? "",
+    notifyReservationByEmail: club?.notifyReservationByEmail ?? false,
     web: club?.web ?? "",
     phone: profile?.phone ?? "",
     location: sanitizeProfileCity(club?.location ?? profile?.location),

@@ -46,6 +46,9 @@ export function ClubProfileForm({
   const [clubName, setClubName] = useState(initial.clubName);
   const [description, setDescription] = useState(initial.description);
   const [email, setEmail] = useState(initial.email);
+  const [notifyReservationByEmail, setNotifyReservationByEmail] = useState(
+    initial.notifyReservationByEmail,
+  );
   const [web, setWeb] = useState(initial.web);
   const [phone, setPhone] = useState(initial.phone);
   const [location, setLocation] = useState(initial.location);
@@ -94,6 +97,7 @@ export function ClubProfileForm({
         address,
         location,
         email,
+        notifyReservationByEmail,
         web,
         avatarUrl,
         courtCount,
@@ -329,6 +333,22 @@ export function ClubProfileForm({
                     required
                   />
                 </div>
+              </div>
+              <div className="border-border bg-muted/30 flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">
+                    Quiero recibir notificaciones de reservas por mail
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    Se enviará un correo al email del club por cada nueva
+                    reserva.
+                  </p>
+                </div>
+                <Switch
+                  checked={notifyReservationByEmail}
+                  onCheckedChange={setNotifyReservationByEmail}
+                  aria-label="Notificaciones de reservas por mail"
+                />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">

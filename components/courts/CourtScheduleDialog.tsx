@@ -567,9 +567,27 @@ export function CourtScheduleDialog({
     return `${d}/${m}/${y}`;
   }
 
+  function renderErrorBanner() {
+    if (!error) return null;
+    return (
+      <div
+        ref={errorBannerRef}
+        role="alert"
+        className="border-destructive/50 bg-destructive/10 text-destructive flex gap-3 rounded-xl border px-4 py-3 text-sm"
+      >
+        <AlertCircle
+          className="text-destructive mt-0.5 size-5 shrink-0"
+          aria-hidden
+        />
+        <p className="min-w-0 flex-1 font-medium leading-snug">{error}</p>
+      </div>
+    );
+  }
+
   function renderPeriodList() {
     return (
       <div className="space-y-4">
+        {renderErrorBanner()}
         {periods.length === 0 ? (
           <div className="border-border/80 text-muted-foreground rounded-2xl border px-4 py-8 text-center text-sm">
             No hay períodos configurados. Añadí uno para definir horarios de
@@ -634,19 +652,6 @@ export function CourtScheduleDialog({
             </section>
           ))
         )}
-        {error ? (
-          <div
-            ref={errorBannerRef}
-            role="alert"
-            className="border-destructive/50 bg-destructive/10 text-destructive flex gap-3 rounded-xl border px-4 py-3 text-sm"
-          >
-            <AlertCircle
-              className="text-destructive mt-0.5 size-5 shrink-0"
-              aria-hidden
-            />
-            <p className="min-w-0 flex-1 font-medium leading-snug">{error}</p>
-          </div>
-        ) : null}
 
         <Button
           type="button"
@@ -675,6 +680,8 @@ export function CourtScheduleDialog({
         >
           ← Volver a períodos
         </button>
+
+        {renderErrorBanner()}
 
         <section className="space-y-3">
           <div className="space-y-1.5">
@@ -928,20 +935,6 @@ export function CourtScheduleDialog({
             </section>
           );
         })}
-
-        {error ? (
-          <div
-            ref={errorBannerRef}
-            role="alert"
-            className="border-destructive/50 bg-destructive/10 text-destructive flex gap-3 rounded-xl border px-4 py-3 text-sm"
-          >
-            <AlertCircle
-              className="text-destructive mt-0.5 size-5 shrink-0"
-              aria-hidden
-            />
-            <p className="min-w-0 flex-1 font-medium leading-snug">{error}</p>
-          </div>
-        ) : null}
 
         <Button
           type="button"
