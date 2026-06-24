@@ -848,7 +848,7 @@ export function CourtAvailabilityDialog({
                             </label>
                             <Input
                               type="tel"
-                              placeholder="3412601900"
+                              placeholder="Ej: +54 9 11 1234-5678"
                               value={customPhone}
                               onChange={(e) => setCustomPhone(e.target.value)}
                             />
@@ -858,7 +858,7 @@ export function CourtAvailabilityDialog({
                               Nombre (opcional)
                             </label>
                             <Input
-                              placeholder="Ej: Nicolás Pietrasant"
+                              placeholder="Ej: Juan Pérez"
                               value={customGuestName}
                               onChange={(e) =>
                                 setCustomGuestName(e.target.value)
