@@ -63,7 +63,12 @@ function formatDateLabel(d: Date) {
   });
 }
 function timeLabel(minutes: number) {
-  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+  const minutesPerDay = 24 * 60;
+  const dayOffset = Math.floor(minutes / minutesPerDay);
+  const clockMinutes =
+    ((minutes % minutesPerDay) + minutesPerDay) % minutesPerDay;
+  const label = `${pad(Math.floor(clockMinutes / 60))}:${pad(clockMinutes % 60)}`;
+  return dayOffset > 0 ? `${label} (+${dayOffset})` : label;
 }
 function parseTimeInput(value: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
@@ -80,6 +85,11 @@ function minutesOverlap(
   bEnd: number,
 ): boolean {
   return aStart < bEnd && aEnd > bStart;
+}
+
+function normalizeEndMinutes(startMin: number, endMin: number): number {
+  if (endMin > startMin) return endMin;
+  return endMin + 24 * 60;
 }
 
 function slotsOverlappingRange(
@@ -413,16 +423,6 @@ export function CourtAvailabilityDialog({
       return "El horario se superpone con otro turno personalizado.";
     }
 
-    if (regularSlots.length === 0) {
-      return "No hay turnos configurados para este día.";
-    }
-
-    const dayStart = Math.min(...regularSlots.map((s) => s.start));
-    const dayEnd = Math.max(...regularSlots.map((s) => s.end));
-    if (startMin < dayStart || endMin > dayEnd) {
-      return `El horario debe estar entre ${timeLabel(dayStart)} y ${timeLabel(dayEnd)}.`;
-    }
-
     return null;
   }
 
@@ -434,11 +434,12 @@ export function CourtAvailabilityDialog({
       setError("Ingresá horarios válidos (HH:MM)");
       return;
     }
-    if (endMin <= startMin) {
-      setError("La hora de fin debe ser posterior a la de inicio");
+    if (endMin === startMin) {
+      setError("La hora de fin debe ser distinta a la de inicio");
       return;
     }
-    const validationMsg = validateCustomSlotRange(startMin, endMin);
+    const normalizedEndMin = normalizeEndMinutes(startMin, endMin);
+    const validationMsg = validateCustomSlotRange(startMin, normalizedEndMin);
     if (validationMsg) {
       setError(validationMsg);
       return;
@@ -452,7 +453,7 @@ export function CourtAvailabilityDialog({
     const cancelledSlots = slotsOverlappingRange(
       regularSlots,
       startMin,
-      endMin,
+      normalizedEndMin,
     );
 
     setCreatingCustom(true);
@@ -460,7 +461,7 @@ export function CourtAvailabilityDialog({
     const res = await createCourtCustomSlotAction(clubId, court.id, {
       date: selectedKey,
       startTimeMinutes: startMin,
-      endTimeMinutes: endMin,
+      endTimeMinutes: normalizedEndMin,
       price: Math.round(price),
       note: buildCustomSlotNote({
         name: customGuestName,
