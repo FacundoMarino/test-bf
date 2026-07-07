@@ -64,6 +64,9 @@ export function FixedSeriesBoard({
   const [editingSeries, setEditingSeries] = useState<FixedSeriesView | null>(
     null,
   );
+  const [deleteConfirmSeries, setDeleteConfirmSeries] =
+    useState<FixedSeriesView | null>(null);
+  const [isDeletingSeries, setIsDeletingSeries] = useState(false);
   const [form, setForm] = useState<FixedSeriesFormState>(() =>
     initialFixedSeriesForm(courts[0]?.id ?? ""),
   );
@@ -331,34 +334,44 @@ export function FixedSeriesBoard({
     form.courtId,
     form.durationMinutes,
     form.endDate,
+    form.guestName,
+    form.guestPhone,
+    form.notes,
     form.startDate,
     startTimeOptions,
   ]);
 
   const handleRemoveSeries = useCallback(
     (item: FixedSeriesView) => {
-      if (
-        !window.confirm("¿Eliminar este turno fijo y todas sus ocurrencias?")
-      ) {
+      setDeleteConfirmSeries(item);
+    },
+    [],
+  );
+
+  const handleConfirmRemoveSeries = useCallback(() => {
+    if (!deleteConfirmSeries || isDeletingSeries) return;
+    setIsDeletingSeries(true);
+    void (async () => {
+      const res = await cancelFixedSeriesAction({
+        clubId,
+        seriesId: deleteConfirmSeries.id,
+        bookingIds: deleteConfirmSeries.bookingIds,
+      });
+      if (!res.ok) {
+        toast.error(res.error);
         return;
       }
+      toast.success("Turno fijo eliminado");
+      window.location.reload();
+    })().finally(() => {
+      setIsDeletingSeries(false);
+    });
+  }, [clubId, deleteConfirmSeries, isDeletingSeries]);
 
-      startTransition(async () => {
-        const res = await cancelFixedSeriesAction({
-          clubId,
-          seriesId: item.id,
-          bookingIds: item.bookingIds,
-        });
-        if (!res.ok) {
-          toast.error(res.error);
-          return;
-        }
-        toast.success("Turno fijo eliminado");
-        window.location.reload();
-      });
-    },
-    [clubId],
-  );
+  const closeDeleteConfirm = useCallback(() => {
+    if (isDeletingSeries) return;
+    setDeleteConfirmSeries(null);
+  }, [isDeletingSeries]);
 
   const submitDisabled =
     isPending ||
@@ -455,6 +468,7 @@ export function FixedSeriesBoard({
                           className="text-muted-foreground hover:text-foreground hover:bg-[#DFFE2F] inline-flex size-8 items-center justify-center rounded-md transition-colors"
                           title="Editar"
                           onClick={() => handleOpenEdit(row)}
+                          disabled={isDeletingSeries}
                         >
                           <Pencil className="size-4" />
                         </button>
@@ -463,6 +477,7 @@ export function FixedSeriesBoard({
                           className="text-destructive hover:bg-[#DFFE2F] inline-flex size-8 items-center justify-center rounded-md transition-colors"
                           title="Eliminar"
                           onClick={() => handleRemoveSeries(row)}
+                          disabled={isDeletingSeries}
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -611,6 +626,40 @@ export function FixedSeriesBoard({
               onClick={handleSubmit}
             >
               {submitLabel}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteConfirmSeries != null}
+        onOpenChange={(next) => {
+          if (!next) closeDeleteConfirm();
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar turno fijo</DialogTitle>
+            <DialogDescription>
+              ¿Eliminar este turno fijo y todas sus ocurrencias futuras?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeDeleteConfirm}
+              disabled={isDeletingSeries}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmRemoveSeries}
+              disabled={isDeletingSeries}
+            >
+              {isDeletingSeries ? "Eliminando..." : "Sí, eliminar"}
             </Button>
           </div>
         </DialogContent>
