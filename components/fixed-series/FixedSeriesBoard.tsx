@@ -288,6 +288,7 @@ export function FixedSeriesBoard({
       if (editingSeries) {
         const cancelled = await cancelFixedSeriesAction({
           clubId,
+          seriesId: editingSeries.id,
           bookingIds: editingSeries.bookingIds,
         });
         if (!cancelled.ok) {
@@ -336,10 +337,6 @@ export function FixedSeriesBoard({
 
   const handleRemoveSeries = useCallback(
     (item: FixedSeriesView) => {
-      if (!item.bookingIds.length) {
-        toast.error("No hay ocurrencias futuras para eliminar en esta serie");
-        return;
-      }
       if (
         !window.confirm("¿Eliminar este turno fijo y todas sus ocurrencias?")
       ) {
@@ -349,6 +346,7 @@ export function FixedSeriesBoard({
       startTransition(async () => {
         const res = await cancelFixedSeriesAction({
           clubId,
+          seriesId: item.id,
           bookingIds: item.bookingIds,
         });
         if (!res.ok) {

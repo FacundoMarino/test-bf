@@ -28,6 +28,14 @@ function emptyBookings(): unknown[] {
   return [];
 }
 
+function todayYmd(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function resolveRows(
   res: Awaited<ReturnType<typeof apiFetch<BookingsResponse>>>,
 ): unknown[] {
@@ -46,11 +54,15 @@ function resolveCourts(
 }
 
 async function loadTurnosFijosData(clubId: string, token: string) {
+  const from = todayYmd();
   const [bookingsRes, courtsRes] = await Promise.all([
-    apiFetch<BookingsResponse>(`/clubs/${clubId}/bookings?limit=1500`, {
-      authToken: token,
-      cache: "no-store",
-    }),
+    apiFetch<BookingsResponse>(
+      `/clubs/${clubId}/bookings?limit=1500&from=${encodeURIComponent(from)}`,
+      {
+        authToken: token,
+        cache: "no-store",
+      },
+    ),
     apiFetch<CourtsResponse>(`/clubs/${clubId}/courts?limit=100`, {
       authToken: token,
       cache: "no-store",

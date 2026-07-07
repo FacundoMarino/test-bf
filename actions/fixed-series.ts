@@ -95,6 +95,7 @@ export async function createFixedSeriesAction(
 
 export async function cancelFixedSeriesAction(payload: {
   clubId: string;
+  seriesId?: string;
   bookingIds: string[];
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const cookieStore = await cookies();
@@ -103,6 +104,25 @@ export async function cancelFixedSeriesAction(payload: {
   if (!payload.bookingIds.length) return { ok: true };
 
   try {
+    if (payload.seriesId && payload.seriesId.trim().length > 0) {
+      const res = await fetch(
+        `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${payload.clubId}/bookings/fixed-series/${payload.seriesId}/cancel`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      const body: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = normalizeMessage(body);
+        await maybeLogoutOnInvalidToken(message);
+        return { ok: false, error: message };
+      }
+    }
+
     for (const bookingId of payload.bookingIds) {
       const res = await fetch(
         `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${payload.clubId}/bookings/${bookingId}/cancel`,
