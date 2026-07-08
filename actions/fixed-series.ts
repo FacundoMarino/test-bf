@@ -101,12 +101,14 @@ export async function cancelFixedSeriesAction(payload: {
   const cookieStore = await cookies();
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
   if (!token) return { ok: false, error: "Sesion no valida" };
-  if (!payload.bookingIds.length) return { ok: true };
+  const hasSeriesId =
+    typeof payload.seriesId === "string" && payload.seriesId.trim().length > 0;
+  if (!hasSeriesId && !payload.bookingIds.length) return { ok: true };
 
   try {
-    if (payload.seriesId && payload.seriesId.trim().length > 0) {
+    if (hasSeriesId) {
       const res = await fetch(
-        `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${payload.clubId}/bookings/fixed-series/${payload.seriesId}/cancel`,
+        `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${payload.clubId}/bookings/fixed-series/${payload.seriesId!.trim()}/cancel`,
         {
           method: "PATCH",
           headers: {
@@ -121,24 +123,24 @@ export async function cancelFixedSeriesAction(payload: {
         await maybeLogoutOnInvalidToken(message);
         return { ok: false, error: message };
       }
-    }
-
-    for (const bookingId of payload.bookingIds) {
-      const res = await fetch(
-        `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${payload.clubId}/bookings/${bookingId}/cancel`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+    } else {
+      for (const bookingId of payload.bookingIds) {
+        const res = await fetch(
+          `${env.NEXT_PUBLIC_AUTH_SERVICE_URL}/clubs/${payload.clubId}/bookings/${bookingId}/cancel`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
           },
-        },
-      );
-      const body: unknown = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const message = normalizeMessage(body);
-        await maybeLogoutOnInvalidToken(message);
-        return { ok: false, error: message };
+        );
+        const body: unknown = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const message = normalizeMessage(body);
+          await maybeLogoutOnInvalidToken(message);
+          return { ok: false, error: message };
+        }
       }
     }
 
