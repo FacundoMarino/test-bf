@@ -1,4 +1,3 @@
-import { isProfileCity } from "@/lib/profile-cities";
 import {
   DEFAULT_AMENITY_KEYS,
   defaultPricingPayload,
@@ -7,8 +6,7 @@ import {
 } from "@/types/club";
 
 function sanitizeProfileCity(raw: string | null | undefined): string {
-  const t = (raw ?? "").trim();
-  return isProfileCity(t) ? t : "";
+  return (raw ?? "").trim();
 }
 
 export function parsePricingFromClub(raw: unknown) {

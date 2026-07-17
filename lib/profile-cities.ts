@@ -1,8 +1,8 @@
 /**
- * Catálogo de ciudades (perfil jugador en la app y club en backoffice).
- * Mantener alineado con `events-starter/lib/constants/profile-cities.ts`.
+ * Fallback local si `/cities` no responde.
+ * La fuente de verdad es la tabla `cities` en auth-service (admin CRUD).
  */
-export const PROFILE_CITIES = [
+export const FALLBACK_CITIES = [
   "Buenos Aires",
   "Córdoba",
   "Rosario",
@@ -23,10 +23,14 @@ export const PROFILE_CITIES = [
   "Santiago del Estero",
   "San Luis",
   "Río Cuarto",
+  "Sastre",
 ] as const;
 
-export type ProfileCity = (typeof PROFILE_CITIES)[number];
+/** @deprecated Preferir listActiveCitiesAction / API. Se mantiene para fallback. */
+export const PROFILE_CITIES = FALLBACK_CITIES;
 
-export function isProfileCity(value: string): value is ProfileCity {
-  return (PROFILE_CITIES as readonly string[]).includes(value);
+export type ProfileCity = (typeof FALLBACK_CITIES)[number];
+
+export function isProfileCity(value: string): boolean {
+  return value.trim().length > 0;
 }

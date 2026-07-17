@@ -341,12 +341,9 @@ export function FixedSeriesBoard({
     startTimeOptions,
   ]);
 
-  const handleRemoveSeries = useCallback(
-    (item: FixedSeriesView) => {
-      setDeleteConfirmSeries(item);
-    },
-    [],
-  );
+  const handleRemoveSeries = useCallback((item: FixedSeriesView) => {
+    setDeleteConfirmSeries(item);
+  }, []);
 
   const handleConfirmRemoveSeries = useCallback(() => {
     if (!deleteConfirmSeries || isDeletingSeries) return;

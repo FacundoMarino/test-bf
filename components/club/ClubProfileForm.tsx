@@ -37,9 +37,12 @@ import { buildInitialFormState } from "./club-form-utils";
 export function ClubProfileForm({
   initialClub,
   initialProfile,
+  cities = [...PROFILE_CITIES],
 }: {
   initialClub: ClubRecord | null;
   initialProfile: ProfileRecord | null;
+  /** Catálogo desde API; fallback a PROFILE_CITIES. */
+  cities?: string[];
 }) {
   const router = useRouter();
   const initial = buildInitialFormState(initialClub, initialProfile);
@@ -311,11 +314,14 @@ export function ClubProfileForm({
                       className="border-input bg-background h-11 w-full appearance-none rounded-lg border py-2 pl-10 pr-3 text-sm shadow-sm"
                     >
                       <option value="">Seleccionar ciudad…</option>
-                      {PROFILE_CITIES.map((city) => (
+                      {cities.map((city) => (
                         <option key={city} value={city}>
                           {city}
                         </option>
                       ))}
+                      {location && !cities.includes(location) ? (
+                        <option value={location}>{location}</option>
+                      ) : null}
                     </select>
                   </div>
                 </div>

@@ -1,9 +1,10 @@
 import { z } from "zod";
 
-import { PROFILE_CITIES } from "@/lib/profile-cities";
-
-const profileCityZ = z.enum(PROFILE_CITIES as unknown as [string, ...string[]]);
-const optionalProfileCityZ = z.union([z.literal(""), profileCityZ]);
+/** Ciudad libre (catálogo dinámico en auth-service). Vacío permitido. */
+const optionalProfileCityZ = z.union([
+  z.literal(""),
+  z.string().trim().min(1),
+]);
 
 export type MyClubResponse = {
   club: ClubRecord | null;

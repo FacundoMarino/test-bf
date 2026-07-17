@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { listActiveCitiesAction } from "@/actions/admin-cities";
 import { ClubProfileForm } from "@/components/club";
 import { getDashboardContext, isClubAccount } from "@/lib/dashboard-context";
 
@@ -10,6 +11,7 @@ export default async function ClubConfigPage() {
   const approvalStatus = ctx.club?.approvalStatus ?? null;
   const showApprovalNotice =
     approvalStatus === "PENDING" || approvalStatus === "REJECTED";
+  const cities = await listActiveCitiesAction();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -31,7 +33,11 @@ export default async function ClubConfigPage() {
             : "Espera un poco más, el equipo de Puntoo está aprobando tu solicitud"}
         </div>
       ) : null}
-      <ClubProfileForm initialClub={ctx.club} initialProfile={ctx.profile} />
+      <ClubProfileForm
+        initialClub={ctx.club}
+        initialProfile={ctx.profile}
+        cities={cities}
+      />
     </div>
   );
 }

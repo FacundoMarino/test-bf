@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 const REDIRECT_SECONDS = 5;
-const DEFAULT_APP_TARGET = "exp://127.0.0.1:8081/--/login";
+const DEFAULT_APP_TARGET = "puntoo://login";
 const DEFAULT_BACKOFFICE_TARGET = "/login";
 
 type ClientType = "app" | "backoffice";
 
 function isAllowedAppTarget(value: string): boolean {
-  return /^(exp|serxus|https?):\/\//.test(value);
+  return /^(exp|puntoo|serxus|https?):\/\//i.test(value);
 }
 
 function resolveRedirectTarget(

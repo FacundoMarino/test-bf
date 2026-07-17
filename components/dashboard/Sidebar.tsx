@@ -8,6 +8,7 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
+  MapPin,
   Repeat,
   ShieldCheck,
   Grid3x3,
@@ -65,6 +66,11 @@ export function Sidebar({
           href: "/dashboard/admin/clubs",
           label: "Aprobar clubes",
           icon: ShieldCheck,
+        },
+        {
+          href: "/dashboard/admin/cities",
+          label: "Ciudades",
+          icon: MapPin,
         },
       ] as const)
     : ([
