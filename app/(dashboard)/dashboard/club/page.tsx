@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { listActiveCitiesAction } from "@/actions/admin-cities";
-import { ClubProfileForm } from "@/components/club";
+import { ChangePasswordSection, ClubProfileForm } from "@/components/club";
 import { getDashboardContext, isClubAccount } from "@/lib/dashboard-context";
 
 export default async function ClubConfigPage() {
@@ -38,6 +38,7 @@ export default async function ClubConfigPage() {
         initialProfile={ctx.profile}
         cities={cities}
       />
+      <ChangePasswordSection />
     </div>
   );
 }

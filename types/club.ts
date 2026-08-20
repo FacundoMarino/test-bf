@@ -1,10 +1,7 @@
 import { z } from "zod";
 
 /** Ciudad libre (catálogo dinámico en auth-service). Vacío permitido. */
-const optionalProfileCityZ = z.union([
-  z.literal(""),
-  z.string().trim().min(1),
-]);
+const optionalProfileCityZ = z.union([z.literal(""), z.string().trim().min(1)]);
 
 export type MyClubResponse = {
   club: ClubRecord | null;

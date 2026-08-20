@@ -1,11 +1,18 @@
 export type {
+  ForgotPasswordFormValues,
   LoginFormValues,
   LoginServerPayload,
   RegisterFormValues,
+  ResetPasswordFormValues,
   User,
   UserSession,
 } from "./auth";
-export { loginSchema, registerSchema } from "./auth";
+export {
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+} from "./auth";
 export type {
   AvailabilitySlot,
   ClubProfileSavePayload,

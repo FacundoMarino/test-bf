@@ -29,10 +29,14 @@ export function proxy(request: NextRequest) {
   const hasValidSession = sessionToken ? !isTokenExpired(sessionToken) : false;
   const isConfirmAccountRoute =
     request.nextUrl.pathname.startsWith("/confirm-account");
+  const isResetPasswordRoute =
+    request.nextUrl.pathname.startsWith("/reset-password");
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/register");
-  const isPublicRoute = isAuthRoute || isConfirmAccountRoute;
+    request.nextUrl.pathname.startsWith("/register") ||
+    request.nextUrl.pathname.startsWith("/forgot-password");
+  const isPublicRoute =
+    isAuthRoute || isConfirmAccountRoute || isResetPasswordRoute;
 
   if (!hasValidSession && !isPublicRoute) {
     const loginUrl = new URL("/login", request.url);

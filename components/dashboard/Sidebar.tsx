@@ -93,6 +93,11 @@ export function Sidebar({
                 icon: CalendarDays,
               },
               {
+                href: "/dashboard/club/torneos",
+                label: "Torneos",
+                icon: CalendarDays,
+              },
+              {
                 href: "/dashboard/club/turnos-fijos",
                 label: "Turnos fijos",
                 icon: Repeat,

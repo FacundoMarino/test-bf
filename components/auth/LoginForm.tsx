@@ -20,9 +20,11 @@ const initialActionState = { error: null as string | null };
 export function LoginForm({
   callbackUrl,
   justRegistered,
+  passwordReset,
 }: {
   callbackUrl: string;
   justRegistered?: boolean;
+  passwordReset?: boolean;
 }) {
   const [state, dispatch, actionPending] = useActionState(
     loginAction,
@@ -75,6 +77,15 @@ export function LoginForm({
               </AlertDescription>
             </Alert>
           ) : null}
+          {passwordReset ? (
+            <Alert>
+              <AlertTitle>Contraseña actualizada</AlertTitle>
+              <AlertDescription>
+                Tu contraseña fue restablecida correctamente. Ya podés iniciar
+                sesión.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {state.error ? (
             <Alert variant="destructive">
               <AlertTitle>Error</AlertTitle>
@@ -106,6 +117,15 @@ export function LoginForm({
             error={form.formState.errors.password?.message}
             registration={form.register("password")}
           />
+
+          <p className="text-right text-sm">
+            <Link
+              href={"/forgot-password" as Route}
+              className="text-primary font-semibold hover:underline"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </p>
 
           <Button
             type="submit"
