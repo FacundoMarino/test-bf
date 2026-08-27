@@ -88,7 +88,7 @@ export function ReviewActions({ id, hidden }: { id: string; hidden: boolean }) {
                 Cancelar
               </Button>
               <Button
-                variant={mode === "delete" ? "danger" : "primary"}
+                variant={mode === "delete" ? "destructive" : "default"}
                 onClick={confirm}
                 disabled={pending}
                 className="flex-1"

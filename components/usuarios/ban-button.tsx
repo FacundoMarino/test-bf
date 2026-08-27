@@ -97,7 +97,7 @@ export function BanButton({
                 Cancelar
               </Button>
               <Button
-                variant={banned ? "primary" : "danger"}
+                variant={banned ? "default" : "destructive"}
                 onClick={confirm}
                 disabled={pending}
                 className="flex-1"

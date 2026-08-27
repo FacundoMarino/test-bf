@@ -50,7 +50,7 @@ export function VerificationActions({ id }: { id: string }) {
           Aprobar
         </Button>
         <Button
-          variant="danger"
+          variant="destructive"
           onClick={() => setRejectOpen(true)}
           disabled={pending}
           className="flex-1"
@@ -90,7 +90,7 @@ export function VerificationActions({ id }: { id: string }) {
               <Button variant="secondary" onClick={() => setRejectOpen(false)} className="flex-1">
                 Cancelar
               </Button>
-              <Button variant="danger" onClick={onReject} disabled={pending} className="flex-1">
+              <Button variant="destructive" onClick={onReject} disabled={pending} className="flex-1">
                 Confirmar rechazo
               </Button>
             </div>
