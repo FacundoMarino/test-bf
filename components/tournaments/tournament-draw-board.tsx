@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { GripVertical, Info, Plus, Trash2, Users } from "lucide-react";
 
@@ -66,6 +66,25 @@ function buildInitialZones(categories: TournamentCategory[]) {
   ) as Record<string, ZoneView[]>;
 }
 
+function categoriesSyncKey(categories: TournamentCategory[]) {
+  return categories
+    .map((category) => {
+      const zonesKey = category.zones
+        .map(
+          (zone) =>
+            `${zone.id}:${zone.entries
+              .map(
+                (entry) =>
+                  `${entry.id}:${entry.registration?.id ?? "bye"}:${entry.isBye ? 1 : 0}`,
+              )
+              .join(",")}`,
+        )
+        .join("|");
+      return `${category.id}[${zonesKey}]`;
+    })
+    .join(";");
+}
+
 export function TournamentDrawBoard({
   clubId,
   tournamentId,
@@ -73,12 +92,14 @@ export function TournamentDrawBoard({
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const syncKey = categoriesSyncKey(categories);
   const [selectedCategoryId, setSelectedCategoryId] = useState(
     categories[0]?.id ?? "",
   );
   const [zonesByCategory, setZonesByCategory] = useState<
     Record<string, ZoneView[]>
   >(() => buildInitialZones(categories));
+  const [zonesSyncKey, setZonesSyncKey] = useState(syncKey);
   const [draggingEntry, setDraggingEntry] = useState<{
     categoryId: string;
     zoneId: string;
@@ -86,14 +107,14 @@ export function TournamentDrawBoard({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Re-sincroniza el estado local cuando llega data fresca del servidor (sin useEffect).
+  if (zonesSyncKey !== syncKey) {
+    setZonesSyncKey(syncKey);
     setZonesByCategory(buildInitialZones(categories));
-    setSelectedCategoryId((current) => {
-      if (categories.some((category) => category.id === current))
-        return current;
-      return categories[0]?.id ?? "";
-    });
-  }, [categories]);
+    if (!categories.some((category) => category.id === selectedCategoryId)) {
+      setSelectedCategoryId(categories[0]?.id ?? "");
+    }
+  }
 
   const selectedCategory = useMemo(
     () =>
@@ -101,13 +122,15 @@ export function TournamentDrawBoard({
     [categories, selectedCategoryId],
   );
 
-  const selectedZones = zonesByCategory[selectedCategoryId] ?? [];
+  const selectedZones = useMemo(
+    () => zonesByCategory[selectedCategoryId] ?? [],
+    [zonesByCategory, selectedCategoryId],
+  );
   const hasUnsavedChanges = useMemo(() => {
     if (!selectedCategory) return false;
     const original =
       buildInitialZones([selectedCategory])[selectedCategory.id] ?? [];
-    const current = selectedZones;
-    return JSON.stringify(original) !== JSON.stringify(current);
+    return JSON.stringify(original) !== JSON.stringify(selectedZones);
   }, [selectedCategory, selectedZones]);
 
   const onRunDraw = () => {
@@ -368,7 +391,8 @@ export function TournamentDrawBoard({
         </div>
       ) : (
         <div className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-          Todavía no hay zonas. Tocá "Sortear parejas" para generarlas.
+          Todavía no hay zonas. Tocá &quot;Sortear parejas&quot; para
+          generarlas.
         </div>
       )}
     </section>

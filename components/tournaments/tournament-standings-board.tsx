@@ -41,8 +41,12 @@ function ZoneTable({
               <th className="px-4 py-2.5 font-semibold">Pareja</th>
               <th className="px-2 py-2.5 text-center font-semibold">PG</th>
               <th className="px-2 py-2.5 text-center font-semibold">PP</th>
-              <th className="px-2 py-2.5 text-center font-semibold">Dif. sets</th>
-              <th className="px-2 py-2.5 text-center font-semibold">Dif. games</th>
+              <th className="px-2 py-2.5 text-center font-semibold">
+                Dif. sets
+              </th>
+              <th className="px-2 py-2.5 text-center font-semibold">
+                Dif. games
+              </th>
               <th className="px-4 py-2.5 text-right font-semibold">Pts</th>
             </tr>
           </thead>
@@ -50,11 +54,7 @@ function ZoneTable({
             {rows.map((row, index) => (
               <tr
                 key={row.registrationId}
-                className={
-                  index % 2 === 0
-                    ? "bg-primary/[0.03]"
-                    : "bg-white"
-                }
+                className={index % 2 === 0 ? "bg-primary/[0.03]" : "bg-white"}
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -77,7 +77,9 @@ function ZoneTable({
                 </td>
                 <td className="px-2 py-3 text-center">{row.won}</td>
                 <td className="px-2 py-3 text-center">{row.lost}</td>
-                <td className="px-2 py-3 text-center">{formatSigned(row.setDiff)}</td>
+                <td className="px-2 py-3 text-center">
+                  {formatSigned(row.setDiff)}
+                </td>
                 <td className="px-2 py-3 text-center">
                   {formatSigned(row.gameDiff)}
                 </td>
@@ -138,11 +140,15 @@ export function TournamentStandingsBoard({
             {selectedCategory.name}
           </p>
           <p className="text-muted-foreground text-xs">
-            Puntos: victoria {standings?.groupPointsWin ?? selectedCategory.groupPointsWin} ·
-            derrota {standings?.groupPointsLoss ?? selectedCategory.groupPointsLoss} · no
-            presentado{" "}
-            {standings?.groupPointsNoShow ?? selectedCategory.groupPointsNoShow} · clasifican{" "}
-            {standings?.groupQualifiers ?? selectedCategory.groupQualifiers} por zona
+            Puntos: victoria{" "}
+            {standings?.groupPointsWin ?? selectedCategory.groupPointsWin} ·
+            derrota{" "}
+            {standings?.groupPointsLoss ?? selectedCategory.groupPointsLoss} ·
+            no presentado{" "}
+            {standings?.groupPointsNoShow ?? selectedCategory.groupPointsNoShow}{" "}
+            · clasifican{" "}
+            {standings?.groupQualifiers ?? selectedCategory.groupQualifiers} por
+            zona
           </p>
         </div>
       ) : null}
@@ -167,8 +173,8 @@ export function TournamentStandingsBoard({
       <p className="text-muted-foreground inline-flex items-start gap-2 text-xs">
         <Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
         La tabla se actualiza automáticamente a medida que cargás resultados en
-        la pestaña Resultados. Desempate: dif. sets → dif. games → enfrentamiento
-        directo.
+        la pestaña Resultados. Desempate: dif. sets → dif. games →
+        enfrentamiento directo.
       </p>
     </section>
   );

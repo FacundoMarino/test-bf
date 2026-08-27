@@ -35,7 +35,10 @@ export default async function TournamentDetailPage({
   const [res, standingsResults] = await Promise.all([
     getClubTournamentAction(ctx.club.id, tournamentId),
     (async () => {
-      const tournamentRes = await getClubTournamentAction(ctx.club!.id, tournamentId);
+      const tournamentRes = await getClubTournamentAction(
+        ctx.club!.id,
+        tournamentId,
+      );
       if (!tournamentRes.ok) return [];
       return Promise.all(
         tournamentRes.data.categories.map(async (category) => ({
@@ -129,7 +132,9 @@ export default async function TournamentDetailPage({
           ownClubName={ctx.club.name}
           tournament={tournament}
           courts={courts}
-          standingsByCategory={Object.fromEntries(standingsByCategory.entries())}
+          standingsByCategory={Object.fromEntries(
+            standingsByCategory.entries(),
+          )}
         />
       </section>
     </div>

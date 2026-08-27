@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { CalendarDays, Eye, Pencil, Users, Trophy } from "lucide-react";
 
 import { listClubTournamentsAction } from "@/actions/tournaments";
@@ -39,12 +40,12 @@ export default async function ClubTournamentsPage() {
             Gestiona los torneos de tu club
           </p>
         </div>
-        <a
+        <Link
           href="/dashboard/club/torneos/nuevo"
           className="inline-flex h-9 items-center justify-center rounded-lg bg-[#788ce3] px-4 text-sm font-semibold text-white hover:bg-[#405fd3]"
         >
           + Nuevo torneo
-        </a>
+        </Link>
       </div>
 
       {!res.ok ? (
@@ -62,7 +63,9 @@ export default async function ClubTournamentsPage() {
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">Torneo</th>
                 <th className="px-4 py-3 text-left font-semibold">Fechas</th>
-                <th className="px-4 py-3 text-left font-semibold">Categorías</th>
+                <th className="px-4 py-3 text-left font-semibold">
+                  Categorías
+                </th>
                 <th className="px-4 py-3 text-left font-semibold">Parejas</th>
                 <th className="px-4 py-3 text-left font-semibold">Estado</th>
                 <th className="px-4 py-3 text-right font-semibold">Acciones</th>
@@ -92,7 +95,9 @@ export default async function ClubTournamentsPage() {
                       })}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs">{tournament.categories.length}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {tournament.categories.length}
+                  </td>
                   <td className="px-4 py-3 text-xs">
                     <span className="inline-flex items-center gap-1">
                       <Users className="size-3.5 text-muted-foreground" />

@@ -10,7 +10,6 @@ import {
   Search,
   Trophy,
   User,
-  Phone,
   Users,
   X,
 } from "lucide-react";
@@ -40,8 +39,6 @@ import {
   isTentativePublicOpenMatch,
   matchParticipantsCount,
   mergeConsecutiveCalendarSlotRows,
-  reservationGuestLabel,
-  reservationGuestPhone,
   type CalendarSlotRow,
 } from "@/lib/club-reservation-utils";
 import { cn } from "@/lib/utils";

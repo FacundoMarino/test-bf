@@ -2,13 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CalendarDays,
-  Info,
-  MapPin,
-  Pencil,
-  Trophy,
-} from "lucide-react";
+import { CalendarDays, Info, MapPin, Pencil, Trophy } from "lucide-react";
 
 import { updateTournamentMatchScheduleAction } from "@/actions/tournaments";
 import { Button } from "@/components/ui/button";
@@ -91,7 +85,10 @@ function pairLabel(
   return `${registration.playerProfile.fullName ?? "Jugador"} / ${registration.partnerName}`;
 }
 
-function getKnockoutRoundMeta(category: TournamentCategory, roundNumber: number) {
+function getKnockoutRoundMeta(
+  category: TournamentCategory,
+  roundNumber: number,
+) {
   const firstRoundMatches = Math.max(1, category.knockoutFirstRoundMatches);
   const roundMatchCounts: number[] = [];
   let count = firstRoundMatches;
@@ -145,7 +142,7 @@ function getKnockoutSlotLabels(
   roundNumber: number,
   orderInRound: number,
 ) {
-  const { roundIndex, totalRounds, roundMatchCounts } = getKnockoutRoundMeta(
+  const { roundIndex, totalRounds } = getKnockoutRoundMeta(
     category,
     roundNumber,
   );
@@ -172,7 +169,9 @@ function collectFixtureMatches(
   allMatches: TournamentMatch[],
 ): FixtureMatch[] {
   const items: FixtureMatch[] = [];
-  const categoryById = new Map(categories.map((category) => [category.id, category]));
+  const categoryById = new Map(
+    categories.map((category) => [category.id, category]),
+  );
   const zoneMatchIds = new Set<string>();
 
   for (const category of categories) {
@@ -328,7 +327,7 @@ function FixtureMatchRow({
         </p>
         <p className="text-muted-foreground mt-1.5 text-[11px] leading-none">
           {view === "day"
-            ? match.courtName ?? "Sin cancha"
+            ? (match.courtName ?? "Sin cancha")
             : formatIsoDate(match.matchDate)}
         </p>
       </div>
@@ -457,7 +456,9 @@ export function TournamentFixtureBoard({
     setEditing(match);
     setDateValue(match.matchDate?.slice(0, 10) ?? "");
     setTimeValue(
-      match.startTimeMinutes !== null ? minutesToTime(match.startTimeMinutes) : "",
+      match.startTimeMinutes !== null
+        ? minutesToTime(match.startTimeMinutes)
+        : "",
     );
     setCourtId(match.courtId ?? "");
     setError(null);

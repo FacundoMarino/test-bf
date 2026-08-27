@@ -20,7 +20,9 @@ async function getTokenOrRedirect() {
 
 export async function listClubTournamentsAction(
   clubId: string,
-): Promise<{ ok: true; data: TournamentRecord[] } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; data: TournamentRecord[] } | { ok: false; error: string }
+> {
   const token = await getTokenOrRedirect();
   const res = await apiFetch<{ data: TournamentRecord[] }>(
     `/clubs/${clubId}/tournaments?page=1&pageSize=50`,
@@ -33,7 +35,9 @@ export async function listClubTournamentsAction(
 export async function getClubTournamentAction(
   clubId: string,
   tournamentId: string,
-): Promise<{ ok: true; data: TournamentRecord } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; data: TournamentRecord } | { ok: false; error: string }
+> {
   const token = await getTokenOrRedirect();
   const res = await apiFetch<{ data: TournamentRecord }>(
     `/clubs/${clubId}/tournaments/${tournamentId}`,
@@ -80,10 +84,13 @@ export async function publishTournamentAction(
   tournamentId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = await getTokenOrRedirect();
-  const res = await apiFetch(`/clubs/${clubId}/tournaments/${tournamentId}/publish`, {
-    authToken: token,
-    method: "PATCH",
-  });
+  const res = await apiFetch(
+    `/clubs/${clubId}/tournaments/${tournamentId}/publish`,
+    {
+      authToken: token,
+      method: "PATCH",
+    },
+  );
   if (res.error) return { ok: false, error: res.error.message };
   revalidatePath(`/dashboard/club/torneos/${tournamentId}`);
   revalidatePath("/dashboard/club/torneos");

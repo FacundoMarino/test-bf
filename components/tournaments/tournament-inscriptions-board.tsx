@@ -127,7 +127,8 @@ function flatten(categories: TournamentCategory[]): FlatRegistration[] {
         playerIsPaid: reg.playerIsPaid ?? legacyBothPaid,
         partnerIsPaid: reg.partnerIsPaid ?? legacyBothPaid,
         playerPaymentMethod:
-          reg.playerPaymentMethod ?? (legacyBothPaid ? reg.paymentMethod : null),
+          reg.playerPaymentMethod ??
+          (legacyBothPaid ? reg.paymentMethod : null),
         partnerPaymentMethod:
           reg.partnerPaymentMethod ??
           (legacyBothPaid ? reg.paymentMethod : null),
@@ -257,9 +258,17 @@ export function TournamentInscriptionsBoard({
     for (const reg of filtered) {
       const sides: PaymentSide[] = ["player", "partner"];
       for (const side of sides) {
-        if (!getSidePaid(reg, side)) continue;
+        const override = paymentOverrides[`${reg.id}:${side}`];
+        const isPaid =
+          override?.isPaid ??
+          (side === "player" ? reg.playerIsPaid : reg.partnerIsPaid);
+        if (!isPaid) continue;
         playersPaid += 1;
-        const method = getSideMethod(reg, side);
+        const method =
+          override?.method ??
+          (side === "player"
+            ? reg.playerPaymentMethod
+            : reg.partnerPaymentMethod);
         if (method === "Efectivo") cashCents += reg.feeCents;
         else if (method === "Transferencia") transferCents += reg.feeCents;
       }

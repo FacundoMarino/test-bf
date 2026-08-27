@@ -63,7 +63,9 @@ type ResultMatch = {
 
 function minutesToTime(value: number | null) {
   if (value === null) return "--:--";
-  const h = Math.floor(value / 60).toString().padStart(2, "0");
+  const h = Math.floor(value / 60)
+    .toString()
+    .padStart(2, "0");
   const m = (value % 60).toString().padStart(2, "0");
   return `${h}:${m}`;
 }
@@ -295,17 +297,15 @@ function MatchResultCard({
   const [sets, setSets] = useState<SetDraft[]>(() =>
     setsFromStored(match.setScores, match.setsCount),
   );
-  const [superTieHome, setSuperTieHome] = useState(
-    () =>
-      match.setScores?.superTieBreak
-        ? String(match.setScores.superTieBreak.home)
-        : "",
+  const [superTieHome, setSuperTieHome] = useState(() =>
+    match.setScores?.superTieBreak
+      ? String(match.setScores.superTieBreak.home)
+      : "",
   );
-  const [superTieAway, setSuperTieAway] = useState(
-    () =>
-      match.setScores?.superTieBreak
-        ? String(match.setScores.superTieBreak.away)
-        : "",
+  const [superTieAway, setSuperTieAway] = useState(() =>
+    match.setScores?.superTieBreak
+      ? String(match.setScores.superTieBreak.away)
+      : "",
   );
   const [woSide, setWoSide] = useState(
     () => match.noShowSide ?? (match.isNoShow ? 1 : 0),
@@ -565,14 +565,19 @@ export function TournamentResultsBoard({
     const options: Array<{ value: string; label: string }> = [];
     const seen = new Set<string>();
     for (const category of categories) {
-      for (const zone of [...category.zones].sort((a, b) => a.order - b.order)) {
+      for (const zone of [...category.zones].sort(
+        (a, b) => a.order - b.order,
+      )) {
         if (!seen.has(zone.name)) {
           seen.add(zone.name);
           options.push({ value: `zone:${zone.name}`, label: zone.name });
         }
       }
     }
-    const firstRound = Math.max(1, categories[0]?.knockoutFirstRoundMatches ?? 2);
+    const firstRound = Math.max(
+      1,
+      categories[0]?.knockoutFirstRoundMatches ?? 2,
+    );
     const roundCounts: number[] = [];
     let count = firstRound;
     while (count >= 1) {
@@ -704,7 +709,8 @@ export function TournamentResultsBoard({
         </div>
       ) : (
         <div className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-          No hay partidos para mostrar. Sorteá las zonas para generar el fixture.
+          No hay partidos para mostrar. Sorteá las zonas para generar el
+          fixture.
         </div>
       )}
     </section>

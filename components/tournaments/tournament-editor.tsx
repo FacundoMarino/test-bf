@@ -5,17 +5,14 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CalendarClock,
-  CalendarDays,
   CheckCircle2,
   ChevronDown,
   CircleSlash,
   ClipboardList,
-  Clock3,
   Dumbbell,
   Flag,
   Grip,
   Landmark,
-  ListChecks,
   Plus,
   Save,
   Settings2,
@@ -33,7 +30,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import type { TournamentRecord } from "@/types/tournament";
 
 type CourtOption = {
@@ -348,7 +344,9 @@ function getCourtAvailabilityError(
       return `La cancha no tiene disponibilidad el ${formatLocalHumanDate(dayDate)}.`;
     }
     const windowsLabel = windowsForValidation
-      .map((window) => `${minutesToHHmm(window.from)}-${minutesToHHmm(window.to)}`)
+      .map(
+        (window) => `${minutesToHHmm(window.from)}-${minutesToHHmm(window.to)}`,
+      )
       .join(" · ");
     return `Fuera de disponibilidad para el ${formatLocalHumanDate(dayDate)}. Horarios permitidos: ${windowsLabel}.`;
   }
@@ -421,11 +419,14 @@ export function TournamentEditor({
     tournament?.venueMode ?? "OWN_CLUB",
   );
   const [participantClubs, setParticipantClubs] = useState<string[]>(
-    tournament?.venueMode === "MULTI_CLUB" && tournament.participantClubNames.length
+    tournament?.venueMode === "MULTI_CLUB" &&
+      tournament.participantClubNames.length
       ? tournament.participantClubNames
       : [ownClubName],
   );
-  const [startsAt, setStartsAt] = useState(isoToDateTimeLocal(tournament?.startsAt));
+  const [startsAt, setStartsAt] = useState(
+    isoToDateTimeLocal(tournament?.startsAt),
+  );
   const [endsAt, setEndsAt] = useState(isoToDateTimeLocal(tournament?.endsAt));
   const [registrationStartsAt, setRegistrationStartsAt] = useState(
     isoToDateTimeLocal(tournament?.registrationStartsAt),
@@ -485,16 +486,22 @@ export function TournamentEditor({
         }))
       : [],
   );
-  const [validatedOwnBlocks, setValidatedOwnBlocks] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [validatedOwnBlocks, setValidatedOwnBlocks] = useState<
+    Record<string, boolean>
+  >({});
 
   const totals = useMemo(() => {
-    const totalPairs = categories.reduce((acc, current) => acc + current.maxPairs, 0);
+    const totalPairs = categories.reduce(
+      (acc, current) => acc + current.maxPairs,
+      0,
+    );
     return { categories: categories.length, pairs: totalPairs };
   }, [categories]);
 
-  const applyCategoryChange = (index: number, patch: Partial<CategoryDraft>) => {
+  const applyCategoryChange = (
+    index: number,
+    patch: Partial<CategoryDraft>,
+  ) => {
     setCategories((current) =>
       current.map((item, rowIndex) =>
         rowIndex === index ? { ...item, ...patch } : item,
@@ -547,10 +554,7 @@ export function TournamentEditor({
       }
       const startsAt = new Date(block.startsAt);
       const endsAt = new Date(block.endsAt);
-      if (
-        Number.isNaN(startsAt.getTime()) ||
-        Number.isNaN(endsAt.getTime())
-      ) {
+      if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
         return {
           index,
           valid: false,
@@ -640,7 +644,9 @@ export function TournamentEditor({
   };
 
   const removeParticipantClub = (index: number) => {
-    setParticipantClubs((current) => current.filter((_, rowIndex) => rowIndex !== index));
+    setParticipantClubs((current) =>
+      current.filter((_, rowIndex) => rowIndex !== index),
+    );
   };
 
   const payload = useMemo(() => {
@@ -689,7 +695,9 @@ export function TournamentEditor({
         ) {
           return null;
         }
-        const selectedCourt = block.isExternal ? null : courtById.get(block.courtId);
+        const selectedCourt = block.isExternal
+          ? null
+          : courtById.get(block.courtId);
         const dailyBlocks =
           block.isExternal || !selectedCourt
             ? splitRangeIntoDailyBlocks(startsAtDate, endsAtDate)
@@ -701,8 +709,12 @@ export function TournamentEditor({
         return dailyBlocks.map((dailyBlock) => ({
           isExternal: block.isExternal,
           courtId: block.isExternal ? undefined : block.courtId,
-          externalClubName: block.isExternal ? block.externalClubName : undefined,
-          externalCourtName: block.isExternal ? block.externalCourtName : undefined,
+          externalClubName: block.isExternal
+            ? block.externalClubName
+            : undefined,
+          externalCourtName: block.isExternal
+            ? block.externalCourtName
+            : undefined,
           date: dailyBlock.date,
           startTimeMinutes: dailyBlock.startTimeMinutes,
           endTimeMinutes: dailyBlock.endTimeMinutes,
@@ -729,12 +741,16 @@ export function TournamentEditor({
       registrationEndsAt: registrationEndsAt
         ? dateTimeLocalToIso(registrationEndsAt)
         : "",
-      groupStartsAt: groupStartsAt ? dateTimeLocalToIso(groupStartsAt) : undefined,
+      groupStartsAt: groupStartsAt
+        ? dateTimeLocalToIso(groupStartsAt)
+        : undefined,
       groupEndsAt: groupEndsAt ? dateTimeLocalToIso(groupEndsAt) : undefined,
       knockoutStartsAt: knockoutStartsAt
         ? dateTimeLocalToIso(knockoutStartsAt)
         : undefined,
-      knockoutEndsAt: knockoutEndsAt ? dateTimeLocalToIso(knockoutEndsAt) : undefined,
+      knockoutEndsAt: knockoutEndsAt
+        ? dateTimeLocalToIso(knockoutEndsAt)
+        : undefined,
       categories: preparedCategories,
       courtBlocks: preparedBlocks,
     };
@@ -772,7 +788,9 @@ export function TournamentEditor({
         setError("Debes cargar al menos un bloque de cancha.");
         return;
       }
-      const invalidOwnBlock = ownBlockValidity.find((entry) => entry.ready && !entry.valid);
+      const invalidOwnBlock = ownBlockValidity.find(
+        (entry) => entry.ready && !entry.valid,
+      );
       if (invalidOwnBlock) {
         setError(
           "Hay canchas propias con disponibilidad inválida (solapamiento o rango horario incorrecto).",
@@ -781,7 +799,8 @@ export function TournamentEditor({
       }
       if (
         payload.venueMode === "MULTI_CLUB" &&
-        (!payload.participantClubNames || payload.participantClubNames.length === 0)
+        (!payload.participantClubNames ||
+          payload.participantClubNames.length === 0)
       ) {
         setError("Debes agregar al menos un club participante.");
         return;
@@ -801,7 +820,10 @@ export function TournamentEditor({
       }
 
       if (publish) {
-        const publishResult = await publishTournamentAction(clubId, tournament.id);
+        const publishResult = await publishTournamentAction(
+          clubId,
+          tournament.id,
+        );
         if (!publishResult.ok) {
           setError(publishResult.error);
           return;
@@ -836,7 +858,8 @@ export function TournamentEditor({
             </div>
             <span className="inline-flex rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium">
               {tournament
-                ? (tournamentStatusLabel[tournament.status] ?? tournament.status)
+                ? (tournamentStatusLabel[tournament.status] ??
+                  tournament.status)
                 : "Borrador"}
             </span>
           </div>
@@ -883,7 +906,10 @@ export function TournamentEditor({
           </div>
         ) : null}
 
-        <details open className="rounded-xl border border-border/80 bg-card p-4">
+        <details
+          open
+          className="rounded-xl border border-border/80 bg-card p-4"
+        >
           <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
             <span className="inline-flex items-center gap-2">
               <ClipboardList className="size-4 text-primary" />
@@ -930,7 +956,9 @@ export function TournamentEditor({
                   className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
                   value={venueMode}
                   onChange={(event) => {
-                    const nextMode = event.target.value as "OWN_CLUB" | "MULTI_CLUB";
+                    const nextMode = event.target.value as
+                      | "OWN_CLUB"
+                      | "MULTI_CLUB";
                     setVenueMode(nextMode);
                     if (nextMode === "OWN_CLUB") {
                       setParticipantClubs([ownClubName]);
@@ -963,10 +991,15 @@ export function TournamentEditor({
                 <Label>Clubes participantes</Label>
                 <div className="space-y-2">
                   {participantClubs.map((clubName, index) => (
-                    <div key={`participant-club-${index}`} className="flex items-center gap-2">
+                    <div
+                      key={`participant-club-${index}`}
+                      className="flex items-center gap-2"
+                    >
                       <Input
                         value={clubName}
-                        onChange={(event) => setParticipantClub(index, event.target.value)}
+                        onChange={(event) =>
+                          setParticipantClub(index, event.target.value)
+                        }
                         className="h-10 rounded-lg"
                         placeholder="Nombre del club"
                       />
@@ -998,46 +1031,89 @@ export function TournamentEditor({
           </div>
         </details>
 
-        <details open className="mt-4 rounded-xl border border-border/80 bg-card p-4">
+        <details
+          open
+          className="mt-4 rounded-xl border border-border/80 bg-card p-4"
+        >
           <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
             <span className="inline-flex items-center gap-2">
               <CalendarClock className="size-4 text-primary" />
-            Fechas y duración de partidos
+              Fechas y duración de partidos
             </span>
             <ChevronDown className="size-4 text-muted-foreground" />
           </summary>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Inicio del torneo</Label>
-              <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input
+                type="datetime-local"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                className="h-10 rounded-lg"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Fin del torneo</Label>
-              <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input
+                type="datetime-local"
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
+                className="h-10 rounded-lg"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Inicio de inscripciones</Label>
-              <Input type="datetime-local" value={registrationStartsAt} onChange={(e) => setRegistrationStartsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input
+                type="datetime-local"
+                value={registrationStartsAt}
+                onChange={(e) => setRegistrationStartsAt(e.target.value)}
+                className="h-10 rounded-lg"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Fin de inscripciones</Label>
-              <Input type="datetime-local" value={registrationEndsAt} onChange={(e) => setRegistrationEndsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input
+                type="datetime-local"
+                value={registrationEndsAt}
+                onChange={(e) => setRegistrationEndsAt(e.target.value)}
+                className="h-10 rounded-lg"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Inicio fase de grupos</Label>
-              <Input type="datetime-local" value={groupStartsAt} onChange={(e) => setGroupStartsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input
+                type="datetime-local"
+                value={groupStartsAt}
+                onChange={(e) => setGroupStartsAt(e.target.value)}
+                className="h-10 rounded-lg"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Fin fase de grupos</Label>
-              <Input type="datetime-local" value={groupEndsAt} onChange={(e) => setGroupEndsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input
+                type="datetime-local"
+                value={groupEndsAt}
+                onChange={(e) => setGroupEndsAt(e.target.value)}
+                className="h-10 rounded-lg"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Inicio fase de cuadros</Label>
-              <Input type="datetime-local" value={knockoutStartsAt} onChange={(e) => setKnockoutStartsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input
+                type="datetime-local"
+                value={knockoutStartsAt}
+                onChange={(e) => setKnockoutStartsAt(e.target.value)}
+                className="h-10 rounded-lg"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Fin fase de cuadros</Label>
-              <Input type="datetime-local" value={knockoutEndsAt} onChange={(e) => setKnockoutEndsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input
+                type="datetime-local"
+                value={knockoutEndsAt}
+                onChange={(e) => setKnockoutEndsAt(e.target.value)}
+                className="h-10 rounded-lg"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Duración partido — grupos (min)</Label>
@@ -1047,7 +1123,10 @@ export function TournamentEditor({
                 onChange={(e) => {
                   const value = Number(e.target.value) || 60;
                   setCategories((current) =>
-                    current.map((item) => ({ ...item, groupDurationMin: value })),
+                    current.map((item) => ({
+                      ...item,
+                      groupDurationMin: value,
+                    })),
                   );
                 }}
                 className="h-10 rounded-lg"
@@ -1061,7 +1140,10 @@ export function TournamentEditor({
                 onChange={(e) => {
                   const value = Number(e.target.value) || 90;
                   setCategories((current) =>
-                    current.map((item) => ({ ...item, knockoutDurationMin: value })),
+                    current.map((item) => ({
+                      ...item,
+                      knockoutDurationMin: value,
+                    })),
                   );
                 }}
                 className="h-10 rounded-lg"
@@ -1070,19 +1152,22 @@ export function TournamentEditor({
           </div>
         </details>
 
-        <details open className="mt-4 rounded-xl border border-border/80 bg-card p-4">
+        <details
+          open
+          className="mt-4 rounded-xl border border-border/80 bg-card p-4"
+        >
           <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
             <span className="inline-flex items-center gap-2">
               <Users className="size-4 text-primary" />
-            Categorías y modalidades
+              Categorías y modalidades
             </span>
             <ChevronDown className="size-4 text-muted-foreground" />
           </summary>
           <div className="mt-4 space-y-4">
             {categories.map((category, index) => {
-              const registeredPairs = tournament?.categories.find(
-                (c) => c.id === category.id,
-              )?.registrations.length ?? 0;
+              const registeredPairs =
+                tournament?.categories.find((c) => c.id === category.id)
+                  ?.registrations.length ?? 0;
               const estimatedZones = Math.max(
                 1,
                 Math.ceil(category.maxPairs / category.groupTeamsPerZone),
@@ -1101,283 +1186,340 @@ export function TournamentEditor({
                       : `${category.knockoutFirstRoundMatches} partidos`;
 
               return (
-              <div key={category.id ?? index} className="space-y-4 rounded-lg border border-border/80 p-4">
-                <div className="grid gap-2 sm:grid-cols-12">
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-muted-foreground text-[11px]">Categoría</Label>
-                    <select
-                      className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm"
-                      value={category.level}
-                      onChange={(e) =>
-                        applyCategoryChange(index, { level: Number(e.target.value) })
-                      }
-                    >
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((level) => (
-                        <option key={level} value={level}>
-                          {level}ª
-                        </option>
-                      ))}
-                    </select>
+                <div
+                  key={category.id ?? index}
+                  className="space-y-4 rounded-lg border border-border/80 p-4"
+                >
+                  <div className="grid gap-2 sm:grid-cols-12">
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className="text-muted-foreground text-[11px]">
+                        Categoría
+                      </Label>
+                      <select
+                        className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm"
+                        value={category.level}
+                        onChange={(e) =>
+                          applyCategoryChange(index, {
+                            level: Number(e.target.value),
+                          })
+                        }
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((level) => (
+                          <option key={level} value={level}>
+                            {level}ª
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className="text-muted-foreground text-[11px]">
+                        Modalidad
+                      </Label>
+                      <select
+                        className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm"
+                        value={category.modality}
+                        onChange={(e) =>
+                          applyCategoryChange(index, {
+                            modality: e.target
+                              .value as CategoryDraft["modality"],
+                          })
+                        }
+                      >
+                        <option value="MALE">Masculino</option>
+                        <option value="FEMALE">Femenino</option>
+                        <option value="MIXED">Mixto</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1 sm:col-span-1">
+                      <Label className="text-muted-foreground text-[11px]">
+                        Cupo
+                      </Label>
+                      <Input
+                        type="number"
+                        value={category.maxPairs}
+                        onChange={(e) =>
+                          applyCategoryChange(index, {
+                            maxPairs: Number(e.target.value),
+                          })
+                        }
+                        className="h-10 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-1">
+                      <Label className="text-muted-foreground text-[11px]">
+                        Mínimo
+                      </Label>
+                      <Input
+                        type="number"
+                        value={category.minPairs}
+                        onChange={(e) =>
+                          applyCategoryChange(index, {
+                            minPairs: Number(e.target.value),
+                          })
+                        }
+                        className="h-10 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <Label className="text-muted-foreground text-[11px]">
+                        Precio
+                      </Label>
+                      <Input
+                        type="number"
+                        value={category.registrationFeeCents}
+                        onChange={(e) =>
+                          applyCategoryChange(index, {
+                            registrationFeeCents: Number(e.target.value),
+                          })
+                        }
+                        className="h-10 rounded-lg"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 flex h-full items-center text-xs text-muted-foreground">
+                      <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
+                        Faltan{" "}
+                        {Math.max(0, category.minPairs - registeredPairs)}{" "}
+                        parejas
+                      </span>
+                    </div>
+                    <div className="sm:col-span-2 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-rose-600"
+                        onClick={() =>
+                          setCategories((current) =>
+                            current.filter((_, rowIndex) => rowIndex !== index),
+                          )
+                        }
+                      >
+                        <CircleSlash className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-rose-600"
+                        onClick={() =>
+                          setCategories((current) =>
+                            current.filter((_, rowIndex) => rowIndex !== index),
+                          )
+                        }
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="size-4"
+                        >
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-muted-foreground text-[11px]">Modalidad</Label>
-                    <select
-                      className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm"
-                      value={category.modality}
-                      onChange={(e) =>
-                        applyCategoryChange(index, {
-                          modality: e.target.value as CategoryDraft["modality"],
-                        })
-                      }
-                    >
-                      <option value="MALE">Masculino</option>
-                      <option value="FEMALE">Femenino</option>
-                      <option value="MIXED">Mixto</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1 sm:col-span-1">
-                    <Label className="text-muted-foreground text-[11px]">Cupo</Label>
-                    <Input
-                      type="number"
-                      value={category.maxPairs}
-                      onChange={(e) =>
-                        applyCategoryChange(index, { maxPairs: Number(e.target.value) })
-                      }
-                      className="h-10 rounded-lg"
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-1">
-                    <Label className="text-muted-foreground text-[11px]">Mínimo</Label>
-                    <Input
-                      type="number"
-                      value={category.minPairs}
-                      onChange={(e) =>
-                        applyCategoryChange(index, { minPairs: Number(e.target.value) })
-                      }
-                      className="h-10 rounded-lg"
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-muted-foreground text-[11px]">Precio</Label>
-                    <Input
-                      type="number"
-                      value={category.registrationFeeCents}
-                      onChange={(e) =>
-                        applyCategoryChange(index, {
-                          registrationFeeCents: Number(e.target.value),
-                        })
-                      }
-                      className="h-10 rounded-lg"
-                    />
-                  </div>
-                  <div className="sm:col-span-2 flex h-full items-center text-xs text-muted-foreground">
-                    <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
-                      Faltan {Math.max(0, category.minPairs - registeredPairs)}{" "}
-                      parejas
-                    </span>
-                  </div>
-                  <div className="sm:col-span-2 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      className="text-muted-foreground hover:text-rose-600"
-                      onClick={() =>
-                        setCategories((current) =>
-                          current.filter((_, rowIndex) => rowIndex !== index),
-                        )
-                      }
-                    >
-                      <CircleSlash className="size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      className="text-muted-foreground hover:text-rose-600"
-                      onClick={() =>
-                        setCategories((current) =>
-                          current.filter((_, rowIndex) => rowIndex !== index),
-                        )
-                      }
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="size-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    </button>
-                  </div>
+
+                  {/* Fase de grupos */}
+                  <details
+                    open
+                    className="rounded-lg border border-primary/30 bg-card p-4"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
+                      <span className="inline-flex items-center gap-2">
+                        <Grip className="size-4 text-primary" />
+                        Fase de grupos
+                      </span>
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    </summary>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label>Equipos por zona</Label>
+                        <Input
+                          type="number"
+                          value={category.groupTeamsPerZone}
+                          onChange={(e) =>
+                            applyCategoryChange(index, {
+                              groupTeamsPerZone: Number(e.target.value) || 4,
+                            })
+                          }
+                          className="h-10 rounded-lg"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Clasifican por zona</Label>
+                        <Input
+                          type="number"
+                          value={category.groupQualifiers}
+                          onChange={(e) =>
+                            applyCategoryChange(index, {
+                              groupQualifiers: Number(e.target.value) || 2,
+                            })
+                          }
+                          className="h-10 rounded-lg"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Puntos por ganado</Label>
+                        <Input
+                          type="number"
+                          value={category.groupPointsWin}
+                          onChange={(e) =>
+                            applyCategoryChange(index, {
+                              groupPointsWin: Number(e.target.value) || 3,
+                            })
+                          }
+                          className="h-10 rounded-lg"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Puntos por perdido</Label>
+                        <Input
+                          type="number"
+                          value={category.groupPointsLoss}
+                          onChange={(e) =>
+                            applyCategoryChange(index, {
+                              groupPointsLoss: Number(e.target.value) || 1,
+                            })
+                          }
+                          className="h-10 rounded-lg"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Puntos por no presentado (WO)</Label>
+                        <Input
+                          type="number"
+                          value={category.groupPointsNoShow}
+                          onChange={(e) =>
+                            applyCategoryChange(index, {
+                              groupPointsNoShow: Number(e.target.value) || 0,
+                            })
+                          }
+                          className="h-10 rounded-lg"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Cantidad de sets</Label>
+                        <select
+                          className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
+                          value={category.groupSets}
+                          onChange={(e) =>
+                            applyCategoryChange(index, {
+                              groupSets: Number(e.target.value) || 3,
+                            })
+                          }
+                        >
+                          <option value={2}>2 sets</option>
+                          <option value={3}>3 sets</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/80 bg-muted/30 px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium">Super tie-break</p>
+                          <p className="text-muted-foreground text-xs">
+                            Habilitar definición por super tie-break en grupos.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={category.groupSuperTieBreak}
+                          onCheckedChange={(checked) =>
+                            applyCategoryChange(index, {
+                              groupSuperTieBreak: checked,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="sm:col-span-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Settings2 className="size-3.5 text-primary" />
+                          {registeredPairs} parejas inscriptas →{" "}
+                          <strong className="text-foreground">
+                            {estimatedZones} zonas
+                          </strong>{" "}
+                          estimadas.
+                        </span>{" "}
+                        Desempate: enfrentamiento directo → diferencia de sets →
+                        diferencia de games
+                      </div>
+                    </div>
+                  </details>
+
+                  {/* Cuadro (eliminación) */}
+                  <details
+                    open
+                    className="rounded-lg border border-primary/30 bg-card p-4"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
+                      <span className="inline-flex items-center gap-2">
+                        <Dumbbell className="size-4 text-primary" />
+                        Cuadro
+                      </span>
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    </summary>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label>Partidos de la primera fase</Label>
+                        <Input
+                          type="number"
+                          value={category.knockoutFirstRoundMatches}
+                          onChange={(e) =>
+                            applyCategoryChange(index, {
+                              knockoutFirstRoundMatches:
+                                Number(e.target.value) || 2,
+                            })
+                          }
+                          className="h-10 rounded-lg"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Cantidad de sets</Label>
+                        <select
+                          className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
+                          value={category.knockoutSets}
+                          onChange={(e) =>
+                            applyCategoryChange(index, {
+                              knockoutSets: Number(e.target.value) || 3,
+                            })
+                          }
+                        >
+                          <option value={2}>2 sets</option>
+                          <option value={3}>3 sets</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/80 bg-muted/30 px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium">Super tie-break</p>
+                          <p className="text-muted-foreground text-xs">
+                            Habilitar super tie-break para cruces eliminatorios.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={category.knockoutSuperTieBreak}
+                          onCheckedChange={(checked) =>
+                            applyCategoryChange(index, {
+                              knockoutSuperTieBreak: checked,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="sm:col-span-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Settings2 className="size-3.5 text-primary" />
+                          Primera fase:{" "}
+                          <strong className="text-foreground">
+                            {category.knockoutFirstRoundMatches} partidos
+                          </strong>{" "}
+                          ({knockoutFirstLabel}) · Total:{" "}
+                          <strong className="text-foreground">
+                            {knockoutTotal} partidos
+                          </strong>
+                          .
+                        </span>{" "}
+                        Los cruces se definen a mano en la pestaña Cuadro.
+                      </div>
+                    </div>
+                  </details>
                 </div>
-
-                {/* Fase de grupos */}
-                <details open className="rounded-lg border border-primary/30 bg-card p-4">
-                  <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
-                    <span className="inline-flex items-center gap-2">
-                      <Grip className="size-4 text-primary" />
-                      Fase de grupos
-                    </span>
-                    <ChevronDown className="size-4 text-muted-foreground" />
-                  </summary>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label>Equipos por zona</Label>
-                      <Input
-                        type="number"
-                        value={category.groupTeamsPerZone}
-                        onChange={(e) =>
-                          applyCategoryChange(index, {
-                            groupTeamsPerZone: Number(e.target.value) || 4,
-                          })
-                        }
-                        className="h-10 rounded-lg"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Clasifican por zona</Label>
-                      <Input
-                        type="number"
-                        value={category.groupQualifiers}
-                        onChange={(e) =>
-                          applyCategoryChange(index, {
-                            groupQualifiers: Number(e.target.value) || 2,
-                          })
-                        }
-                        className="h-10 rounded-lg"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Puntos por ganado</Label>
-                      <Input
-                        type="number"
-                        value={category.groupPointsWin}
-                        onChange={(e) =>
-                          applyCategoryChange(index, {
-                            groupPointsWin: Number(e.target.value) || 3,
-                          })
-                        }
-                        className="h-10 rounded-lg"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Puntos por perdido</Label>
-                      <Input
-                        type="number"
-                        value={category.groupPointsLoss}
-                        onChange={(e) =>
-                          applyCategoryChange(index, {
-                            groupPointsLoss: Number(e.target.value) || 1,
-                          })
-                        }
-                        className="h-10 rounded-lg"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Puntos por no presentado (WO)</Label>
-                      <Input
-                        type="number"
-                        value={category.groupPointsNoShow}
-                        onChange={(e) =>
-                          applyCategoryChange(index, {
-                            groupPointsNoShow: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="h-10 rounded-lg"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Cantidad de sets</Label>
-                      <select
-                        className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
-                        value={category.groupSets}
-                        onChange={(e) =>
-                          applyCategoryChange(index, {
-                            groupSets: Number(e.target.value) || 3,
-                          })
-                        }
-                      >
-                        <option value={2}>2 sets</option>
-                        <option value={3}>3 sets</option>
-                      </select>
-                    </div>
-                    <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/80 bg-muted/30 px-3 py-2">
-                      <div>
-                        <p className="text-sm font-medium">Super tie-break</p>
-                        <p className="text-muted-foreground text-xs">
-                          Habilitar definición por super tie-break en grupos.
-                        </p>
-                      </div>
-                      <Switch
-                        checked={category.groupSuperTieBreak}
-                        onCheckedChange={(checked) =>
-                          applyCategoryChange(index, { groupSuperTieBreak: checked })
-                        }
-                      />
-                    </div>
-                    <div className="sm:col-span-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <Settings2 className="size-3.5 text-primary" />
-                        {registeredPairs} parejas inscriptas → <strong className="text-foreground">{estimatedZones} zonas</strong> estimadas.
-                      </span>{" "}
-                      Desempate: enfrentamiento directo → diferencia de sets → diferencia de games
-                    </div>
-                  </div>
-                </details>
-
-                {/* Cuadro (eliminación) */}
-                <details open className="rounded-lg border border-primary/30 bg-card p-4">
-                  <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
-                    <span className="inline-flex items-center gap-2">
-                      <Dumbbell className="size-4 text-primary" />
-                      Cuadro
-                    </span>
-                    <ChevronDown className="size-4 text-muted-foreground" />
-                  </summary>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label>Partidos de la primera fase</Label>
-                      <Input
-                        type="number"
-                        value={category.knockoutFirstRoundMatches}
-                        onChange={(e) =>
-                          applyCategoryChange(index, {
-                            knockoutFirstRoundMatches: Number(e.target.value) || 2,
-                          })
-                        }
-                        className="h-10 rounded-lg"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Cantidad de sets</Label>
-                      <select
-                        className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
-                        value={category.knockoutSets}
-                        onChange={(e) =>
-                          applyCategoryChange(index, {
-                            knockoutSets: Number(e.target.value) || 3,
-                          })
-                        }
-                      >
-                        <option value={2}>2 sets</option>
-                        <option value={3}>3 sets</option>
-                      </select>
-                    </div>
-                    <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/80 bg-muted/30 px-3 py-2">
-                      <div>
-                        <p className="text-sm font-medium">Super tie-break</p>
-                        <p className="text-muted-foreground text-xs">
-                          Habilitar super tie-break para cruces eliminatorios.
-                        </p>
-                      </div>
-                      <Switch
-                        checked={category.knockoutSuperTieBreak}
-                        onCheckedChange={(checked) =>
-                          applyCategoryChange(index, { knockoutSuperTieBreak: checked })
-                        }
-                      />
-                    </div>
-                    <div className="sm:col-span-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <Settings2 className="size-3.5 text-primary" />
-                        Primera fase: <strong className="text-foreground">{category.knockoutFirstRoundMatches} partidos</strong> ({knockoutFirstLabel}) · Total: <strong className="text-foreground">{knockoutTotal} partidos</strong>.
-                      </span>{" "}
-                      Los cruces se definen a mano en la pestaña Cuadro.
-                    </div>
-                  </div>
-                </details>
-              </div>
               );
             })}
             <Button
@@ -1389,13 +1531,15 @@ export function TournamentEditor({
                 setCategories((current) => [...current, defaultCategory()])
               }
             >
-              <Plus className="size-4" />
-              + Agregar categoría
+              <Plus className="size-4" />+ Agregar categoría
             </Button>
           </div>
         </details>
 
-        <details open className="mt-4 rounded-xl border border-border/80 bg-card p-4">
+        <details
+          open
+          className="mt-4 rounded-xl border border-border/80 bg-card p-4"
+        >
           <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
             <span className="inline-flex items-center gap-2">
               <Landmark className="size-4 text-primary" />
@@ -1409,20 +1553,29 @@ export function TournamentEditor({
                 Canchas propias
               </p>
               {ownBlocks.map(({ block, index: globalIndex }, ownIndex) => {
-                const status = ownBlockValidity.find((entry) => entry.index === globalIndex);
+                const status = ownBlockValidity.find(
+                  (entry) => entry.index === globalIndex,
+                );
                 const showCheck = Boolean(
                   status?.ready && validatedOwnBlocks[block.clientKey],
                 );
                 return (
-                  <div key={block.id ?? `own-${ownIndex}`} className="rounded-lg border border-border/80 p-3">
+                  <div
+                    key={block.id ?? `own-${ownIndex}`}
+                    className="rounded-lg border border-border/80 p-3"
+                  >
                     <div className="grid gap-2 sm:grid-cols-12">
                       <div className="space-y-1 sm:col-span-3">
-                        <Label className="text-muted-foreground text-[11px]">Cancha</Label>
+                        <Label className="text-muted-foreground text-[11px]">
+                          Cancha
+                        </Label>
                         <select
                           className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm"
                           value={block.courtId}
                           onChange={(e) =>
-                            applyBlockChange(globalIndex, { courtId: e.target.value })
+                            applyBlockChange(globalIndex, {
+                              courtId: e.target.value,
+                            })
                           }
                         >
                           <option value="">Seleccionar cancha</option>
@@ -1434,24 +1587,32 @@ export function TournamentEditor({
                         </select>
                       </div>
                       <div className="space-y-1 sm:col-span-4">
-                        <Label className="text-muted-foreground text-[11px]">Desde</Label>
+                        <Label className="text-muted-foreground text-[11px]">
+                          Desde
+                        </Label>
                         <Input
                           type="datetime-local"
                           className="h-10 rounded-lg"
                           value={block.startsAt}
                           onChange={(e) =>
-                            applyBlockChange(globalIndex, { startsAt: e.target.value })
+                            applyBlockChange(globalIndex, {
+                              startsAt: e.target.value,
+                            })
                           }
                         />
                       </div>
                       <div className="space-y-1 sm:col-span-4">
-                        <Label className="text-muted-foreground text-[11px]">Hasta</Label>
+                        <Label className="text-muted-foreground text-[11px]">
+                          Hasta
+                        </Label>
                         <Input
                           type="datetime-local"
                           className="h-10 rounded-lg"
                           value={block.endsAt}
                           onChange={(e) =>
-                            applyBlockChange(globalIndex, { endsAt: e.target.value })
+                            applyBlockChange(globalIndex, {
+                              endsAt: e.target.value,
+                            })
                           }
                           onBlur={() =>
                             setValidatedOwnBlocks((prev) => ({
@@ -1469,7 +1630,9 @@ export function TournamentEditor({
                             <span
                               className="mb-2 inline-flex"
                               title={status?.reason || "Horario no disponible"}
-                              aria-label={status?.reason || "Horario no disponible"}
+                              aria-label={
+                                status?.reason || "Horario no disponible"
+                              }
                             >
                               <AlertCircle className="size-4 text-amber-600" />
                             </span>
@@ -1490,7 +1653,9 @@ export function TournamentEditor({
                                   return next;
                                 });
                               }
-                              return current.filter((_, rowIndex) => rowIndex !== globalIndex);
+                              return current.filter(
+                                (_, rowIndex) => rowIndex !== globalIndex,
+                              );
                             })
                           }
                         >
@@ -1506,7 +1671,9 @@ export function TournamentEditor({
                 variant="outline"
                 size="sm"
                 className="rounded-lg"
-                onClick={() => setBlocks((current) => [...current, defaultCourtBlock(false)])}
+                onClick={() =>
+                  setBlocks((current) => [...current, defaultCourtBlock(false)])
+                }
               >
                 <Plus className="size-4" />
                 Agregar cancha propia
@@ -1517,79 +1684,104 @@ export function TournamentEditor({
               <p className="border-lime-500 pl-2 text-sm font-semibold leading-none border-l-2">
                 Canchas de otros clubes
               </p>
-              {externalBlocks.map(({ block, index: globalIndex }, externalIndex) => {
-                return (
-                  <div key={block.id ?? `external-${externalIndex}`} className="rounded-lg border border-border/80 p-3">
-                    <div className="grid gap-2 sm:grid-cols-12">
-                      <div className="space-y-1 sm:col-span-3">
-                        <Label className="text-muted-foreground text-[11px]">Club</Label>
-                        <Input
-                          className="h-10 rounded-lg"
-                          placeholder="Nombre del club"
-                          value={block.externalClubName}
-                          onChange={(e) =>
-                            applyBlockChange(globalIndex, { externalClubName: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1 sm:col-span-2">
-                        <Label className="text-muted-foreground text-[11px]">Cancha</Label>
-                        <Input
-                          className="h-10 rounded-lg"
-                          placeholder="Cancha externa"
-                          value={block.externalCourtName}
-                          onChange={(e) =>
-                            applyBlockChange(globalIndex, { externalCourtName: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1 sm:col-span-3">
-                        <Label className="text-muted-foreground text-[11px]">Desde</Label>
-                        <Input
-                          type="datetime-local"
-                          className="h-10 rounded-lg"
-                          value={block.startsAt}
-                          onChange={(e) =>
-                            applyBlockChange(globalIndex, { startsAt: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1 sm:col-span-3">
-                        <Label className="text-muted-foreground text-[11px]">Hasta</Label>
-                        <Input
-                          type="datetime-local"
-                          className="h-10 rounded-lg"
-                          value={block.endsAt}
-                          onChange={(e) =>
-                            applyBlockChange(globalIndex, { endsAt: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="sm:col-span-1 flex items-end justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 rounded-lg text-rose-600 hover:text-rose-600"
-                          onClick={() =>
-                            setBlocks((current) =>
-                              current.filter((_, rowIndex) => rowIndex !== globalIndex),
-                            )
-                          }
-                        >
-                          ×
-                        </Button>
+              {externalBlocks.map(
+                ({ block, index: globalIndex }, externalIndex) => {
+                  return (
+                    <div
+                      key={block.id ?? `external-${externalIndex}`}
+                      className="rounded-lg border border-border/80 p-3"
+                    >
+                      <div className="grid gap-2 sm:grid-cols-12">
+                        <div className="space-y-1 sm:col-span-3">
+                          <Label className="text-muted-foreground text-[11px]">
+                            Club
+                          </Label>
+                          <Input
+                            className="h-10 rounded-lg"
+                            placeholder="Nombre del club"
+                            value={block.externalClubName}
+                            onChange={(e) =>
+                              applyBlockChange(globalIndex, {
+                                externalClubName: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <Label className="text-muted-foreground text-[11px]">
+                            Cancha
+                          </Label>
+                          <Input
+                            className="h-10 rounded-lg"
+                            placeholder="Cancha externa"
+                            value={block.externalCourtName}
+                            onChange={(e) =>
+                              applyBlockChange(globalIndex, {
+                                externalCourtName: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1 sm:col-span-3">
+                          <Label className="text-muted-foreground text-[11px]">
+                            Desde
+                          </Label>
+                          <Input
+                            type="datetime-local"
+                            className="h-10 rounded-lg"
+                            value={block.startsAt}
+                            onChange={(e) =>
+                              applyBlockChange(globalIndex, {
+                                startsAt: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1 sm:col-span-3">
+                          <Label className="text-muted-foreground text-[11px]">
+                            Hasta
+                          </Label>
+                          <Input
+                            type="datetime-local"
+                            className="h-10 rounded-lg"
+                            value={block.endsAt}
+                            onChange={(e) =>
+                              applyBlockChange(globalIndex, {
+                                endsAt: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="sm:col-span-1 flex items-end justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-lg text-rose-600 hover:text-rose-600"
+                            onClick={() =>
+                              setBlocks((current) =>
+                                current.filter(
+                                  (_, rowIndex) => rowIndex !== globalIndex,
+                                ),
+                              )
+                            }
+                          >
+                            ×
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                },
+              )}
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="rounded-lg"
-                onClick={() => setBlocks((current) => [...current, defaultCourtBlock(true)])}
+                onClick={() =>
+                  setBlocks((current) => [...current, defaultCourtBlock(true)])
+                }
               >
                 <Plus className="size-4" />
                 Agregar cancha externa

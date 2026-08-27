@@ -8,7 +8,10 @@ export type TournamentStatus =
   | "FINISHED"
   | "CANCELLED";
 
-export type TournamentCategoryStatus = "INSCRIPTIONS" | "COMPLETE" | "CANCELLED";
+export type TournamentCategoryStatus =
+  | "INSCRIPTIONS"
+  | "COMPLETE"
+  | "CANCELLED";
 export type TournamentVenueMode = "OWN_CLUB" | "MULTI_CLUB";
 
 export type TournamentRegistration = {
