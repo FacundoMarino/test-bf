@@ -26,17 +26,13 @@ function isInvalidOrExpiredTokenMessage(message: string): boolean {
   return message.toLowerCase().includes("invalid or expired token");
 }
 
-/**
- * Server-only fetch to auth-service. Pass `authToken` for Bearer routes (e.g. /auth/me).
- * Browser cookies are not forwarded to another origin; the session token is read in RSC/actions and sent explicitly.
- */
 export async function apiFetch<T>(
   path: string,
   options?: RequestInit & { authToken?: string | null },
 ): Promise<ApiResult<T>> {
   const { authToken, ...init } = options ?? {};
   const headers = new Headers(init.headers);
-  if (!headers.has("Content-Type")) {
+  if (!headers.has("Content-Type") && init.body) {
     headers.set("Content-Type", "application/json");
   }
   if (authToken) {
@@ -44,10 +40,11 @@ export async function apiFetch<T>(
   }
 
   try {
-    const res = await fetch(`${env.NEXT_PUBLIC_AUTH_SERVICE_URL}${path}`, {
+    const res = await fetch(`${env.NEXT_PUBLIC_API_URL}${path}`, {
       ...init,
       headers,
       credentials: "include",
+      cache: "no-store",
     });
 
     if (!res.ok) {
@@ -58,18 +55,24 @@ export async function apiFetch<T>(
         cookieStore.delete(env.SESSION_COOKIE_NAME);
         redirect("/login");
       }
-      return {
-        data: null,
-        error: {
-          message,
-          status: res.status,
-        },
-      };
+      return { data: null, error: { message, status: res.status } };
+    }
+
+    if (res.status === 204) {
+      return { data: null as T, error: null };
     }
 
     const data = (await res.json()) as T;
     return { data, error: null };
   } catch {
-    return { data: null, error: { message: "Error de red", status: 0 } };
+    return {
+      data: null,
+      error: { message: "Error de red", status: 0 },
+    };
   }
+}
+
+export async function getAccessToken(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(env.SESSION_COOKIE_NAME)?.value ?? null;
 }

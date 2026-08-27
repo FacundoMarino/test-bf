@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
-import { GeistMono } from "geist/font/mono";
-import { GeistSans } from "geist/font/sans";
+import { Inter } from "next/font/google";
 
 import "./globals.css";
 
-import { SonnerToaster } from "@/components/ui/sonner-toaster";
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "Puntoo",
-  description: "SaaS base — Next.js + auth-service",
+  title: "CleanConnect Backoffice",
+  description: "Panel de administración CleanConnect",
 };
 
 export default function RootLayout({
@@ -17,15 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="es"
-      className={`${GeistSans.variable} ${GeistMono.variable} h-full`}
-      suppressHydrationWarning
-    >
-      <body className="min-h-full">
-        {children}
-        <SonnerToaster />
-      </body>
+    <html lang="es" className={`${inter.variable} h-full`} suppressHydrationWarning>
+      <body className="min-h-full font-sans antialiased">{children}</body>
     </html>
   );
 }

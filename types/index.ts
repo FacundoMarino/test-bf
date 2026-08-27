@@ -1,34 +1,8 @@
-export type {
-  ForgotPasswordFormValues,
-  LoginFormValues,
-  LoginServerPayload,
-  RegisterFormValues,
-  ResetPasswordFormValues,
-  User,
-  UserSession,
-} from "./auth";
-export {
-  forgotPasswordSchema,
-  loginSchema,
-  registerSchema,
-  resetPasswordSchema,
-} from "./auth";
-export type {
-  AvailabilitySlot,
-  ClubProfileSavePayload,
-  ClubRecord,
-  ClubScheduleBlock,
-  ClubScheduleBlocks,
-  CourtRecord,
-  MyClubResponse,
-  ProfileRecord,
-} from "./club";
-export {
-  AMENITY_LABELS,
-  clubProfileSaveSchema,
-  DEFAULT_AMENITY_KEYS,
-  DEFAULT_CLUB_SCHEDULE_BLOCK,
-  defaultClubScheduleBlocks,
-  defaultPricingPayload,
-  SLOT_DURATION_OPTIONS,
-} from "./club";
+import { z } from "zod";
+
+export const loginSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "Mínimo 6 caracteres"),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;

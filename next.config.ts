@@ -7,21 +7,14 @@ const securityHeaders = [
     key: "Referrer-Policy",
     value: "strict-origin-when-cross-origin",
   },
-  {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
-  },
-] as const satisfies readonly { key: string; value: string }[];
+] as const;
 
 const nextConfig: NextConfig = {
   env: {
-    SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME ?? "auth_session",
+    SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME ?? "cc_admin_session",
   },
   async headers() {
     return [{ source: "/(.*)", headers: [...securityHeaders] }];
-  },
-  images: {
-    remotePatterns: [],
   },
   typedRoutes: true,
 };
