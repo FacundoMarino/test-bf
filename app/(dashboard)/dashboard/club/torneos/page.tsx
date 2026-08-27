@@ -77,14 +77,18 @@ export default async function ClubTournamentsPage() {
                   <td className="px-4 py-3 text-xs">
                     <span className="inline-flex items-center gap-1">
                       <CalendarDays className="size-3.5 text-muted-foreground" />
-                      {new Date(tournament.startsAt).toLocaleDateString("es-AR", {
+                      {new Date(tournament.startsAt).toLocaleString("es-AR", {
                         day: "2-digit",
                         month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}{" "}
                       -{" "}
-                      {new Date(tournament.endsAt).toLocaleDateString("es-AR", {
+                      {new Date(tournament.endsAt).toLocaleString("es-AR", {
                         day: "2-digit",
                         month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}
                     </span>
                   </td>

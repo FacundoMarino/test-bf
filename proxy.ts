@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const SESSION_COOKIE_NAME =
-  process.env.SESSION_COOKIE_NAME ?? "cc_admin_session";
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME ?? "auth_session";
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -28,9 +27,18 @@ export function proxy(request: NextRequest) {
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
   const sessionToken = sessionCookie?.value;
   const hasValidSession = sessionToken ? !isTokenExpired(sessionToken) : false;
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  const isConfirmAccountRoute =
+    request.nextUrl.pathname.startsWith("/confirm-account");
+  const isResetPasswordRoute =
+    request.nextUrl.pathname.startsWith("/reset-password");
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/register") ||
+    request.nextUrl.pathname.startsWith("/forgot-password");
+  const isPublicRoute =
+    isAuthRoute || isConfirmAccountRoute || isResetPasswordRoute;
 
-  if (!hasValidSession && !isAuthRoute) {
+  if (!hasValidSession && !isPublicRoute) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
     const res = NextResponse.redirect(loginUrl);
@@ -44,7 +52,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  if (!hasValidSession && isAuthRoute && sessionToken) {
+  if (!hasValidSession && isPublicRoute && sessionToken) {
     const res = NextResponse.next();
     res.cookies.delete(SESSION_COOKIE_NAME);
     return res;

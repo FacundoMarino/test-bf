@@ -5,14 +5,15 @@ export type CalendarSlotRowKind =
   | "reserved"
   | "tentativeOpen"
   | "closed"
-  | "personalized";
+  | "personalized"
+  | "tournament";
 
 export type CalendarSlotRow = {
   start: string;
   end: string;
   kind: CalendarSlotRowKind;
   booking: ClubReservation | null;
-  /** Nombre guardado en `note` del turno personalizado. */
+  /** Nombre guardado en `note` del turno personalizado / torneo. */
   holdLabel?: string | null;
 };
 

@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Eye,
   Search,
+  Trophy,
   User,
   Phone,
   Users,
@@ -177,6 +178,7 @@ export function ReservationsBoard({
       end: string;
       isAvailable: boolean;
       isPersonalized?: boolean;
+      isTournament?: boolean;
       holdLabel?: string | null;
     }>
   >([]);
@@ -346,6 +348,15 @@ export function ReservationsBoard({
           booking: tentativeBooking,
         };
       }
+      if (!slot.isAvailable && slot.isTournament) {
+        return {
+          start: slot.start,
+          end: slot.end,
+          kind: "tournament" as const,
+          booking: null,
+          holdLabel: slot.holdLabel ?? "Torneo",
+        };
+      }
       if (!slot.isAvailable && slot.isPersonalized) {
         return {
           start: slot.start,
@@ -378,7 +389,10 @@ export function ReservationsBoard({
       (r) => r.kind === "available" || r.kind === "tentativeOpen",
     ).length;
     const reservados = slotRows.filter(
-      (r) => r.kind === "reserved" || r.kind === "personalized",
+      (r) =>
+        r.kind === "reserved" ||
+        r.kind === "personalized" ||
+        r.kind === "tournament",
     ).length;
     const tentativosAbiertos = slotRows.filter(
       (r) => r.kind === "tentativeOpen",
@@ -720,6 +734,10 @@ export function ReservationsBoard({
                   </span>
                 </li>
                 <li className="flex items-center gap-2">
+                  <span className="size-2.5 shrink-0 rounded-full bg-[#e8a317]" />
+                  <span className="text-muted-foreground">Torneo</span>
+                </li>
+                <li className="flex items-center gap-2">
                   <span className="size-2.5 shrink-0 rounded-full bg-[#788ce3]" />
                   <span className="text-muted-foreground">Disponible</span>
                 </li>
@@ -797,6 +815,7 @@ export function ReservationsBoard({
                     {slotRows.map((row, rowIndex) => {
                       const isAvail = row.kind === "available";
                       const isPersonalized = row.kind === "personalized";
+                      const isTournament = row.kind === "tournament";
                       const isRes = row.kind === "reserved";
                       const isFixedSeries =
                         isRes && row.booking?.isFixedSeries === true;
@@ -806,6 +825,7 @@ export function ReservationsBoard({
                           : `${fmtTimeUtc(row.start)} – ${fmtTimeUtc(row.end)}`;
                       const personalizedLabel =
                         row.holdLabel?.trim() || "Turno personalizado";
+                      const tournamentLabel = row.holdLabel?.trim() || "Torneo";
                       const isTent =
                         row.kind === "tentativeOpen" && row.booking != null;
                       const isClosed = row.kind === "closed";
@@ -830,6 +850,8 @@ export function ReservationsBoard({
                             isAvail && "border-[#788ce3]/30 bg-[#788ce3]/10",
                             isPersonalized &&
                               "border-[#c5e835]/70 bg-[#d4f542]/30",
+                            isTournament &&
+                              "border-[#e8a317]/70 bg-[#e8a317]/15",
                             isRes &&
                               "border-sky-200/80 bg-sky-50/50 dark:border-sky-900/30 dark:bg-sky-950/25",
                             isTent && "border-[#405fd3]/30 bg-[#405fd3]/10",
@@ -894,6 +916,7 @@ export function ReservationsBoard({
                               className={cn(
                                 "w-1.5 shrink-0",
                                 isPersonalized && "bg-[#c5e835]",
+                                isTournament && "bg-[#e8a317]",
                                 isAvail && "bg-[#788ce3]",
                                 isRes && "bg-sky-500",
                                 isTent && "bg-[#405fd3]",
@@ -908,6 +931,12 @@ export function ReservationsBoard({
                                 {isAvail ? (
                                   <p className="text-muted-foreground mt-0.5 text-sm">
                                     Disponible
+                                  </p>
+                                ) : null}
+                                {isTournament ? (
+                                  <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm font-medium text-[#9a6b0a]">
+                                    <Trophy className="size-3.5 shrink-0 opacity-80" />
+                                    {tournamentLabel}
                                   </p>
                                 ) : null}
                                 {isPersonalized ? (
@@ -948,6 +977,11 @@ export function ReservationsBoard({
                                 ) : null}
                               </div>
                               <div className="flex shrink-0 items-center gap-2">
+                                {isTournament ? (
+                                  <span className="inline-flex rounded-full bg-[#e8a317]/20 px-3 py-1 text-xs font-semibold text-[#9a6b0a]">
+                                    Torneo
+                                  </span>
+                                ) : null}
                                 {isPersonalized ? (
                                   <span className="inline-flex rounded-full bg-[#c5e835]/25 px-3 py-1 text-xs font-semibold text-[#5a7a12] dark:text-[#d4f542]">
                                     Ocupado

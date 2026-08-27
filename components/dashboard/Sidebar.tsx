@@ -15,6 +15,7 @@ import {
   Home,
   PanelLeftClose,
   PanelLeft,
+  Trophy,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -95,7 +96,7 @@ export function Sidebar({
               {
                 href: "/dashboard/club/torneos",
                 label: "Torneos",
-                icon: CalendarDays,
+                icon: Trophy,
               },
               {
                 href: "/dashboard/club/turnos-fijos",

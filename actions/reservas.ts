@@ -117,6 +117,7 @@ export type CourtSlotDay = {
   isAvailable: boolean;
   pricePerHour?: number;
   isPersonalized?: boolean;
+  isTournament?: boolean;
   /** Nombre del jugador (campo `note` en el backend). */
   holdLabel?: string | null;
 };
@@ -221,9 +222,13 @@ export async function listCourtDaySlotsAction(
         typeof priceRaw === "number" && Number.isFinite(priceRaw)
           ? priceRaw
           : undefined;
+      const isTournament =
+        o.isTournament === true ||
+        (o as { is_tournament?: boolean }).is_tournament === true;
       const isPersonalized =
-        o.isCustom === true ||
-        (o as { is_custom?: boolean }).is_custom === true;
+        !isTournament &&
+        (o.isCustom === true ||
+          (o as { is_custom?: boolean }).is_custom === true);
       const noteRaw = o.note ?? (o as { hold_note?: string }).hold_note;
       const holdLabel =
         typeof noteRaw === "string" && noteRaw.trim().length > 0
@@ -235,6 +240,7 @@ export async function listCourtDaySlotsAction(
         isAvailable,
         pricePerHour,
         isPersonalized,
+        isTournament,
         holdLabel,
       };
     });

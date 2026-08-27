@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Grip, ListChecks, Settings2, Trophy, Users } from "lucide-react";
+import {
+  CalendarDays,
+  Grip,
+  ListChecks,
+  Settings2,
+  BarChart3,
+  Trophy,
+  Users,
+} from "lucide-react";
 
 import { TournamentDrawBoard } from "@/components/tournaments/tournament-draw-board";
 import { TournamentFixtureBoard } from "@/components/tournaments/tournament-fixture-board";
@@ -9,7 +17,11 @@ import { TournamentKnockoutBoard } from "@/components/tournaments/tournament-kno
 import { TournamentEditor } from "@/components/tournaments/tournament-editor";
 import { TournamentInscriptionsBoard } from "@/components/tournaments/tournament-inscriptions-board";
 import { TournamentResultsBoard } from "@/components/tournaments/tournament-results-board";
-import type { TournamentRecord, TournamentStandingRow } from "@/types/tournament";
+import { TournamentStandingsBoard } from "@/components/tournaments/tournament-standings-board";
+import type {
+  TournamentCategoryStandings,
+  TournamentRecord,
+} from "@/types/tournament";
 
 type CourtOption = {
   id: string;
@@ -25,11 +37,12 @@ type CourtOption = {
 
 const tabs = [
   { id: "configuracion", label: "Configuración", icon: Settings2 },
+  { id: "inscripciones", label: "Inscripciones", icon: ListChecks },
   { id: "sorteo", label: "Sorteo", icon: Users },
-  { id: "cuadro", label: "Cuadro", icon: Grip },
   { id: "fixture", label: "Fixture", icon: CalendarDays },
   { id: "resultados", label: "Resultados", icon: Trophy },
-  { id: "inscripciones", label: "Inscripciones", icon: ListChecks },
+  { id: "clasificacion", label: "Clasificación", icon: BarChart3 },
+  { id: "cuadros", label: "Cuadros", icon: Grip },
 ] as const;
 
 type TabId = (typeof tabs)[number]["id"];
@@ -39,7 +52,7 @@ type Props = {
   ownClubName: string;
   tournament: TournamentRecord;
   courts: CourtOption[];
-  standingsByCategory: Record<string, TournamentStandingRow[]>;
+  standingsByCategory: Record<string, TournamentCategoryStandings>;
 };
 
 export function TournamentWorkspace({
@@ -83,6 +96,16 @@ export function TournamentWorkspace({
         />
       ) : null}
 
+      {activeTab === "inscripciones" ? (
+        <TournamentInscriptionsBoard
+          clubId={clubId}
+          tournamentId={tournament.id}
+          categories={tournament.categories}
+          startsAt={tournament.startsAt}
+          endsAt={tournament.endsAt}
+        />
+      ) : null}
+
       {activeTab === "sorteo" ? (
         <TournamentDrawBoard
           clubId={clubId}
@@ -91,19 +114,13 @@ export function TournamentWorkspace({
         />
       ) : null}
 
-      {activeTab === "cuadro" ? (
-        <TournamentKnockoutBoard
-          categories={tournament.categories}
-          knockoutMatches={tournament.matches.filter(
-            (match) => match.phase === "KNOCKOUT",
-          )}
-        />
-      ) : null}
-
       {activeTab === "fixture" ? (
         <TournamentFixtureBoard
+          clubId={clubId}
+          tournamentId={tournament.id}
           categories={tournament.categories}
           matches={tournament.matches}
+          courts={courts}
         />
       ) : null}
 
@@ -113,14 +130,24 @@ export function TournamentWorkspace({
           tournamentId={tournament.id}
           categories={tournament.categories}
           allMatches={tournament.matches}
+        />
+      ) : null}
+
+      {activeTab === "clasificacion" ? (
+        <TournamentStandingsBoard
+          categories={tournament.categories}
           standingsByCategory={standingsByCategory}
         />
       ) : null}
 
-      {activeTab === "inscripciones" ? (
-        <TournamentInscriptionsBoard clubId={clubId} tournamentId={tournament.id} categories={tournament.categories} />
+      {activeTab === "cuadros" ? (
+        <TournamentKnockoutBoard
+          categories={tournament.categories}
+          knockoutMatches={tournament.matches.filter(
+            (match) => match.phase === "KNOCKOUT",
+          )}
+        />
       ) : null}
     </>
   );
 }
-

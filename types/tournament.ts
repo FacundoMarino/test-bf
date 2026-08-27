@@ -19,6 +19,10 @@ export type TournamentRegistration = {
   status: "ACTIVE" | "CANCELLED";
   isPaid: boolean;
   paymentMethod: string | null;
+  playerIsPaid: boolean;
+  partnerIsPaid: boolean;
+  playerPaymentMethod: string | null;
+  partnerPaymentMethod: string | null;
   createdAt: string;
   playerProfile: {
     id: string;
@@ -34,6 +38,19 @@ export type TournamentZoneEntry = {
   registration: TournamentRegistration | null;
 };
 
+export type TournamentMatchSetScore = {
+  home: number;
+  away: number;
+  tiebreakHome?: number;
+  tiebreakAway?: number;
+};
+
+export type TournamentMatchSetScores = {
+  sets: TournamentMatchSetScore[];
+  superTieBreak?: { home: number; away: number };
+  woSide?: number;
+};
+
 export type TournamentMatch = {
   id: string;
   categoryId: string;
@@ -43,7 +60,10 @@ export type TournamentMatch = {
   status: "PENDING" | "SCHEDULED" | "FINISHED";
   homeGames: number | null;
   awayGames: number | null;
+  setScores: TournamentMatchSetScores | null;
+  winnerRegistrationId: string | null;
   isNoShow: boolean;
+  noShowSide: number | null;
   matchDate: string | null;
   startTimeMinutes: number | null;
   court: { id: string; name: string } | null;
@@ -129,8 +149,28 @@ export type TournamentStandingRow = {
   won: number;
   lost: number;
   noShow: number;
+  setsFor: number;
+  setsAgainst: number;
+  setDiff: number;
   gamesFor: number;
   gamesAgainst: number;
   gameDiff: number;
   points: number;
+  qualifies: boolean;
+};
+
+export type TournamentZoneStanding = {
+  zoneId: string;
+  zoneName: string;
+  order: number;
+  rows: TournamentStandingRow[];
+};
+
+export type TournamentCategoryStandings = {
+  categoryId: string;
+  groupQualifiers: number;
+  groupPointsWin: number;
+  groupPointsLoss: number;
+  groupPointsNoShow: number;
+  zones: TournamentZoneStanding[];
 };

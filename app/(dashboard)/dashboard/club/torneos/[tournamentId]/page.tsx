@@ -10,7 +10,7 @@ import { TournamentWorkspace } from "@/components/tournaments/tournament-workspa
 import { apiFetch } from "@/lib/api";
 import { getDashboardContext, isClubAccount } from "@/lib/dashboard-context";
 import { env } from "@/lib/env";
-import type { TournamentStandingRow } from "@/types/tournament";
+import type { TournamentCategoryStandings } from "@/types/tournament";
 const tournamentStatusLabel: Record<string, string> = {
   DRAFT: "Borrador",
   PUBLISHED: "Publicado",
@@ -86,7 +86,7 @@ export default async function TournamentDetailPage({
     }),
   );
 
-  const standingsByCategory = new Map<string, TournamentStandingRow[]>();
+  const standingsByCategory = new Map<string, TournamentCategoryStandings>();
   for (const entry of standingsResults) {
     if (entry.response.ok) {
       standingsByCategory.set(entry.categoryId, entry.response.data);

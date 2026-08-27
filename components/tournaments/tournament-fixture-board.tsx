@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   Info,
@@ -9,26 +10,48 @@ import {
   Trophy,
 } from "lucide-react";
 
+import { updateTournamentMatchScheduleAction } from "@/actions/tournaments";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { TournamentCategory, TournamentMatch } from "@/types/tournament";
 
 type FixtureView = "day" | "court";
 
+type CourtOption = {
+  id: string;
+  name: string;
+};
+
 type FixtureMatch = {
   id: string;
+  categoryId: string;
   categoryName: string;
   phase: "GROUP" | "KNOCKOUT";
   stageLabel: string;
   isRoundWindow: boolean;
   matchDate: string | null;
   startTimeMinutes: number | null;
+  courtId: string | null;
   courtName: string | null;
+  durationMin: number;
   homeLabel: string;
   awayLabel: string;
+  status: TournamentMatch["status"];
 };
 
 type Props = {
+  clubId: string;
+  tournamentId: string;
   categories: TournamentCategory[];
   matches: TournamentMatch[];
+  courts: CourtOption[];
 };
 
 function minutesToTime(value: number | null) {
@@ -38,6 +61,12 @@ function minutesToTime(value: number | null) {
     .padStart(2, "0");
   const m = (value % 60).toString().padStart(2, "0");
   return `${h}:${m}`;
+}
+
+function timeToMinutes(value: string) {
+  const [h, m] = value.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
 }
 
 function formatIsoDate(value: string | null) {
@@ -120,11 +149,10 @@ function getKnockoutSlotLabels(
     category,
     roundNumber,
   );
-  const matchIndex = orderInRound - 1;
+  const matchIndex = Math.max(0, orderInRound - 1);
 
-  if (roundIndex === 0) {
-    const slot = buildFirstRoundSlot(category.zones, matchIndex);
-    return { home: slot.home, away: slot.away };
+  if (roundIndex <= 0) {
+    return buildFirstRoundSlot(category.zones, matchIndex);
   }
 
   const prevRemaining = totalRounds - (roundIndex - 1);
@@ -153,15 +181,19 @@ function collectFixtureMatches(
         zoneMatchIds.add(match.id);
         items.push({
           id: match.id,
+          categoryId: category.id,
           categoryName: category.name,
           phase: "GROUP",
           stageLabel: zone.name,
           isRoundWindow: false,
           matchDate: match.matchDate,
           startTimeMinutes: match.startTimeMinutes,
+          courtId: match.court?.id ?? null,
           courtName: match.court?.name ?? null,
+          durationMin: category.groupMatchDurationMin,
           homeLabel: pairLabel(match.homeRegistration),
           awayLabel: pairLabel(match.awayRegistration),
+          status: match.status,
         });
       }
     }
@@ -181,19 +213,23 @@ function collectFixtureMatches(
 
     items.push({
       id: match.id,
+      categoryId: category.id,
       categoryName: category.name,
       phase: "KNOCKOUT",
       stageLabel: label,
       isRoundWindow: true,
       matchDate: match.matchDate,
       startTimeMinutes: match.startTimeMinutes,
+      courtId: match.court?.id ?? null,
       courtName: match.court?.name ?? null,
+      durationMin: category.knockoutMatchDurationMin,
       homeLabel: match.homeRegistration
         ? pairLabel(match.homeRegistration)
         : slots.home,
       awayLabel: match.awayRegistration
         ? pairLabel(match.awayRegistration)
         : slots.away,
+      status: match.status,
     });
   }
 
@@ -277,10 +313,13 @@ function MatchBadges({ match }: { match: FixtureMatch }) {
 function FixtureMatchRow({
   match,
   view,
+  onEdit,
 }: {
   match: FixtureMatch;
   view: FixtureView;
+  onEdit: (match: FixtureMatch) => void;
 }) {
+  const canEdit = match.status !== "FINISHED";
   return (
     <article className="flex items-center gap-5 px-5 py-4">
       <div className="w-18 shrink-0">
@@ -302,7 +341,9 @@ function FixtureMatchRow({
       </div>
       <button
         type="button"
-        className="text-muted-foreground/70 shrink-0 rounded-md p-1.5 hover:bg-muted/60 hover:text-foreground"
+        disabled={!canEdit}
+        onClick={() => onEdit(match)}
+        className="text-muted-foreground/70 shrink-0 rounded-md p-1.5 hover:bg-muted/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
         aria-label="Editar partido"
       >
         <Pencil className="size-4" />
@@ -317,12 +358,14 @@ function GroupSection({
   countLabel,
   matches,
   view,
+  onEdit,
 }: {
   title: string;
   icon: typeof CalendarDays;
   countLabel: string;
   matches: FixtureMatch[];
   view: FixtureView;
+  onEdit: (match: FixtureMatch) => void;
 }) {
   return (
     <section className="overflow-hidden rounded-xl border border-border/80 bg-white shadow-sm">
@@ -337,20 +380,48 @@ function GroupSection({
       </header>
       <div className="divide-y divide-border/60">
         {matches.map((match) => (
-          <FixtureMatchRow key={match.id} match={match} view={view} />
+          <FixtureMatchRow
+            key={match.id}
+            match={match}
+            view={view}
+            onEdit={onEdit}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-export function TournamentFixtureBoard({ categories, matches }: Props) {
+export function TournamentFixtureBoard({
+  clubId,
+  tournamentId,
+  categories,
+  matches,
+  courts,
+}: Props) {
+  const router = useRouter();
   const [view, setView] = useState<FixtureView>("day");
+  const [editing, setEditing] = useState<FixtureMatch | null>(null);
+  const [dateValue, setDateValue] = useState("");
+  const [timeValue, setTimeValue] = useState("");
+  const [courtId, setCourtId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const fixtureMatches = useMemo(
     () => collectFixtureMatches(categories, matches),
     [categories, matches],
   );
+
+  const courtOptions = useMemo(() => {
+    const map = new Map(courts.map((court) => [court.id, court]));
+    for (const match of fixtureMatches) {
+      if (match.courtId && match.courtName && !map.has(match.courtId)) {
+        map.set(match.courtId, { id: match.courtId, name: match.courtName });
+      }
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [courts, fixtureMatches]);
 
   const groupedByDay = useMemo(() => {
     const groups = new Map<string, FixtureMatch[]>();
@@ -382,6 +453,49 @@ export function TournamentFixtureBoard({ categories, matches }: Props) {
     });
   }, [fixtureMatches]);
 
+  const openEdit = (match: FixtureMatch) => {
+    setEditing(match);
+    setDateValue(match.matchDate?.slice(0, 10) ?? "");
+    setTimeValue(
+      match.startTimeMinutes !== null ? minutesToTime(match.startTimeMinutes) : "",
+    );
+    setCourtId(match.courtId ?? "");
+    setError(null);
+  };
+
+  const saveSchedule = () => {
+    if (!editing) return;
+    setError(null);
+    const startTimeMinutes = timeToMinutes(timeValue);
+    if (!dateValue || startTimeMinutes === null) {
+      setError("Completá fecha y hora.");
+      return;
+    }
+    if (!courtId) {
+      setError("Seleccioná una cancha.");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await updateTournamentMatchScheduleAction(
+        clubId,
+        tournamentId,
+        editing.id,
+        {
+          matchDate: dateValue,
+          startTimeMinutes,
+          courtId,
+        },
+      );
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setEditing(null);
+      router.refresh();
+    });
+  };
+
   return (
     <section className="space-y-3 p-4">
       <FixtureViewToggle view={view} onChange={setView} />
@@ -403,6 +517,7 @@ export function TournamentFixtureBoard({ categories, matches }: Props) {
                 }`}
                 matches={dayMatches}
                 view="day"
+                onEdit={openEdit}
               />
             ))}
           </div>
@@ -418,16 +533,108 @@ export function TournamentFixtureBoard({ categories, matches }: Props) {
                 }`}
                 matches={courtMatches}
                 view="court"
+                onEdit={openEdit}
               />
             ))}
           </div>
         )
       ) : (
-        <div className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-          Todavía no hay partidos programados. Sorteá las zonas para generar el
+        <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+          Todavía no hay partidos programados. Generá el sorteo para armar el
           fixture de grupos.
         </div>
       )}
+
+      <Dialog
+        open={Boolean(editing)}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar partido</DialogTitle>
+          </DialogHeader>
+          {editing ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-sm">
+                <p className="font-medium text-foreground">
+                  {editing.homeLabel}
+                </p>
+                <p className="text-muted-foreground">{editing.awayLabel}</p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {editing.categoryName} · {editing.stageLabel} ·{" "}
+                  {editing.durationMin} min
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="fixture-match-date">Fecha</Label>
+                  <Input
+                    id="fixture-match-date"
+                    type="date"
+                    value={dateValue}
+                    onChange={(e) => setDateValue(e.target.value)}
+                    className="h-10 rounded-lg"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="fixture-match-time">Hora</Label>
+                  <Input
+                    id="fixture-match-time"
+                    type="time"
+                    value={timeValue}
+                    onChange={(e) => setTimeValue(e.target.value)}
+                    className="h-10 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="fixture-match-court">Cancha</Label>
+                <select
+                  id="fixture-match-court"
+                  className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
+                  value={courtId}
+                  onChange={(e) => setCourtId(e.target.value)}
+                >
+                  <option value="">Seleccionar cancha</option>
+                  {courtOptions.map((court) => (
+                    <option key={court.id} value={court.id}>
+                      {court.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {error ? (
+                <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {error}
+                </p>
+              ) : null}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditing(null)}
+                  disabled={isPending}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={saveSchedule}
+                  disabled={isPending}
+                >
+                  {isPending ? "Guardando…" : "Guardar"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

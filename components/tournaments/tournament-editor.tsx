@@ -128,6 +128,28 @@ function toDateTimeLocal(date: string, minutes: number) {
   return `${date.slice(0, 10)}T${hours}:${mins}`;
 }
 
+/** ISO / Date → value for `<input type="datetime-local" />` in local timezone. */
+function isoToDateTimeLocal(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const mins = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${mins}`;
+}
+
+/** `datetime-local` → ISO UTC for the API (`@IsDateString`). */
+function dateTimeLocalToIso(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Fecha inválida: ${value}`);
+  }
+  return date.toISOString();
+}
+
 function formatLocalIsoDate(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -393,7 +415,7 @@ export function TournamentEditor({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [name, setName] = useState(tournament?.name ?? "Nuevo torneo");
+  const [name, setName] = useState(tournament?.name ?? "");
   const [description, setDescription] = useState(tournament?.description ?? "");
   const [venueMode, setVenueMode] = useState<"OWN_CLUB" | "MULTI_CLUB">(
     tournament?.venueMode ?? "OWN_CLUB",
@@ -403,31 +425,25 @@ export function TournamentEditor({
       ? tournament.participantClubNames
       : [ownClubName],
   );
-  const [startsAt, setStartsAt] = useState(
-    tournament?.startsAt ? tournament.startsAt.slice(0, 10) : "",
-  );
-  const [endsAt, setEndsAt] = useState(
-    tournament?.endsAt ? tournament.endsAt.slice(0, 10) : "",
-  );
+  const [startsAt, setStartsAt] = useState(isoToDateTimeLocal(tournament?.startsAt));
+  const [endsAt, setEndsAt] = useState(isoToDateTimeLocal(tournament?.endsAt));
   const [registrationStartsAt, setRegistrationStartsAt] = useState(
-    tournament?.registrationStartsAt
-      ? tournament.registrationStartsAt.slice(0, 10)
-      : "",
+    isoToDateTimeLocal(tournament?.registrationStartsAt),
   );
   const [registrationEndsAt, setRegistrationEndsAt] = useState(
-    tournament?.registrationEndsAt ? tournament.registrationEndsAt.slice(0, 10) : "",
+    isoToDateTimeLocal(tournament?.registrationEndsAt),
   );
   const [groupStartsAt, setGroupStartsAt] = useState(
-    tournament?.groupStartsAt ? tournament.groupStartsAt.slice(0, 10) : "",
+    isoToDateTimeLocal(tournament?.groupStartsAt),
   );
   const [groupEndsAt, setGroupEndsAt] = useState(
-    tournament?.groupEndsAt ? tournament.groupEndsAt.slice(0, 10) : "",
+    isoToDateTimeLocal(tournament?.groupEndsAt),
   );
   const [knockoutStartsAt, setKnockoutStartsAt] = useState(
-    tournament?.knockoutStartsAt ? tournament.knockoutStartsAt.slice(0, 10) : "",
+    isoToDateTimeLocal(tournament?.knockoutStartsAt),
   );
   const [knockoutEndsAt, setKnockoutEndsAt] = useState(
-    tournament?.knockoutEndsAt ? tournament.knockoutEndsAt.slice(0, 10) : "",
+    isoToDateTimeLocal(tournament?.knockoutEndsAt),
   );
 
   const [categories, setCategories] = useState<CategoryDraft[]>(
@@ -452,7 +468,7 @@ export function TournamentEditor({
           groupDurationMin: category.groupMatchDurationMin,
           knockoutDurationMin: category.knockoutMatchDurationMin,
         }))
-      : [defaultCategory()],
+      : [],
   );
 
   const [blocks, setBlocks] = useState<CourtBlockDraft[]>(
@@ -467,7 +483,7 @@ export function TournamentEditor({
           startsAt: toDateTimeLocal(block.date, block.startTimeMinutes),
           endsAt: toDateTimeLocal(block.date, block.endTimeMinutes),
         }))
-      : [defaultCourtBlock()],
+      : [],
   );
   const [validatedOwnBlocks, setValidatedOwnBlocks] = useState<Record<string, boolean>>(
     {},
@@ -629,6 +645,7 @@ export function TournamentEditor({
 
   const payload = useMemo(() => {
     const preparedCategories = categories.map((category) => ({
+      ...(category.id ? { id: category.id } : {}),
       name: `${category.level}ª ${
         category.modality === "MALE"
           ? "Masculino"
@@ -704,14 +721,20 @@ export function TournamentEditor({
           ? [ownClubName]
           : participantClubs.map((club) => club.trim()).filter(Boolean),
       venue: venueMode === "OWN_CLUB" ? ownClubName : "En varios clubes",
-      startsAt,
-      endsAt,
-      registrationStartsAt,
-      registrationEndsAt,
-      groupStartsAt: groupStartsAt || undefined,
-      groupEndsAt: groupEndsAt || undefined,
-      knockoutStartsAt: knockoutStartsAt || undefined,
-      knockoutEndsAt: knockoutEndsAt || undefined,
+      startsAt: startsAt ? dateTimeLocalToIso(startsAt) : "",
+      endsAt: endsAt ? dateTimeLocalToIso(endsAt) : "",
+      registrationStartsAt: registrationStartsAt
+        ? dateTimeLocalToIso(registrationStartsAt)
+        : "",
+      registrationEndsAt: registrationEndsAt
+        ? dateTimeLocalToIso(registrationEndsAt)
+        : "",
+      groupStartsAt: groupStartsAt ? dateTimeLocalToIso(groupStartsAt) : undefined,
+      groupEndsAt: groupEndsAt ? dateTimeLocalToIso(groupEndsAt) : undefined,
+      knockoutStartsAt: knockoutStartsAt
+        ? dateTimeLocalToIso(knockoutStartsAt)
+        : undefined,
+      knockoutEndsAt: knockoutEndsAt ? dateTimeLocalToIso(knockoutEndsAt) : undefined,
       categories: preparedCategories,
       courtBlocks: preparedBlocks,
     };
@@ -798,16 +821,18 @@ export function TournamentEditor({
                 <Trophy className="size-4.5 text-primary" />
                 {name || "Nuevo torneo"}
               </h1>
-              <p className="text-muted-foreground mt-1 inline-flex items-center gap-3 text-xs">
-                <span className="inline-flex items-center gap-1">
-                  <Trophy className="size-3.5" />
-                  {totals.categories} categorías
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Users className="size-3.5" />
-                  {totals.pairs} parejas inscriptas
-                </span>
-              </p>
+              {tournament ? (
+                <p className="text-muted-foreground mt-1 inline-flex items-center gap-3 text-xs">
+                  <span className="inline-flex items-center gap-1">
+                    <Trophy className="size-3.5" />
+                    {totals.categories} categorías
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Users className="size-3.5" />
+                    {totals.pairs} parejas inscriptas
+                  </span>
+                </p>
+              ) : null}
             </div>
             <span className="inline-flex rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium">
               {tournament
@@ -874,6 +899,7 @@ export function TournamentEditor({
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 className="h-10 rounded-lg"
+                placeholder="Nombre del torneo"
               />
             </div>
             <div className="space-y-1.5">
@@ -983,35 +1009,35 @@ export function TournamentEditor({
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Inicio del torneo</Label>
-              <Input type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="h-10 rounded-lg" />
             </div>
             <div className="space-y-1.5">
               <Label>Fin del torneo</Label>
-              <Input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="h-10 rounded-lg" />
             </div>
             <div className="space-y-1.5">
               <Label>Inicio de inscripciones</Label>
-              <Input type="date" value={registrationStartsAt} onChange={(e) => setRegistrationStartsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input type="datetime-local" value={registrationStartsAt} onChange={(e) => setRegistrationStartsAt(e.target.value)} className="h-10 rounded-lg" />
             </div>
             <div className="space-y-1.5">
               <Label>Fin de inscripciones</Label>
-              <Input type="date" value={registrationEndsAt} onChange={(e) => setRegistrationEndsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input type="datetime-local" value={registrationEndsAt} onChange={(e) => setRegistrationEndsAt(e.target.value)} className="h-10 rounded-lg" />
             </div>
             <div className="space-y-1.5">
               <Label>Inicio fase de grupos</Label>
-              <Input type="date" value={groupStartsAt} onChange={(e) => setGroupStartsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input type="datetime-local" value={groupStartsAt} onChange={(e) => setGroupStartsAt(e.target.value)} className="h-10 rounded-lg" />
             </div>
             <div className="space-y-1.5">
               <Label>Fin fase de grupos</Label>
-              <Input type="date" value={groupEndsAt} onChange={(e) => setGroupEndsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input type="datetime-local" value={groupEndsAt} onChange={(e) => setGroupEndsAt(e.target.value)} className="h-10 rounded-lg" />
             </div>
             <div className="space-y-1.5">
               <Label>Inicio fase de cuadros</Label>
-              <Input type="date" value={knockoutStartsAt} onChange={(e) => setKnockoutStartsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input type="datetime-local" value={knockoutStartsAt} onChange={(e) => setKnockoutStartsAt(e.target.value)} className="h-10 rounded-lg" />
             </div>
             <div className="space-y-1.5">
               <Label>Fin fase de cuadros</Label>
-              <Input type="date" value={knockoutEndsAt} onChange={(e) => setKnockoutEndsAt(e.target.value)} className="h-10 rounded-lg" />
+              <Input type="datetime-local" value={knockoutEndsAt} onChange={(e) => setKnockoutEndsAt(e.target.value)} className="h-10 rounded-lg" />
             </div>
             <div className="space-y-1.5">
               <Label>Duración partido — grupos (min)</Label>
@@ -1146,7 +1172,8 @@ export function TournamentEditor({
                   </div>
                   <div className="sm:col-span-2 flex h-full items-center text-xs text-muted-foreground">
                     <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
-                      Faltan {Math.max(0, category.maxPairs - category.minPairs)} parejas
+                      Faltan {Math.max(0, category.minPairs - registeredPairs)}{" "}
+                      parejas
                     </span>
                   </div>
                   <div className="sm:col-span-2 flex items-center justify-end gap-2">

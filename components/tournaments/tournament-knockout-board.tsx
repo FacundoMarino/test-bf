@@ -46,7 +46,7 @@ function getRoundShortPrefix(label: string) {
 
 function formatSlotLabel(source: SlotSource) {
   if (source.type === "zone-rank") {
-    return `${source.rank}° ${source.zoneName}`;
+    return `${source.rank}º ${source.zoneName}`;
   }
   return `Ganador ${source.ref}`;
 }
@@ -153,44 +153,75 @@ function pairOptions(category: TournamentCategory) {
   }));
 }
 
+function zoneRankOptions(category: TournamentCategory) {
+  const zones = [...category.zones].sort((a, b) => a.order - b.order);
+  const ranks = Math.max(1, category.groupQualifiers ?? 2);
+  const options: Array<{ value: string; label: string }> = [];
+  for (const zone of zones) {
+    for (let rank = 1; rank <= ranks; rank += 1) {
+      const label = `${rank}º ${zone.name}`;
+      options.push({ value: `zone:${zone.id}:${rank}`, label });
+    }
+  }
+  return options;
+}
+
 function MatchSlot({
   source,
   isFirstRound,
-  pairOptions: options,
+  zoneOptions,
+  pairOptions: pairs,
 }: {
   source: SlotSource;
   isFirstRound: boolean;
+  zoneOptions: Array<{ value: string; label: string }>;
   pairOptions: Array<{ id: string; label: string }>;
 }) {
   const label = formatSlotLabel(source);
+  const defaultValue = isFirstRound
+    ? (zoneOptions.find((option) => option.label === label)?.value ?? label)
+    : "__prev_winner__";
 
   return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-semibold text-foreground">{label}</p>
-      {isFirstRound ? (
-        <div className="grid grid-cols-2 gap-2">
-          <select
-            className="border-input bg-background h-9 w-full rounded-lg border px-2 text-xs"
-            defaultValue={label}
-          >
-            <option value={label}>{label}</option>
-            {options.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
+    <div className="space-y-1">
+      <p className="text-[12px] font-semibold leading-none text-foreground">
+        {label}
+      </p>
+      <div className="flex items-center gap-2">
+        <select
+          className="border-muted-foreground/35 text-foreground h-9 min-w-0 flex-1 rounded-md border border-dashed bg-white px-2.5 text-[12px] outline-none"
+          defaultValue={defaultValue}
+        >
+          {isFirstRound ? (
+            <>
+              {zoneOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+              {pairs.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </>
+          ) : (
+            <>
+              <option value="__prev_winner__">
+                Ganador de la ronda anterior
               </option>
-            ))}
-          </select>
-          <select className="border-input bg-background h-9 w-full rounded-lg border px-2 text-xs">
-            <option>Automático</option>
-            <option>Manual</option>
-          </select>
-        </div>
-      ) : (
-        <select className="border-input bg-background h-9 w-full rounded-lg border px-2 text-xs">
-          <option>Automático</option>
-          <option>Manual</option>
+              {pairs.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </>
+          )}
         </select>
-      )}
+        <span className="text-muted-foreground/70 shrink-0 text-[11px] italic">
+          {label}
+        </span>
+      </div>
     </div>
   );
 }
@@ -198,35 +229,37 @@ function MatchSlot({
 function MatchCard({
   match,
   isFirstRound,
-  pairOptions: options,
+  zoneOptions,
+  pairOptions: pairs,
 }: {
   match: BracketMatch;
   isFirstRound: boolean;
+  zoneOptions: Array<{ value: string; label: string }>;
   pairOptions: Array<{ id: string; label: string }>;
 }) {
   return (
-    <article className="overflow-hidden rounded-xl border border-border/80 bg-card">
-      <header className="border-b border-border/70 bg-muted/20 px-3 py-1.5">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <article className="overflow-hidden rounded-xl border border-border/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <header className="border-b border-border/60 bg-[#F8F9FB] px-3.5 py-1.5">
+        <p className="text-[10px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
           Cruce #{match.orderInRound}
         </p>
       </header>
-      <div className="space-y-2 px-3 py-3">
+      <div className="space-y-2.5 px-3.5 py-3">
         <MatchSlot
           source={match.home}
           isFirstRound={isFirstRound}
-          pairOptions={options}
+          zoneOptions={zoneOptions}
+          pairOptions={pairs}
         />
-        <p className="text-center text-[11px] font-medium text-muted-foreground">vs</p>
+        <p className="text-center text-[11px] font-medium text-muted-foreground">
+          vs
+        </p>
         <MatchSlot
           source={match.away}
           isFirstRound={isFirstRound}
-          pairOptions={options}
+          zoneOptions={zoneOptions}
+          pairOptions={pairs}
         />
-        <select className="border-input bg-background mt-1 h-9 w-full rounded-lg border px-2 text-xs">
-          <option>Ganador automático (por resultado)</option>
-          <option>Manual</option>
-        </select>
       </div>
     </article>
   );
@@ -265,12 +298,17 @@ export function TournamentKnockoutBoard({
     [selectedCategory],
   );
 
+  const zoneOptions = useMemo(
+    () => (selectedCategory ? zoneRankOptions(selectedCategory) : []),
+    [selectedCategory],
+  );
+
   if (!categories.length) return null;
 
   return (
-    <section className="space-y-3 p-4">
-      <div className="rounded-xl border border-border/80 bg-card p-3">
-        <div className="flex flex-wrap items-center gap-2">
+    <section className="space-y-4 p-4">
+      <div className="rounded-xl border border-border/80 border-l-4 border-l-primary bg-card px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
           <select
             className="border-input bg-background h-10 min-w-52 rounded-lg border px-3 text-sm"
             value={selectedCategoryId}
@@ -283,25 +321,28 @@ export function TournamentKnockoutBoard({
             ))}
           </select>
           <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
-            <Trophy className="size-3.5" />
-            {selectedCategory?.registrations.length ?? 0} parejas en esta categoría
+            <Trophy className="size-3.5 text-muted-foreground" />
+            {selectedCategory?.registrations.length ?? 0} parejas en esta
+            categoría
           </span>
         </div>
       </div>
 
       {selectedCategory?.zones.length ? (
         <div className="overflow-x-auto pb-1">
-          <div className="flex min-w-max items-stretch gap-4">
+          <div className="flex min-w-max items-stretch gap-5">
             {rounds.map((round, roundIndex) => (
-              <section key={round.label} className="flex w-72 shrink-0 flex-col">
-                <header className="mb-3 flex items-center justify-between gap-2">
-                  <p className="inline-flex items-center gap-1.5 text-sm font-bold uppercase text-primary">
+              <section
+                key={round.label}
+                className="flex w-[17.5rem] shrink-0 flex-col"
+              >
+                <header className="mb-3 flex items-baseline justify-between gap-2">
+                  <p className="inline-flex items-center gap-1.5 text-[13px] font-bold tracking-wide text-primary uppercase">
                     <span className="size-1.5 rounded-full bg-primary" />
                     {round.label}
                   </p>
                   <span className="text-muted-foreground text-[11px]">
-                    {round.matches.length}{" "}
-                    {round.matches.length === 1 ? "partido" : "partidos"}
+                    {round.matches.length} partidos
                   </span>
                 </header>
                 <div
@@ -314,6 +355,7 @@ export function TournamentKnockoutBoard({
                       key={`${round.label}-${match.orderInRound}`}
                       match={match}
                       isFirstRound={roundIndex === 0}
+                      zoneOptions={zoneOptions}
                       pairOptions={options}
                     />
                   ))}
@@ -329,11 +371,12 @@ export function TournamentKnockoutBoard({
         </div>
       )}
 
-      <p className="text-muted-foreground inline-flex items-start gap-1.5 text-xs">
+      <p className="text-muted-foreground inline-flex max-w-4xl items-start gap-2 text-xs leading-relaxed">
         <Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
-        Los cruces se completan solos con los clasificados de cada zona y con
-        los ganadores cargados en Resultados. Podés corregir manualmente
-        cualquier pareja o ganador.
+        En la primera ronda elegí el clasificado de cada zona (1º, 2º, 3º...) o
+        una pareja manualmente. En las rondas siguientes viene por defecto el
+        ganador de la ronda anterior según los resultados cargados, y también
+        podés elegir una pareja manualmente.
       </p>
     </section>
   );

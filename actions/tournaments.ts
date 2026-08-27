@@ -7,8 +7,8 @@ import { revalidatePath } from "next/cache";
 import { apiFetch } from "@/lib/api";
 import { env } from "@/lib/env";
 import type {
+  TournamentCategoryStandings,
   TournamentRecord,
-  TournamentStandingRow,
 } from "@/types/tournament";
 
 async function getTokenOrRedirect() {
@@ -108,11 +108,45 @@ export async function runTournamentDrawAction(
   return { ok: true };
 }
 
+export async function updateTournamentMatchScheduleAction(
+  clubId: string,
+  tournamentId: string,
+  matchId: string,
+  payload: {
+    matchDate: string;
+    startTimeMinutes: number;
+    courtId?: string | null;
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = await getTokenOrRedirect();
+  const res = await apiFetch(
+    `/clubs/${clubId}/tournaments/${tournamentId}/matches/${matchId}/schedule`,
+    {
+      authToken: token,
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+  if (res.error) return { ok: false, error: res.error.message };
+  revalidatePath(`/dashboard/club/torneos/${tournamentId}`);
+  return { ok: true };
+}
+
 export async function updateTournamentMatchResultAction(
   clubId: string,
   tournamentId: string,
   matchId: string,
-  payload: { homeGames: number; awayGames: number; isNoShow?: boolean },
+  payload: {
+    woSide?: number;
+    sets?: Array<{
+      home: number;
+      away: number;
+      tiebreakHome?: number;
+      tiebreakAway?: number;
+    }>;
+    superTieBreakHome?: number;
+    superTieBreakAway?: number;
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = await getTokenOrRedirect();
   const res = await apiFetch(
@@ -132,21 +166,53 @@ export async function getTournamentStandingsAction(
   clubId: string,
   tournamentId: string,
   categoryId: string,
-): Promise<{ ok: true; data: TournamentStandingRow[] } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; data: TournamentCategoryStandings } | { ok: false; error: string }
+> {
   const token = await getTokenOrRedirect();
-  const res = await apiFetch<{ data: TournamentStandingRow[] }>(
+  const res = await apiFetch<{ data: TournamentCategoryStandings }>(
     `/clubs/${clubId}/tournaments/${tournamentId}/categories/${categoryId}/standings`,
     { authToken: token, cache: "no-store" },
   );
   if (res.error) return { ok: false, error: res.error.message };
-  return { ok: true, data: res.data.data ?? [] };
+  return { ok: true, data: res.data.data };
+}
+
+export async function createClubTournamentRegistrationAction(
+  clubId: string,
+  tournamentId: string,
+  categoryId: string,
+  payload: {
+    playerContact: string;
+    playerName?: string;
+    partnerName: string;
+    partnerEmail?: string;
+    preferredTimeNotes?: string;
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = await getTokenOrRedirect();
+  const res = await apiFetch(
+    `/clubs/${clubId}/tournaments/${tournamentId}/categories/${categoryId}/registrations/by-club`,
+    {
+      authToken: token,
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+  if (res.error) return { ok: false, error: res.error.message };
+  revalidatePath(`/dashboard/club/torneos/${tournamentId}`);
+  return { ok: true };
 }
 
 export async function updateRegistrationPaymentAction(
   clubId: string,
   tournamentId: string,
   registrationId: string,
-  payload: { isPaid: boolean; paymentMethod?: string | null },
+  payload: {
+    side: "player" | "partner";
+    isPaid: boolean;
+    paymentMethod?: string | null;
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = await getTokenOrRedirect();
   const res = await apiFetch(
