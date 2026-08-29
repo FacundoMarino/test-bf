@@ -211,6 +211,25 @@ export async function createClubTournamentRegistrationAction(
   return { ok: true };
 }
 
+export async function cancelTournamentRegistrationAction(
+  clubId: string,
+  tournamentId: string,
+  categoryId: string,
+  registrationId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = await getTokenOrRedirect();
+  const res = await apiFetch(
+    `/clubs/${clubId}/tournaments/${tournamentId}/categories/${categoryId}/registrations/${registrationId}`,
+    {
+      authToken: token,
+      method: "DELETE",
+    },
+  );
+  if (res.error) return { ok: false, error: res.error.message };
+  revalidatePath(`/dashboard/club/torneos/${tournamentId}`);
+  return { ok: true };
+}
+
 export async function updateRegistrationPaymentAction(
   clubId: string,
   tournamentId: string,
