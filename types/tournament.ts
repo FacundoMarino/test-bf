@@ -70,6 +70,13 @@ export type TournamentMatch = {
   matchDate: string | null;
   startTimeMinutes: number | null;
   court: { id: string; name: string } | null;
+  courtBlock: {
+    id: string;
+    isExternal: boolean;
+    externalClubName: string | null;
+    externalCourtName: string | null;
+    court: { id: string; name: string } | null;
+  } | null;
   homeRegistration: TournamentRegistration | null;
   awayRegistration: TournamentRegistration | null;
 };

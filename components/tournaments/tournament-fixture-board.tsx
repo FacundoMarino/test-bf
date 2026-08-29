@@ -14,7 +14,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { TournamentCategory, TournamentMatch } from "@/types/tournament";
+import type {
+  TournamentCategory,
+  TournamentCourtBlock,
+  TournamentMatch,
+} from "@/types/tournament";
 
 type FixtureView = "day" | "court";
 
@@ -34,6 +38,7 @@ type FixtureMatch = {
   startTimeMinutes: number | null;
   courtId: string | null;
   courtName: string | null;
+  venueLabel: string | null;
   durationMin: number;
   homeLabel: string;
   awayLabel: string;
@@ -43,10 +48,103 @@ type FixtureMatch = {
 type Props = {
   clubId: string;
   tournamentId: string;
+  ownClubName: string;
   categories: TournamentCategory[];
   matches: TournamentMatch[];
+  courtBlocks: TournamentCourtBlock[];
   courts: CourtOption[];
 };
+
+function hasMixedVenues(courtBlocks: TournamentCourtBlock[]) {
+  const hasOwn = courtBlocks.some((block) => !block.isExternal);
+  const hasExternal = courtBlocks.some((block) => block.isExternal);
+  return hasOwn && hasExternal;
+}
+
+function resolveMatchCourtBlock(
+  match: TournamentMatch,
+  courtBlocks: TournamentCourtBlock[],
+  durationMin: number,
+): TournamentMatch["courtBlock"] {
+  if (match.courtBlock) return match.courtBlock;
+  if (!match.matchDate || match.startTimeMinutes === null) return null;
+
+  const dateKey = match.matchDate.slice(0, 10);
+  return (
+    courtBlocks.find((block) => {
+      if (block.date.slice(0, 10) !== dateKey) return false;
+      if (match.startTimeMinutes! < block.startTimeMinutes) return false;
+      if (match.startTimeMinutes! + durationMin > block.endTimeMinutes) {
+        return false;
+      }
+      if (block.isExternal) return !match.court?.id;
+      return block.court?.id === match.court?.id;
+    }) ?? null
+  );
+}
+
+function formatMatchVenueLabel(
+  match: TournamentMatch,
+  ownClubName: string,
+  courtBlocks: TournamentCourtBlock[],
+  durationMin: number,
+  mixedVenues: boolean,
+) {
+  const block = resolveMatchCourtBlock(match, courtBlocks, durationMin);
+  if (block?.isExternal) {
+    const club = block.externalClubName?.trim();
+    const court = block.externalCourtName?.trim();
+    if (club && court) return `${club} · ${court}`;
+    return court ?? club ?? null;
+  }
+
+  const courtName = match.court?.name ?? block?.court?.name ?? null;
+  if (!courtName) return null;
+  if (mixedVenues) return `${ownClubName} · ${courtName}`;
+  return courtName;
+}
+
+function mapFixtureMatch(
+  match: TournamentMatch,
+  category: TournamentCategory,
+  params: {
+    phase: "GROUP" | "KNOCKOUT";
+    stageLabel: string;
+    isRoundWindow: boolean;
+    homeLabel: string;
+    awayLabel: string;
+    durationMin: number;
+    ownClubName: string;
+    courtBlocks: TournamentCourtBlock[];
+    mixedVenues: boolean;
+  },
+): FixtureMatch {
+  const venueLabel = formatMatchVenueLabel(
+    match,
+    params.ownClubName,
+    params.courtBlocks,
+    params.durationMin,
+    params.mixedVenues,
+  );
+
+  return {
+    id: match.id,
+    categoryId: category.id,
+    categoryName: category.name,
+    phase: params.phase,
+    stageLabel: params.stageLabel,
+    isRoundWindow: params.isRoundWindow,
+    matchDate: match.matchDate,
+    startTimeMinutes: match.startTimeMinutes,
+    courtId: match.court?.id ?? null,
+    courtName: venueLabel,
+    venueLabel,
+    durationMin: params.durationMin,
+    homeLabel: params.homeLabel,
+    awayLabel: params.awayLabel,
+    status: match.status,
+  };
+}
 
 function minutesToTime(value: number | null) {
   if (value === null) return "--:--";
@@ -167,33 +265,33 @@ function getKnockoutSlotLabels(
 function collectFixtureMatches(
   categories: TournamentCategory[],
   allMatches: TournamentMatch[],
+  ownClubName: string,
+  courtBlocks: TournamentCourtBlock[],
 ): FixtureMatch[] {
   const items: FixtureMatch[] = [];
   const categoryById = new Map(
     categories.map((category) => [category.id, category]),
   );
   const zoneMatchIds = new Set<string>();
+  const mixedVenues = hasMixedVenues(courtBlocks);
 
   for (const category of categories) {
     for (const zone of category.zones) {
       for (const match of zone.matches) {
         zoneMatchIds.add(match.id);
-        items.push({
-          id: match.id,
-          categoryId: category.id,
-          categoryName: category.name,
-          phase: "GROUP",
-          stageLabel: zone.name,
-          isRoundWindow: false,
-          matchDate: match.matchDate,
-          startTimeMinutes: match.startTimeMinutes,
-          courtId: match.court?.id ?? null,
-          courtName: match.court?.name ?? null,
-          durationMin: category.groupMatchDurationMin,
-          homeLabel: pairLabel(match.homeRegistration),
-          awayLabel: pairLabel(match.awayRegistration),
-          status: match.status,
-        });
+        items.push(
+          mapFixtureMatch(match, category, {
+            phase: "GROUP",
+            stageLabel: zone.name,
+            isRoundWindow: false,
+            homeLabel: pairLabel(match.homeRegistration),
+            awayLabel: pairLabel(match.awayRegistration),
+            durationMin: category.groupMatchDurationMin,
+            ownClubName,
+            courtBlocks,
+            mixedVenues,
+          }),
+        );
       }
     }
   }
@@ -210,26 +308,23 @@ function collectFixtureMatches(
       match.orderInRound,
     );
 
-    items.push({
-      id: match.id,
-      categoryId: category.id,
-      categoryName: category.name,
-      phase: "KNOCKOUT",
-      stageLabel: label,
-      isRoundWindow: true,
-      matchDate: match.matchDate,
-      startTimeMinutes: match.startTimeMinutes,
-      courtId: match.court?.id ?? null,
-      courtName: match.court?.name ?? null,
-      durationMin: category.knockoutMatchDurationMin,
-      homeLabel: match.homeRegistration
-        ? pairLabel(match.homeRegistration)
-        : slots.home,
-      awayLabel: match.awayRegistration
-        ? pairLabel(match.awayRegistration)
-        : slots.away,
-      status: match.status,
-    });
+    items.push(
+      mapFixtureMatch(match, category, {
+        phase: "KNOCKOUT",
+        stageLabel: label,
+        isRoundWindow: true,
+        homeLabel: match.homeRegistration
+          ? pairLabel(match.homeRegistration)
+          : slots.home,
+        awayLabel: match.awayRegistration
+          ? pairLabel(match.awayRegistration)
+          : slots.away,
+        durationMin: category.knockoutMatchDurationMin,
+        ownClubName,
+        courtBlocks,
+        mixedVenues,
+      }),
+    );
   }
 
   return items.sort((a, b) => {
@@ -327,7 +422,7 @@ function FixtureMatchRow({
         </p>
         <p className="text-muted-foreground mt-1.5 text-[11px] leading-none">
           {view === "day"
-            ? (match.courtName ?? "Sin cancha")
+            ? (match.venueLabel ?? "Sin cancha")
             : formatIsoDate(match.matchDate)}
         </p>
       </div>
@@ -394,8 +489,10 @@ function GroupSection({
 export function TournamentFixtureBoard({
   clubId,
   tournamentId,
+  ownClubName,
   categories,
   matches,
+  courtBlocks,
   courts,
 }: Props) {
   const router = useRouter();
@@ -408,8 +505,8 @@ export function TournamentFixtureBoard({
   const [isPending, startTransition] = useTransition();
 
   const fixtureMatches = useMemo(
-    () => collectFixtureMatches(categories, matches),
-    [categories, matches],
+    () => collectFixtureMatches(categories, matches, ownClubName, courtBlocks),
+    [categories, matches, ownClubName, courtBlocks],
   );
 
   const courtOptions = useMemo(() => {
@@ -440,7 +537,7 @@ export function TournamentFixtureBoard({
   const groupedByCourt = useMemo(() => {
     const groups = new Map<string, FixtureMatch[]>();
     for (const match of fixtureMatches) {
-      const key = match.courtName ?? "Sin cancha";
+      const key = match.venueLabel ?? "Sin cancha";
       const bucket = groups.get(key) ?? [];
       bucket.push(match);
       groups.set(key, bucket);

@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Circle, Plus, Users } from "lucide-react";
+import { CheckCircle2, Circle, Plus, Trash2, Users } from "lucide-react";
 
 import {
+  cancelTournamentRegistrationAction,
   createClubTournamentRegistrationAction,
   updateRegistrationPaymentAction,
 } from "@/actions/tournaments";
@@ -176,6 +177,10 @@ export function TournamentInscriptionsBoard({
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [daySlots, setDaySlots] = useState<Record<string, TimeSlotId>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FlatRegistration | null>(
+    null,
+  );
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const allRegistrations = useMemo(() => flatten(categories), [categories]);
   const days = useMemo(
@@ -356,6 +361,25 @@ export function TournamentInscriptionsBoard({
 
   const selectedDayRows = days.filter((day) => selectedDays.includes(day.key));
 
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    setDeleteError(null);
+    startTransition(async () => {
+      const result = await cancelTournamentRegistrationAction(
+        clubId,
+        tournamentId,
+        deleteTarget.categoryId,
+        deleteTarget.id,
+      );
+      if (!result.ok) {
+        setDeleteError(result.error);
+        return;
+      }
+      setDeleteTarget(null);
+      router.refresh();
+    });
+  };
+
   const renderPlayerPayment = (
     reg: FlatRegistration,
     side: PaymentSide,
@@ -466,6 +490,7 @@ export function TournamentInscriptionsBoard({
                 <th className="px-3 py-3 font-medium">Preferencia</th>
                 <th className="px-3 py-3 font-medium">Inscripción</th>
                 <th className="py-3 pl-3 pr-5 font-medium">Pago por jugador</th>
+                <th className="w-12 py-3 pr-5 font-medium" aria-label="Acciones" />
               </tr>
             </thead>
             <tbody>
@@ -504,9 +529,23 @@ export function TournamentInscriptionsBoard({
                       {reg.createdAt.slice(0, 10)}
                     </span>
                   </td>
-                  <td className="space-y-2 py-4 pl-3 pr-5 align-middle">
+                  <td className="space-y-2 py-4 pl-3 pr-3 align-middle">
                     {renderPlayerPayment(reg, "player", reg.playerName)}
                     {renderPlayerPayment(reg, "partner", reg.partnerName)}
+                  </td>
+                  <td className="py-4 pr-5 align-middle">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteError(null);
+                        setDeleteTarget(reg);
+                      }}
+                      disabled={isPending}
+                      className="text-muted-foreground/70 rounded-md p-1.5 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label={`Eliminar pareja ${reg.playerName} / ${reg.partnerName}`}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -678,6 +717,53 @@ export function TournamentInscriptionsBoard({
                 Guardar pareja
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar pareja</DialogTitle>
+          </DialogHeader>
+          {deleteTarget ? (
+            <p className="text-sm text-muted-foreground">
+              ¿Eliminar la inscripción de{" "}
+              <strong className="font-medium text-foreground">
+                {deleteTarget.playerName} / {deleteTarget.partnerName}
+              </strong>{" "}
+              en {deleteTarget.categoryName}? Si ya estaba sorteada, se quitará
+              de las zonas y de los partidos pendientes.
+            </p>
+          ) : null}
+          {deleteError ? (
+            <p className="text-sm text-rose-600">{deleteError}</p>
+          ) : null}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isPending}
+            >
+              {isPending ? "Eliminando..." : "Eliminar pareja"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

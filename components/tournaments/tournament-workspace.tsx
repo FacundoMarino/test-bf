@@ -118,8 +118,10 @@ export function TournamentWorkspace({
         <TournamentFixtureBoard
           clubId={clubId}
           tournamentId={tournament.id}
+          ownClubName={ownClubName}
           categories={tournament.categories}
           matches={tournament.matches}
+          courtBlocks={tournament.courtBlocks}
           courts={courts}
         />
       ) : null}

@@ -264,7 +264,16 @@ export function TournamentDrawBoard({
             <Users className="size-3.5" />
             {selectedCategory?.registrations.length ?? 0} parejas ·{" "}
             {selectedCategory?.groupTeamsPerZone ?? 0} por zona →{" "}
-            {selectedCategory?.groupCount ?? 0} zonas
+            {selectedCategory
+              ? Math.max(
+                  1,
+                  Math.ceil(
+                    selectedCategory.registrations.length /
+                      Math.max(1, selectedCategory.groupTeamsPerZone),
+                  ),
+                )
+              : 0}{" "}
+            zonas
           </span>
           {hasUnsavedChanges ? (
             <Button
