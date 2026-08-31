@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import type { TournamentRecord } from "@/types/tournament";
+import type { TournamentCourtBlock, TournamentRecord } from "@/types/tournament";
 
 type CourtOption = {
   id: string;
@@ -390,6 +390,49 @@ function buildOwnCourtBlocksFromSchedules(
   return blocks;
 }
 
+function courtBlockGroupKey(block: TournamentCourtBlock) {
+  if (block.isExternal) {
+    return `ext:${block.externalClubName ?? ""}:${block.externalCourtName ?? ""}`;
+  }
+  return `own:${block.court?.id ?? ""}`;
+}
+
+/** Collapse persisted daily court blocks back into one range per cancha for editing. */
+function collapseCourtBlocksForEditor(
+  blocks: TournamentCourtBlock[],
+): CourtBlockDraft[] {
+  if (!blocks.length) return [];
+
+  const groups = new Map<string, TournamentCourtBlock[]>();
+  for (const block of blocks) {
+    const key = courtBlockGroupKey(block);
+    const group = groups.get(key) ?? [];
+    group.push(block);
+    groups.set(key, group);
+  }
+
+  return [...groups.values()].map((groupBlocks) => {
+    const sorted = [...groupBlocks].sort((a, b) => {
+      const dateCmp = a.date.slice(0, 10).localeCompare(b.date.slice(0, 10));
+      if (dateCmp !== 0) return dateCmp;
+      return a.startTimeMinutes - b.startTimeMinutes;
+    });
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+
+    return {
+      clientKey: crypto.randomUUID(),
+      id: first.id,
+      isExternal: first.isExternal,
+      courtId: first.court?.id ?? "",
+      externalClubName: first.externalClubName ?? "",
+      externalCourtName: first.externalCourtName ?? "",
+      startsAt: toDateTimeLocal(first.date, first.startTimeMinutes),
+      endsAt: toDateTimeLocal(last.date, last.endTimeMinutes),
+    };
+  });
+}
+
 function defaultCourtBlock(isExternal = false): CourtBlockDraft {
   return {
     clientKey: crypto.randomUUID(),
@@ -474,16 +517,7 @@ export function TournamentEditor({
 
   const [blocks, setBlocks] = useState<CourtBlockDraft[]>(
     tournament?.courtBlocks.length
-      ? tournament.courtBlocks.map((block) => ({
-          clientKey: crypto.randomUUID(),
-          id: block.id,
-          isExternal: block.isExternal,
-          courtId: block.court?.id ?? "",
-          externalClubName: block.externalClubName ?? "",
-          externalCourtName: block.externalCourtName ?? "",
-          startsAt: toDateTimeLocal(block.date, block.startTimeMinutes),
-          endsAt: toDateTimeLocal(block.date, block.endTimeMinutes),
-        }))
+      ? collapseCourtBlocksForEditor(tournament.courtBlocks)
       : [],
   );
   const [validatedOwnBlocks, setValidatedOwnBlocks] = useState<
