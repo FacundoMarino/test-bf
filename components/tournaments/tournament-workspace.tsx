@@ -144,6 +144,8 @@ export function TournamentWorkspace({
 
       {activeTab === "cuadros" ? (
         <TournamentKnockoutBoard
+          clubId={clubId}
+          tournamentId={tournament.id}
           categories={tournament.categories}
           knockoutMatches={tournament.matches.filter(
             (match) => match.phase === "KNOCKOUT",

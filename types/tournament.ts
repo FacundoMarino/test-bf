@@ -67,6 +67,8 @@ export type TournamentMatch = {
   winnerRegistrationId: string | null;
   isNoShow: boolean;
   noShowSide: number | null;
+  homeRegistrationId?: string | null;
+  awayRegistrationId?: string | null;
   matchDate: string | null;
   startTimeMinutes: number | null;
   court: { id: string; name: string } | null;
@@ -79,6 +81,12 @@ export type TournamentMatch = {
   } | null;
   homeRegistration: TournamentRegistration | null;
   awayRegistration: TournamentRegistration | null;
+  homeSlotManual?: boolean;
+  homeSlotBye?: boolean;
+  homeSlotKey?: string | null;
+  awaySlotManual?: boolean;
+  awaySlotBye?: boolean;
+  awaySlotKey?: string | null;
 };
 
 export type TournamentZone = {

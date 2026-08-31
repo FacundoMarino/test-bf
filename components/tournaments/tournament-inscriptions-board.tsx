@@ -93,18 +93,22 @@ function tournamentDaysBetween(startsAt: string, endsAt: string) {
 function buildPreferredTimeNotes(params: {
   days: Array<{ key: string; label: string }>;
   selectedDays: string[];
-  daySlots: Record<string, TimeSlotId>;
+  daySlots: Record<string, TimeSlotId[]>;
   notes: string;
 }) {
   const lines = params.days
     .filter((day) => params.selectedDays.includes(day.key))
     .map((day) => {
-      const slotId = params.daySlots[day.key] ?? "any";
-      const slotLabel =
-        TIME_SLOTS.find((slot) => slot.id === slotId)?.label ??
-        "En cualquier horario";
-      return `${day.label}: ${slotLabel}`;
-    });
+      const slotIds = params.daySlots[day.key] ?? [];
+      if (!slotIds.length) return null;
+      const slotLabels = slotIds.map(
+        (slotId) =>
+          TIME_SLOTS.find((slot) => slot.id === slotId)?.label ??
+          "En cualquier horario",
+      );
+      return `${day.label}: ${slotLabels.join(", ")}`;
+    })
+    .filter(Boolean) as string[];
   const notes = params.notes.trim();
   if (notes) lines.push(`Notas: ${notes}`);
   return lines.join("\n");
@@ -150,10 +154,10 @@ function firstName(fullName: string) {
 
 const emptyForm = {
   categoryId: "",
-  playerName: "",
-  playerContact: "",
-  partnerName: "",
-  partnerEmail: "",
+  player1Name: "",
+  player1Contact: "",
+  player2Name: "",
+  player2Contact: "",
   notes: "",
 };
 
@@ -175,7 +179,7 @@ export function TournamentInscriptionsBoard({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [daySlots, setDaySlots] = useState<Record<string, TimeSlotId>>({});
+  const [daySlots, setDaySlots] = useState<Record<string, TimeSlotId[]>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FlatRegistration | null>(
     null,
@@ -310,8 +314,22 @@ export function TournamentInscriptionsBoard({
         });
         return prev.filter((d) => d !== key);
       }
-      setDaySlots((slots) => ({ ...slots, [key]: slots[key] ?? "any" }));
+      setDaySlots((slots) => ({ ...slots, [key]: slots[key] ?? ["any"] }));
       return [...prev, key];
+    });
+  };
+
+  const toggleDaySlot = (dayKey: string, slotId: TimeSlotId) => {
+    setDaySlots((prev) => {
+      const current = prev[dayKey] ?? [];
+      if (slotId === "any") {
+        return { ...prev, [dayKey]: ["any"] };
+      }
+      const withoutAny = current.filter((id) => id !== "any");
+      const next = withoutAny.includes(slotId)
+        ? withoutAny.filter((id) => id !== slotId)
+        : [...withoutAny, slotId];
+      return { ...prev, [dayKey]: next.length ? next : ["any"] };
     });
   };
 
@@ -321,12 +339,24 @@ export function TournamentInscriptionsBoard({
       setFormError("Seleccioná una categoría.");
       return;
     }
-    if (!form.playerContact.trim()) {
-      setFormError("Indicá el mail o teléfono del jugador.");
+    if (!form.player1Contact.trim()) {
+      setFormError("Indicá el mail o teléfono del jugador 1.");
       return;
     }
-    if (!form.partnerName.trim()) {
-      setFormError("Indicá el nombre del compañero.");
+    if (!form.player2Name.trim()) {
+      setFormError("Indicá el nombre del jugador 2.");
+      return;
+    }
+    if (!form.player2Contact.trim()) {
+      setFormError("Indicá el mail o teléfono del jugador 2.");
+      return;
+    }
+
+    const missingSlots = selectedDays.some(
+      (dayKey) => !(daySlots[dayKey]?.length ?? 0),
+    );
+    if (selectedDays.length > 0 && missingSlots) {
+      setFormError("Elegí al menos un horario para cada día seleccionado.");
       return;
     }
 
@@ -343,10 +373,10 @@ export function TournamentInscriptionsBoard({
         tournamentId,
         form.categoryId,
         {
-          playerContact: form.playerContact.trim(),
-          playerName: form.playerName.trim() || undefined,
-          partnerName: form.partnerName.trim(),
-          partnerEmail: form.partnerEmail.trim() || undefined,
+          playerContact: form.player1Contact.trim(),
+          playerName: form.player1Name.trim() || undefined,
+          partnerName: form.player2Name.trim(),
+          partnerContact: form.player2Contact.trim(),
           preferredTimeNotes: preferredTimeNotes || undefined,
         },
       );
@@ -582,62 +612,80 @@ export function TournamentInscriptionsBoard({
               </select>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Nombre del jugador</Label>
-                <Input
-                  value={form.playerName}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, playerName: e.target.value }))
-                  }
-                  placeholder="Opcional (se completa desde Puntoo)"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Mail o teléfono del jugador</Label>
-                <Input
-                  value={form.playerContact}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      playerContact: e.target.value,
-                    }))
-                  }
-                  placeholder="mail@ejemplo.com o 351..."
-                />
+            <p className="text-muted-foreground rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs leading-relaxed">
+              Ambos jugadores deben tener cuenta en Puntoo. El mail o teléfono
+              tiene que coincidir con su usuario; el nombre lo cargás vos.
+            </p>
+
+            <div className="space-y-3 rounded-lg border border-border/70 p-3">
+              <p className="text-sm font-semibold text-foreground">Jugador 1</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Nombre</Label>
+                  <Input
+                    value={form.player1Name}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        player1Name: e.target.value,
+                      }))
+                    }
+                    placeholder="Ej: Nicolás Ramírez"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Mail o teléfono</Label>
+                  <Input
+                    value={form.player1Contact}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        player1Contact: e.target.value,
+                      }))
+                    }
+                    placeholder="mail@ejemplo.com o +54 9..."
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Nombre del compañero</Label>
-                <Input
-                  value={form.partnerName}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      partnerName: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Mail del compañero</Label>
-                <Input
-                  value={form.partnerEmail}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      partnerEmail: e.target.value,
-                    }))
-                  }
-                  placeholder="Opcional"
-                />
+            <div className="space-y-3 rounded-lg border border-border/70 p-3">
+              <p className="text-sm font-semibold text-foreground">Jugador 2</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Nombre</Label>
+                  <Input
+                    value={form.player2Name}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        player2Name: e.target.value,
+                      }))
+                    }
+                    placeholder="Ej: Martín Sosa"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Mail o teléfono</Label>
+                  <Input
+                    value={form.player2Contact}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        player2Contact: e.target.value,
+                      }))
+                    }
+                    placeholder="mail@ejemplo.com o +54 9..."
+                  />
+                </div>
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>Disponibilidad</Label>
+              <p className="text-muted-foreground text-xs">
+                Podés elegir más de un horario por día.
+              </p>
               <div className="flex flex-wrap gap-2">
                 {days.map((day) => {
                   const active = selectedDays.includes(day.key);
@@ -658,31 +706,31 @@ export function TournamentInscriptionsBoard({
                 })}
               </div>
               {selectedDayRows.length ? (
-                <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
                   {selectedDayRows.map((day) => (
-                    <div
-                      key={day.key}
-                      className="flex flex-wrap items-center gap-2"
-                    >
-                      <span className="min-w-28 text-xs font-medium">
-                        {day.label}
-                      </span>
-                      <select
-                        className="border-input bg-background h-8 flex-1 rounded-lg border px-2 text-xs"
-                        value={daySlots[day.key] ?? "any"}
-                        onChange={(e) =>
-                          setDaySlots((prev) => ({
-                            ...prev,
-                            [day.key]: e.target.value as TimeSlotId,
-                          }))
-                        }
-                      >
-                        {TIME_SLOTS.map((slot) => (
-                          <option key={slot.id} value={slot.id}>
-                            {slot.label}
-                          </option>
-                        ))}
-                      </select>
+                    <div key={day.key} className="space-y-2">
+                      <span className="text-xs font-semibold">{day.label}</span>
+                      <div className="flex flex-wrap gap-2">
+                        {TIME_SLOTS.map((slot) => {
+                          const active = (daySlots[day.key] ?? []).includes(
+                            slot.id,
+                          );
+                          return (
+                            <button
+                              key={slot.id}
+                              type="button"
+                              onClick={() => toggleDaySlot(day.key, slot.id)}
+                              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                active
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-background text-muted-foreground hover:bg-muted"
+                              }`}
+                            >
+                              {slot.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -169,6 +169,41 @@ export async function updateTournamentMatchResultAction(
   return { ok: true };
 }
 
+export type KnockoutMatchSlotPayload =
+  | { side: "home" | "away"; source: "bye" }
+  | { side: "home" | "away"; source: "previous" }
+  | {
+      side: "home" | "away";
+      source: "zone-rank";
+      zoneId: string;
+      rank: number;
+    }
+  | {
+      side: "home" | "away";
+      source: "registration";
+      registrationId: string;
+    };
+
+export async function updateKnockoutMatchSlotAction(
+  clubId: string,
+  tournamentId: string,
+  matchId: string,
+  payload: KnockoutMatchSlotPayload,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = await getTokenOrRedirect();
+  const res = await apiFetch(
+    `/clubs/${clubId}/tournaments/${tournamentId}/matches/${matchId}/knockout-slot`,
+    {
+      authToken: token,
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+  if (res.error) return { ok: false, error: res.error.message };
+  revalidatePath(`/dashboard/club/torneos/${tournamentId}`);
+  return { ok: true };
+}
+
 export async function getTournamentStandingsAction(
   clubId: string,
   tournamentId: string,
@@ -193,6 +228,7 @@ export async function createClubTournamentRegistrationAction(
     playerContact: string;
     playerName?: string;
     partnerName: string;
+    partnerContact?: string;
     partnerEmail?: string;
     preferredTimeNotes?: string;
   },

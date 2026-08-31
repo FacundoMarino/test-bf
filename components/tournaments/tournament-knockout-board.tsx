@@ -1,28 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Info, Trophy } from "lucide-react";
 
-import type { TournamentCategory, TournamentMatch } from "@/types/tournament";
-
-type SlotSource =
-  | { type: "zone-rank"; zoneName: string; rank: number }
-  | { type: "winner"; ref: string };
-
-type BracketMatch = {
-  orderInRound: number;
-  home: SlotSource;
-  away: SlotSource;
-  dbMatch?: TournamentMatch;
-};
+import { updateKnockoutMatchSlotAction } from "@/actions/tournaments";
+import type {
+  TournamentCategory,
+  TournamentMatch,
+  TournamentRegistration,
+} from "@/types/tournament";
 
 type BracketRound = {
   label: string;
-  shortPrefix: string;
-  matches: BracketMatch[];
+  roundNumber: number;
+  matches: TournamentMatch[];
 };
 
 type Props = {
+  clubId: string;
+  tournamentId: string;
   categories: TournamentCategory[];
   knockoutMatches: TournamentMatch[];
 };
@@ -36,50 +33,41 @@ function getRoundLabel(roundIndex: number, totalRounds: number) {
   return `RONDA ${roundIndex + 1}`;
 }
 
-function getRoundShortPrefix(label: string) {
-  if (label === "SEMIFINAL") return "SF";
-  if (label.includes("CUARTOS")) return "CF";
-  if (label.includes("OCTAVOS")) return "OF";
-  if (label === "FINAL") return "F";
-  return "R";
+function formatPairLabel(registration: TournamentRegistration | null | undefined) {
+  if (!registration) return "—";
+  const player = registration.playerProfile.fullName ?? "Jugador";
+  return `${player} / ${registration.partnerName}`;
 }
 
-function formatSlotLabel(source: SlotSource) {
-  if (source.type === "zone-rank") {
-    return `${source.rank}º ${source.zoneName}`;
+function zoneRankOptions(category: TournamentCategory) {
+  const zones = [...category.zones].sort((a, b) => a.order - b.order);
+  const ranks = Math.max(1, category.groupQualifiers ?? 2);
+  const options: Array<{ value: string; label: string; zoneId: string; rank: number }> =
+    [];
+  for (const zone of zones) {
+    for (let rank = 1; rank <= ranks; rank += 1) {
+      options.push({
+        value: `zone:${zone.id}:${rank}`,
+        label: `${rank}° ${zone.name}`,
+        zoneId: zone.id,
+        rank,
+      });
+    }
   }
-  return `Ganador ${source.ref}`;
+  return options;
 }
 
-function buildFirstRoundSlot(
-  zones: TournamentCategory["zones"],
-  matchIndex: number,
-): { home: SlotSource; away: SlotSource } {
-  const sortedZones = [...zones].sort((a, b) => a.order - b.order);
-  if (!sortedZones.length) {
-    return {
-      home: { type: "zone-rank", zoneName: "Zona A", rank: 1 },
-      away: { type: "zone-rank", zoneName: "Zona B", rank: 2 },
-    };
-  }
-
-  const zoneA = sortedZones[matchIndex % sortedZones.length];
-  const zoneB = sortedZones[(matchIndex + 1) % sortedZones.length];
-
-  if (matchIndex % 2 === 0) {
-    return {
-      home: { type: "zone-rank", zoneName: zoneA.name, rank: 1 },
-      away: { type: "zone-rank", zoneName: zoneB.name, rank: 2 },
-    };
-  }
-
-  return {
-    home: { type: "zone-rank", zoneName: zoneB.name, rank: 1 },
-    away: { type: "zone-rank", zoneName: zoneA.name, rank: 2 },
-  };
+function pairOptions(category: TournamentCategory) {
+  return category.registrations.map((registration) => ({
+    id: registration.id,
+    label: formatPairLabel(registration),
+  }));
 }
 
-function buildKnockoutRounds(category: TournamentCategory): BracketRound[] {
+function buildKnockoutRounds(
+  category: TournamentCategory,
+  knockoutMatches: TournamentMatch[],
+): BracketRound[] {
   const firstRoundMatches = Math.max(1, category.knockoutFirstRoundMatches);
   const roundMatchCounts: number[] = [];
   let count = firstRoundMatches;
@@ -88,140 +76,211 @@ function buildKnockoutRounds(category: TournamentCategory): BracketRound[] {
     count = Math.floor(count / 2);
   }
 
-  const totalRounds = roundMatchCounts.length;
-  const rounds: BracketRound[] = [];
-
-  for (let roundIndex = 0; roundIndex < totalRounds; roundIndex += 1) {
-    const label = getRoundLabel(roundIndex, totalRounds);
-    const shortPrefix = getRoundShortPrefix(label);
-    const matchCount = roundMatchCounts[roundIndex];
-    const matches: BracketMatch[] = [];
-
-    for (let matchIndex = 0; matchIndex < matchCount; matchIndex += 1) {
-      if (roundIndex === 0) {
-        const slot = buildFirstRoundSlot(category.zones, matchIndex);
-        matches.push({
-          orderInRound: matchIndex + 1,
-          home: slot.home,
-          away: slot.away,
-        });
-      } else {
-        const prevLabel = getRoundLabel(roundIndex - 1, totalRounds);
-        const prevPrefix = getRoundShortPrefix(prevLabel);
-        matches.push({
-          orderInRound: matchIndex + 1,
-          home: { type: "winner", ref: `${prevPrefix}${matchIndex * 2 + 1}` },
-          away: { type: "winner", ref: `${prevPrefix}${matchIndex * 2 + 2}` },
-        });
-      }
-    }
-
-    rounds.push({ label, shortPrefix, matches });
-  }
-
-  return rounds;
-}
-
-function attachDbMatches(
-  rounds: BracketRound[],
-  knockoutMatches: TournamentMatch[],
-): BracketRound[] {
   const byRound = new Map<number, TournamentMatch[]>();
   for (const match of knockoutMatches) {
     const bucket = byRound.get(match.roundNumber) ?? [];
     bucket.push(match);
     byRound.set(match.roundNumber, bucket);
   }
-
   for (const [, bucket] of byRound) {
     bucket.sort((a, b) => a.orderInRound - b.orderInRound);
   }
 
-  return rounds.map((round, roundIndex) => ({
-    ...round,
-    matches: round.matches.map((match, matchIndex) => ({
-      ...match,
-      dbMatch: byRound.get(roundIndex + 1)?.[matchIndex],
-    })),
+  return roundMatchCounts.map((matchCount, roundIndex) => ({
+    label: getRoundLabel(roundIndex, roundMatchCounts.length),
+    roundNumber: roundIndex + 1,
+    matches: Array.from({ length: matchCount }, (_, matchIndex) => {
+      return (
+        byRound.get(roundIndex + 1)?.[matchIndex] ?? {
+          id: `placeholder-${roundIndex + 1}-${matchIndex + 1}`,
+          categoryId: category.id,
+          phase: "KNOCKOUT" as const,
+          roundNumber: roundIndex + 1,
+          orderInRound: matchIndex + 1,
+          status: "PENDING" as const,
+          homeGames: null,
+          awayGames: null,
+          setScores: null,
+          winnerRegistrationId: null,
+          isNoShow: false,
+          noShowSide: null,
+          matchDate: null,
+          startTimeMinutes: null,
+          court: null,
+          courtBlock: null,
+          homeRegistration: null,
+          awayRegistration: null,
+        }
+      );
+    }),
   }));
 }
 
-function pairOptions(category: TournamentCategory) {
-  return category.registrations.map((registration) => ({
-    id: registration.id,
-    label: `${registration.playerProfile.fullName ?? "Jugador"} / ${registration.partnerName}`,
-  }));
+function getSlotSelectValue(
+  match: TournamentMatch,
+  side: "home" | "away",
+  isFirstRound: boolean,
+) {
+  const manual = side === "home" ? match.homeSlotManual : match.awaySlotManual;
+  const bye = side === "home" ? match.homeSlotBye : match.awaySlotBye;
+  const key = side === "home" ? match.homeSlotKey : match.awaySlotKey;
+  const registrationId =
+    side === "home" ? match.homeRegistrationId : match.awayRegistrationId;
+
+  if (bye) return "bye";
+  if (manual && registrationId) return `registration:${registrationId}`;
+  if (key?.startsWith("zone:")) return key;
+  if (!isFirstRound || key === "prev") return "previous";
+  return "";
 }
 
-function zoneRankOptions(category: TournamentCategory) {
-  const zones = [...category.zones].sort((a, b) => a.order - b.order);
-  const ranks = Math.max(1, category.groupQualifiers ?? 2);
-  const options: Array<{ value: string; label: string }> = [];
-  for (const zone of zones) {
-    for (let rank = 1; rank <= ranks; rank += 1) {
-      const label = `${rank}º ${zone.name}`;
-      options.push({ value: `zone:${zone.id}:${rank}`, label });
-    }
+function slotSourceLabel(
+  match: TournamentMatch,
+  side: "home" | "away",
+  isFirstRound: boolean,
+  zoneOptions: ReturnType<typeof zoneRankOptions>,
+) {
+  const value = getSlotSelectValue(match, side, isFirstRound);
+  if (value === "bye") return "BYE";
+  if (value === "previous") return "Ganador de la ronda anterior";
+  if (value.startsWith("zone:")) {
+    return zoneOptions.find((option) => option.value === value)?.label ?? value;
   }
-  return options;
+  if (value.startsWith("registration:")) return "Pareja manual";
+  return isFirstRound ? "Clasificado de zona" : "Ganador de la ronda anterior";
 }
 
 function MatchSlot({
-  source,
+  match,
+  side,
   isFirstRound,
   zoneOptions,
-  pairOptions: pairs,
+  pairs,
+  clubId,
+  tournamentId,
+  disabled,
 }: {
-  source: SlotSource;
+  match: TournamentMatch;
+  side: "home" | "away";
   isFirstRound: boolean;
-  zoneOptions: Array<{ value: string; label: string }>;
-  pairOptions: Array<{ id: string; label: string }>;
+  zoneOptions: ReturnType<typeof zoneRankOptions>;
+  pairs: ReturnType<typeof pairOptions>;
+  clubId: string;
+  tournamentId: string;
+  disabled: boolean;
 }) {
-  const label = formatSlotLabel(source);
-  const defaultValue = isFirstRound
-    ? (zoneOptions.find((option) => option.label === label)?.value ?? label)
-    : "__prev_winner__";
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const registration =
+    side === "home" ? match.homeRegistration : match.awayRegistration;
+  const isBye = side === "home" ? match.homeSlotBye : match.awaySlotBye;
+  const selectValue = getSlotSelectValue(match, side, isFirstRound);
+  const advances =
+    Boolean(match.winnerRegistrationId) &&
+    match.winnerRegistrationId ===
+      (side === "home" ? match.homeRegistrationId : match.awayRegistrationId);
+
+  const handleChange = (rawValue: string) => {
+    if (!match.id || match.id.startsWith("placeholder-") || disabled) return;
+    setError(null);
+
+    const payload =
+      rawValue === "bye"
+        ? { side, source: "bye" as const }
+        : rawValue === "previous"
+          ? { side, source: "previous" as const }
+          : rawValue.startsWith("zone:")
+            ? (() => {
+                const [, zoneId, rankRaw] = rawValue.split(":");
+                return {
+                  side,
+                  source: "zone-rank" as const,
+                  zoneId,
+                  rank: Number(rankRaw),
+                };
+              })()
+            : rawValue.startsWith("registration:")
+              ? {
+                  side,
+                  source: "registration" as const,
+                  registrationId: rawValue.replace("registration:", ""),
+                }
+              : null;
+
+    if (!payload) return;
+
+    startTransition(async () => {
+      const result = await updateKnockoutMatchSlotAction(
+        clubId,
+        tournamentId,
+        match.id,
+        payload,
+      );
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
 
   return (
-    <div className="space-y-1">
-      <p className="text-[12px] font-semibold leading-none text-foreground">
-        {label}
-      </p>
+    <div className="space-y-1.5">
       <div className="flex items-center gap-2">
-        <select
-          className="border-muted-foreground/35 text-foreground h-9 min-w-0 flex-1 rounded-md border border-dashed bg-white px-2.5 text-[12px] outline-none"
-          defaultValue={defaultValue}
+        <p
+          className={`text-[12px] font-semibold leading-snug ${
+            advances ? "text-primary underline decoration-primary/70" : "text-foreground"
+          }`}
         >
-          {isFirstRound ? (
-            <>
-              {zoneOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-              {pairs.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </>
-          ) : (
-            <>
-              <option value="__prev_winner__">
-                Ganador de la ronda anterior
-              </option>
-              {pairs.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </>
-          )}
-        </select>
-        <span className="text-muted-foreground/70 shrink-0 text-[11px] italic">
-          {label}
-        </span>
+          {isBye ? "—" : formatPairLabel(registration)}
+        </p>
+        {advances ? (
+          <span className="bg-primary/10 text-primary shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase">
+            pasa
+          </span>
+        ) : null}
       </div>
+      <select
+        className="border-muted-foreground/35 text-foreground h-9 w-full rounded-md border border-dashed bg-white px-2.5 text-[12px] outline-none disabled:opacity-60"
+        value={selectValue}
+        disabled={disabled || isPending || match.id.startsWith("placeholder-")}
+        onChange={(event) => handleChange(event.target.value)}
+      >
+        {isFirstRound ? (
+          <>
+            <option value="" disabled>
+              Elegí origen del slot
+            </option>
+            {zoneOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value="bye">BYE</option>
+            {pairs.map((option) => (
+              <option key={option.id} value={`registration:${option.id}`}>
+                {option.label}
+              </option>
+            ))}
+          </>
+        ) : (
+          <>
+            <option value="previous">Ganador de la ronda anterior</option>
+            <option value="bye">BYE</option>
+            {pairs.map((option) => (
+              <option key={option.id} value={`registration:${option.id}`}>
+                {option.label}
+              </option>
+            ))}
+          </>
+        )}
+      </select>
+      <p className="text-muted-foreground text-[11px]">
+        {slotSourceLabel(match, side, isFirstRound, zoneOptions)}
+      </p>
+      {error ? <p className="text-destructive text-[11px]">{error}</p> : null}
     </div>
   );
 }
@@ -230,13 +289,19 @@ function MatchCard({
   match,
   isFirstRound,
   zoneOptions,
-  pairOptions: pairs,
+  pairs,
+  clubId,
+  tournamentId,
 }: {
-  match: BracketMatch;
+  match: TournamentMatch;
   isFirstRound: boolean;
-  zoneOptions: Array<{ value: string; label: string }>;
-  pairOptions: Array<{ id: string; label: string }>;
+  zoneOptions: ReturnType<typeof zoneRankOptions>;
+  pairs: ReturnType<typeof pairOptions>;
+  clubId: string;
+  tournamentId: string;
 }) {
+  const disabled = match.status === "FINISHED";
+
   return (
     <article className="overflow-hidden rounded-xl border border-border/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <header className="border-b border-border/60 bg-[#F8F9FB] px-3.5 py-1.5">
@@ -246,19 +311,27 @@ function MatchCard({
       </header>
       <div className="space-y-2.5 px-3.5 py-3">
         <MatchSlot
-          source={match.home}
+          match={match}
+          side="home"
           isFirstRound={isFirstRound}
           zoneOptions={zoneOptions}
-          pairOptions={pairs}
+          pairs={pairs}
+          clubId={clubId}
+          tournamentId={tournamentId}
+          disabled={disabled}
         />
         <p className="text-center text-[11px] font-medium text-muted-foreground">
           vs
         </p>
         <MatchSlot
-          source={match.away}
+          match={match}
+          side="away"
           isFirstRound={isFirstRound}
           zoneOptions={zoneOptions}
-          pairOptions={pairs}
+          pairs={pairs}
+          clubId={clubId}
+          tournamentId={tournamentId}
+          disabled={disabled}
         />
       </div>
     </article>
@@ -266,6 +339,8 @@ function MatchCard({
 }
 
 export function TournamentKnockoutBoard({
+  clubId,
+  tournamentId,
   categories,
   knockoutMatches,
 }: Props) {
@@ -289,8 +364,7 @@ export function TournamentKnockoutBoard({
 
   const rounds = useMemo(() => {
     if (!selectedCategory) return [];
-    const built = buildKnockoutRounds(selectedCategory);
-    return attachDbMatches(built, categoryKnockoutMatches);
+    return buildKnockoutRounds(selectedCategory, categoryKnockoutMatches);
   }, [selectedCategory, categoryKnockoutMatches]);
 
   const options = useMemo(
@@ -352,11 +426,13 @@ export function TournamentKnockoutBoard({
                 >
                   {round.matches.map((match) => (
                     <MatchCard
-                      key={`${round.label}-${match.orderInRound}`}
+                      key={match.id}
                       match={match}
                       isFirstRound={roundIndex === 0}
                       zoneOptions={zoneOptions}
-                      pairOptions={options}
+                      pairs={options}
+                      clubId={clubId}
+                      tournamentId={tournamentId}
                     />
                   ))}
                 </div>
@@ -373,7 +449,7 @@ export function TournamentKnockoutBoard({
 
       <p className="text-muted-foreground inline-flex max-w-4xl items-start gap-2 text-xs leading-relaxed">
         <Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
-        En la primera ronda elegí el clasificado de cada zona (1º, 2º, 3º...) o
+        En la primera ronda elegí el clasificado de cada zona (1°, 2°, 3°...) o
         una pareja manualmente. En las rondas siguientes viene por defecto el
         ganador de la ronda anterior según los resultados cargados, y también
         podés elegir una pareja manualmente.

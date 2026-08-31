@@ -104,6 +104,10 @@ function formatMatchVenueLabel(
   return courtName;
 }
 
+function resolveMatchCourtId(match: TournamentMatch) {
+  return match.court?.id ?? match.courtBlock?.court?.id ?? null;
+}
+
 function mapFixtureMatch(
   match: TournamentMatch,
   category: TournamentCategory,
@@ -136,7 +140,7 @@ function mapFixtureMatch(
     isRoundWindow: params.isRoundWindow,
     matchDate: match.matchDate,
     startTimeMinutes: match.startTimeMinutes,
-    courtId: match.court?.id ?? null,
+    courtId: resolveMatchCourtId(match),
     courtName: venueLabel,
     venueLabel,
     durationMin: params.durationMin,
@@ -215,27 +219,109 @@ function buildFirstRoundSlot(
   if (!sortedZones.length) {
     return {
       home: "1° Zona A",
-      away: "2° Zona B",
+      away: "BYE",
     };
   }
 
-  const zoneA = sortedZones[matchIndex % sortedZones.length];
-  const zoneB = sortedZones[(matchIndex + 1) % sortedZones.length];
-
-  if (matchIndex % 2 === 0) {
+  const zoneCount = sortedZones.length;
+  if (zoneCount % 2 === 1 && matchIndex === 0) {
     return {
-      home: `1° ${zoneA.name}`,
-      away: `2° ${zoneB.name}`,
+      home: `1° ${sortedZones[0].name}`,
+      away: "BYE",
     };
   }
+
+  const base = zoneCount % 2 === 1 ? 1 : 0;
+  const offset = zoneCount % 2 === 1 ? matchIndex - 1 : matchIndex;
+  const homeIdx = base + offset * 2;
+  const awayIdx = homeIdx + 1;
+  const homeZone = sortedZones[homeIdx];
+  const awayZone = sortedZones[awayIdx];
 
   return {
-    home: `1° ${zoneB.name}`,
-    away: `2° ${zoneA.name}`,
+    home: homeZone ? `1° ${homeZone.name}` : "A definir",
+    away: awayZone ? `1° ${awayZone.name}` : "BYE",
   };
 }
 
+function formatZoneSlotKey(
+  key: string | null | undefined,
+  zones: TournamentCategory["zones"],
+) {
+  if (!key?.startsWith("zone:")) return null;
+  const [, zoneId, rankRaw] = key.split(":");
+  const zone = zones.find((row) => row.id === zoneId);
+  if (!zone) return null;
+  return `${rankRaw}° ${zone.name}`;
+}
+
+function getKnockoutStageLabel(
+  category: TournamentCategory,
+  roundNumber: number,
+  orderInRound: number,
+) {
+  const { label, roundIndex, roundMatchCounts } = getKnockoutRoundMeta(
+    category,
+    roundNumber,
+  );
+  const matchCount = roundMatchCounts[roundIndex] ?? 1;
+  if (matchCount <= 1) return label;
+  return `${label} ${orderInRound}`;
+}
+
 function getKnockoutSlotLabels(
+  match: TournamentMatch,
+  category: TournamentCategory,
+  roundNumber: number,
+  orderInRound: number,
+) {
+  if (match.homeSlotBye) {
+    return {
+      home: "BYE",
+      away: match.awayRegistration
+        ? pairLabel(match.awayRegistration)
+        : formatZoneSlotKey(match.awaySlotKey, category.zones) ??
+          buildFirstRoundSlot(category.zones, orderInRound - 1).away,
+    };
+  }
+  if (match.awaySlotBye) {
+    return {
+      home: match.homeRegistration
+        ? pairLabel(match.homeRegistration)
+        : formatZoneSlotKey(match.homeSlotKey, category.zones) ??
+          buildFirstRoundSlot(category.zones, orderInRound - 1).home,
+      away: "BYE",
+    };
+  }
+
+  const homeFromKey = formatZoneSlotKey(match.homeSlotKey, category.zones);
+  const awayFromKey = formatZoneSlotKey(match.awaySlotKey, category.zones);
+  const { roundIndex } = getKnockoutRoundMeta(category, roundNumber);
+
+  if (roundIndex <= 0) {
+    const fallback = buildFirstRoundSlot(category.zones, orderInRound - 1);
+    return {
+      home: homeFromKey ?? fallback.home,
+      away: awayFromKey ?? fallback.away,
+    };
+  }
+
+  if (homeFromKey || awayFromKey) {
+    const prev = getKnockoutWinnerSlotLabels(
+      category,
+      roundNumber,
+      orderInRound,
+    );
+    return {
+      home: homeFromKey ?? prev.home,
+      away: awayFromKey ?? prev.away,
+    };
+  }
+
+  return getKnockoutWinnerSlotLabels(category, roundNumber, orderInRound);
+}
+
+function getKnockoutWinnerSlotLabels(
   category: TournamentCategory,
   roundNumber: number,
   orderInRound: number,
@@ -301,8 +387,13 @@ function collectFixtureMatches(
     const category = categoryById.get(match.categoryId);
     if (!category) continue;
 
-    const { label } = getKnockoutRoundMeta(category, match.roundNumber);
+    const stageLabel = getKnockoutStageLabel(
+      category,
+      match.roundNumber,
+      match.orderInRound,
+    );
     const slots = getKnockoutSlotLabels(
+      match,
       category,
       match.roundNumber,
       match.orderInRound,
@@ -311,7 +402,7 @@ function collectFixtureMatches(
     items.push(
       mapFixtureMatch(match, category, {
         phase: "KNOCKOUT",
-        stageLabel: label,
+        stageLabel,
         isRoundWindow: true,
         homeLabel: match.homeRegistration
           ? pairLabel(match.homeRegistration)
@@ -404,6 +495,17 @@ function MatchBadges({ match }: { match: FixtureMatch }) {
   );
 }
 
+function schedulesOverlap(
+  aStart: number,
+  aDuration: number,
+  bStart: number,
+  bDuration: number,
+) {
+  const aEnd = aStart + aDuration;
+  const bEnd = bStart + bDuration;
+  return aStart < bEnd && aEnd > bStart;
+}
+
 function FixtureMatchRow({
   match,
   view,
@@ -437,8 +539,9 @@ function FixtureMatchRow({
         type="button"
         disabled={!canEdit}
         onClick={() => onEdit(match)}
-        className="text-muted-foreground/70 shrink-0 rounded-md p-1.5 hover:bg-muted/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        className="text-muted-foreground/70 shrink-0 cursor-pointer rounded-md p-1.5 hover:bg-muted/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
         aria-label="Editar partido"
+        title={canEdit ? "Editar fecha, hora y cancha" : "Partido finalizado"}
       >
         <Pencil className="size-4" />
       </button>
@@ -574,6 +677,25 @@ export function TournamentFixtureBoard({
       return;
     }
 
+    const conflict = fixtureMatches.find((match) => {
+      if (match.id === editing.id) return false;
+      if (match.courtId !== courtId) return false;
+      if ((match.matchDate?.slice(0, 10) ?? "") !== dateValue) return false;
+      if (match.startTimeMinutes === null) return false;
+      return schedulesOverlap(
+        startTimeMinutes,
+        editing.durationMin,
+        match.startTimeMinutes,
+        match.durationMin,
+      );
+    });
+    if (conflict) {
+      setError(
+        `El horario se superpone con ${conflict.stageLabel} (${conflict.homeLabel} vs ${conflict.awayLabel}).`,
+      );
+      return;
+    }
+
     startTransition(async () => {
       const result = await updateTournamentMatchScheduleAction(
         clubId,
@@ -639,7 +761,7 @@ export function TournamentFixtureBoard({
       ) : (
         <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
           Todavía no hay partidos programados. Generá el sorteo para armar el
-          fixture de grupos.
+          fixture completo (grupos y cuadros).
         </div>
       )}
 

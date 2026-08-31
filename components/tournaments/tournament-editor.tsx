@@ -1559,19 +1559,27 @@ export function TournamentEditor({
                 const showCheck = Boolean(
                   status?.ready && validatedOwnBlocks[block.clientKey],
                 );
+                const isPersistedBlock = Boolean(block.id);
                 return (
                   <div
                     key={block.id ?? `own-${ownIndex}`}
                     className="rounded-lg border border-border/80 p-3"
                   >
+                    {isPersistedBlock ? (
+                      <p className="text-muted-foreground mb-2 text-[11px] leading-snug">
+                        Este bloque ya bloquea turnos en el calendario. Para
+                        cambiarlo, eliminá esta fila y agregá una nueva.
+                      </p>
+                    ) : null}
                     <div className="grid gap-2 sm:grid-cols-12">
                       <div className="space-y-1 sm:col-span-3">
                         <Label className="text-muted-foreground text-[11px]">
                           Cancha
                         </Label>
                         <select
-                          className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm"
+                          className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                           value={block.courtId}
+                          disabled={isPersistedBlock}
                           onChange={(e) =>
                             applyBlockChange(globalIndex, {
                               courtId: e.target.value,
@@ -1592,8 +1600,9 @@ export function TournamentEditor({
                         </Label>
                         <Input
                           type="datetime-local"
-                          className="h-10 rounded-lg"
+                          className="h-10 rounded-lg disabled:cursor-not-allowed disabled:opacity-60"
                           value={block.startsAt}
+                          disabled={isPersistedBlock}
                           onChange={(e) =>
                             applyBlockChange(globalIndex, {
                               startsAt: e.target.value,
@@ -1607,19 +1616,21 @@ export function TournamentEditor({
                         </Label>
                         <Input
                           type="datetime-local"
-                          className="h-10 rounded-lg"
+                          className="h-10 rounded-lg disabled:cursor-not-allowed disabled:opacity-60"
                           value={block.endsAt}
+                          disabled={isPersistedBlock}
                           onChange={(e) =>
                             applyBlockChange(globalIndex, {
                               endsAt: e.target.value,
                             })
                           }
-                          onBlur={() =>
+                          onBlur={() => {
+                            if (isPersistedBlock) return;
                             setValidatedOwnBlocks((prev) => ({
                               ...prev,
                               [block.clientKey]: true,
-                            }))
-                          }
+                            }));
+                          }}
                         />
                       </div>
                       <div className="sm:col-span-1 flex items-end justify-end gap-1">
