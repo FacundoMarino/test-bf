@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { Route } from "next";
 import { CalendarDays, Eye, Pencil, Users, Trophy } from "lucide-react";
 
 import { listClubTournamentsAction } from "@/actions/tournaments";
@@ -36,7 +37,7 @@ function TournamentActions({
   tournamentId: string;
   compact?: boolean;
 }) {
-  const href = `/dashboard/club/torneos/${tournamentId}`;
+  const href = `/dashboard/club/torneos/${tournamentId}` as Route;
   if (compact) {
     return (
       <div className="inline-flex items-center gap-2">
