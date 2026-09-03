@@ -65,24 +65,26 @@ export function TournamentWorkspace({
   const [activeTab, setActiveTab] = useState<TabId>("configuracion");
 
   return (
-    <>
-      <section className="rounded-xl border border-border bg-card p-2">
-        <div className="flex flex-wrap gap-1">
-          {tabs.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
-                activeTab === id
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              <Icon className="size-3.5" />
-              {label}
-            </button>
-          ))}
+    <div className="min-w-0 space-y-4">
+      <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-card p-2">
+        <div className="-mx-1 overflow-x-auto">
+          <div className="flex min-w-max gap-1 px-1">
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
+                  activeTab === id
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Icon className="size-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -152,6 +154,6 @@ export function TournamentWorkspace({
           )}
         />
       ) : null}
-    </>
+    </div>
   );
 }

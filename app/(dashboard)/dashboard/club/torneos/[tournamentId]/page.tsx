@@ -101,8 +101,8 @@ export default async function TournamentDetailPage({
   );
 
   return (
-    <div className="w-full space-y-6">
-      <section className="rounded-2xl border border-border/80 bg-card px-5 py-4 shadow-sm">
+    <div className="w-full min-w-0 space-y-4 overflow-x-hidden">
+      <section className="rounded-2xl border border-border/80 bg-card px-3 py-4 shadow-sm sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
@@ -126,7 +126,7 @@ export default async function TournamentDetailPage({
         </div>
       </section>
 
-      <section className="rounded-xl border border-border bg-card p-2">
+      <div className="min-w-0">
         <TournamentWorkspace
           clubId={ctx.club.id}
           ownClubName={ctx.club.name}
@@ -136,7 +136,7 @@ export default async function TournamentDetailPage({
             standingsByCategory.entries(),
           )}
         />
-      </section>
+      </div>
     </div>
   );
 }

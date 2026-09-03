@@ -280,16 +280,16 @@ function getKnockoutSlotLabels(
       home: "BYE",
       away: match.awayRegistration
         ? pairLabel(match.awayRegistration)
-        : formatZoneSlotKey(match.awaySlotKey, category.zones) ??
-          buildFirstRoundSlot(category.zones, orderInRound - 1).away,
+        : (formatZoneSlotKey(match.awaySlotKey, category.zones) ??
+          buildFirstRoundSlot(category.zones, orderInRound - 1).away),
     };
   }
   if (match.awaySlotBye) {
     return {
       home: match.homeRegistration
         ? pairLabel(match.homeRegistration)
-        : formatZoneSlotKey(match.homeSlotKey, category.zones) ??
-          buildFirstRoundSlot(category.zones, orderInRound - 1).home,
+        : (formatZoneSlotKey(match.homeSlotKey, category.zones) ??
+          buildFirstRoundSlot(category.zones, orderInRound - 1).home),
       away: "BYE",
     };
   }
@@ -434,13 +434,13 @@ function FixtureViewToggle({
   onChange: (view: FixtureView) => void;
 }) {
   return (
-    <div className="rounded-xl border border-border/80 border-l-4 border-l-primary bg-card px-4 py-3 shadow-sm">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="inline-flex rounded-full border border-border/80 bg-background p-1">
+    <div className="rounded-xl border border-border/80 border-l-4 border-l-primary bg-card px-3 py-3 shadow-sm sm:px-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="inline-flex w-full rounded-full border border-border/80 bg-background p-1 sm:w-auto">
           <button
             type="button"
             onClick={() => onChange("day")}
-            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
               view === "day"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-foreground/80 hover:text-foreground"
@@ -454,7 +454,7 @@ function FixtureViewToggle({
           <button
             type="button"
             onClick={() => onChange("court")}
-            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
               view === "court"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-foreground/80 hover:text-foreground"

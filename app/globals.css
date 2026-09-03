@@ -89,6 +89,23 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
+  input[type="datetime-local"],
+  input[type="date"],
+  input[type="time"] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  input[type="datetime-local"]::-webkit-datetime-edit,
+  input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+    min-width: 0;
+    padding: 0;
+  }
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
 }
 
 /* Pantalla auth: fondo claro suave (estilo events-starter) */

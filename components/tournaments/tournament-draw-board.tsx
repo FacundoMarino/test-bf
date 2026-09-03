@@ -237,11 +237,11 @@ export function TournamentDrawBoard({
   if (!categories.length) return null;
 
   return (
-    <section className="space-y-3 p-4">
+    <section className="min-w-0 space-y-3 p-3 sm:p-4">
       <div className="space-y-2 rounded-xl border border-border/80 border-l-4 border-l-primary bg-card p-3">
         <div className="flex flex-wrap items-center gap-2">
           <select
-            className="border-input bg-background h-10 min-w-52 rounded-lg border px-3 text-sm"
+            className="border-input bg-background h-10 w-full min-w-0 rounded-lg border px-3 text-sm sm:w-auto"
             value={selectedCategoryId}
             onChange={(event) => setSelectedCategoryId(event.target.value)}
           >

@@ -169,26 +169,17 @@ export async function updateTournamentMatchResultAction(
   return { ok: true };
 }
 
-export type KnockoutMatchSlotPayload =
-  | { side: "home" | "away"; source: "bye" }
-  | { side: "home" | "away"; source: "previous" }
-  | {
-      side: "home" | "away";
-      source: "zone-rank";
-      zoneId: string;
-      rank: number;
-    }
-  | {
-      side: "home" | "away";
-      source: "registration";
-      registrationId: string;
-    };
-
 export async function updateKnockoutMatchSlotAction(
   clubId: string,
   tournamentId: string,
   matchId: string,
-  payload: KnockoutMatchSlotPayload,
+  payload: {
+    side: "home" | "away";
+    source: "zone-rank" | "registration" | "previous" | "bye";
+    zoneId?: string;
+    rank?: number;
+    registrationId?: string;
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = await getTokenOrRedirect();
   const res = await apiFetch(
@@ -228,8 +219,7 @@ export async function createClubTournamentRegistrationAction(
     playerContact: string;
     playerName?: string;
     partnerName: string;
-    partnerContact?: string;
-    partnerEmail?: string;
+    partnerContact: string;
     preferredTimeNotes?: string;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {

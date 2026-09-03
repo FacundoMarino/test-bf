@@ -114,14 +114,14 @@ export function TournamentStandingsBoard({
   const hasRows = zones.some((zone) => zone.rows.length > 0);
 
   return (
-    <section className="space-y-4 p-4">
+    <section className="min-w-0 space-y-4 p-3 sm:p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="inline-flex items-center gap-2 text-lg font-semibold text-foreground">
           <BarChart3 className="size-5 text-primary" />
           Clasificación
         </h2>
         <select
-          className="border-input bg-background h-10 min-w-48 rounded-lg border px-3 text-sm"
+          className="border-input bg-background h-10 w-full min-w-0 rounded-lg border px-3 text-sm sm:w-auto"
           value={selectedCategoryId}
           onChange={(e) => setSelectedCategoryId(e.target.value)}
         >

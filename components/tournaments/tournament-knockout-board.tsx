@@ -33,7 +33,9 @@ function getRoundLabel(roundIndex: number, totalRounds: number) {
   return `RONDA ${roundIndex + 1}`;
 }
 
-function formatPairLabel(registration: TournamentRegistration | null | undefined) {
+function formatPairLabel(
+  registration: TournamentRegistration | null | undefined,
+) {
   if (!registration) return "—";
   const player = registration.playerProfile.fullName ?? "Jugador";
   return `${player} / ${registration.partnerName}`;
@@ -42,8 +44,12 @@ function formatPairLabel(registration: TournamentRegistration | null | undefined
 function zoneRankOptions(category: TournamentCategory) {
   const zones = [...category.zones].sort((a, b) => a.order - b.order);
   const ranks = Math.max(1, category.groupQualifiers ?? 2);
-  const options: Array<{ value: string; label: string; zoneId: string; rank: number }> =
-    [];
+  const options: Array<{
+    value: string;
+    label: string;
+    zoneId: string;
+    rank: number;
+  }> = [];
   for (const zone of zones) {
     for (let rank = 1; rank <= ranks; rank += 1) {
       options.push({
@@ -231,7 +237,9 @@ function MatchSlot({
       <div className="flex items-center gap-2">
         <p
           className={`text-[12px] font-semibold leading-snug ${
-            advances ? "text-primary underline decoration-primary/70" : "text-foreground"
+            advances
+              ? "text-primary underline decoration-primary/70"
+              : "text-foreground"
           }`}
         >
           {isBye ? "—" : formatPairLabel(registration)}
@@ -380,11 +388,11 @@ export function TournamentKnockoutBoard({
   if (!categories.length) return null;
 
   return (
-    <section className="space-y-4 p-4">
+    <section className="min-w-0 space-y-4 p-3 sm:p-4">
       <div className="rounded-xl border border-border/80 border-l-4 border-l-primary bg-card px-4 py-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <select
-            className="border-input bg-background h-10 min-w-52 rounded-lg border px-3 text-sm"
+            className="border-input bg-background h-10 w-full min-w-0 rounded-lg border px-3 text-sm sm:w-auto"
             value={selectedCategoryId}
             onChange={(event) => setSelectedCategoryId(event.target.value)}
           >

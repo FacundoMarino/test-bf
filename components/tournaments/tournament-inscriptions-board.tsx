@@ -452,11 +452,11 @@ export function TournamentInscriptionsBoard({
   };
 
   return (
-    <section className="space-y-3 p-4">
+    <section className="min-w-0 space-y-3 p-3 sm:p-4">
       <div className="rounded-xl border border-border/80 border-l-4 border-l-primary bg-card px-5 py-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <select
-            className="border-input bg-background h-10 min-w-48 rounded-lg border px-3 text-sm"
+            className="border-input bg-background h-10 w-full min-w-0 rounded-lg border px-3 text-sm sm:w-auto"
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
           >
@@ -520,7 +520,10 @@ export function TournamentInscriptionsBoard({
                 <th className="px-3 py-3 font-medium">Preferencia</th>
                 <th className="px-3 py-3 font-medium">Inscripción</th>
                 <th className="py-3 pl-3 pr-5 font-medium">Pago por jugador</th>
-                <th className="w-12 py-3 pr-5 font-medium" aria-label="Acciones" />
+                <th
+                  className="w-12 py-3 pr-5 font-medium"
+                  aria-label="Acciones"
+                />
               </tr>
             </thead>
             <tbody>
