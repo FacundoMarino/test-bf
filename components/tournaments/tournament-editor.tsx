@@ -13,7 +13,6 @@ import {
   Flag,
   Grip,
   Landmark,
-  Minus,
   Plus,
   Save,
   Settings2,
@@ -31,7 +30,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import type {
   TournamentCourtBlock,
   TournamentRecord,
@@ -119,98 +117,6 @@ function defaultCategory(): CategoryDraft {
     groupDurationMin: 60,
     knockoutDurationMin: 90,
   };
-}
-
-function NumberStepper({
-  value,
-  onChange,
-  min = 0,
-  max,
-  step = 1,
-  fallback,
-}: {
-  value: number;
-  onChange: (next: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  fallback: number;
-}) {
-  const [draft, setDraft] = useState(String(value));
-  const [focused, setFocused] = useState(false);
-
-  const displayValue = focused ? draft : String(value);
-
-  const clamp = (next: number) => {
-    const boundedMin = Math.max(min, next);
-    return max == null ? boundedMin : Math.min(max, boundedMin);
-  };
-
-  const commit = (raw: string) => {
-    const parsed = raw.trim() === "" ? fallback : Number(raw);
-    const next = clamp(Number.isFinite(parsed) ? parsed : fallback);
-    onChange(next);
-    setDraft(String(next));
-  };
-
-  const nudge = (delta: number) => {
-    commit(String(clamp(value + delta)));
-  };
-
-  return (
-    <div className="border-input bg-background flex h-11 overflow-hidden rounded-lg border sm:h-10">
-      <button
-        type="button"
-        aria-label="Disminuir"
-        className="text-foreground flex w-11 shrink-0 items-center justify-center border-r border-input touch-manipulation hover:bg-muted"
-        onClick={() => nudge(-step)}
-      >
-        <Minus className="size-4" />
-      </button>
-      <input
-        inputMode="numeric"
-        pattern="[0-9]*"
-        enterKeyHint="done"
-        className="text-foreground min-w-0 flex-1 bg-transparent px-2 text-center text-base outline-none md:text-sm"
-        value={displayValue}
-        onFocus={() => {
-          setDraft(String(value));
-          setFocused(true);
-        }}
-        onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ""))}
-        onBlur={() => {
-          setFocused(false);
-          commit(draft);
-        }}
-      />
-      <button
-        type="button"
-        aria-label="Aumentar"
-        className="text-foreground flex w-11 shrink-0 items-center justify-center border-l border-input touch-manipulation hover:bg-muted"
-        onClick={() => nudge(step)}
-      >
-        <Plus className="size-4" />
-      </button>
-    </div>
-  );
-}
-
-function DateTimeInput({
-  className,
-  ...props
-}: Omit<React.ComponentProps<typeof Input>, "type">) {
-  return (
-    <div className="min-w-0 max-w-full overflow-hidden">
-      <Input
-        type="datetime-local"
-        className={cn(
-          "h-11 w-full min-w-0 max-w-full rounded-lg px-2 text-base sm:h-10 sm:text-sm",
-          className,
-        )}
-        {...props}
-      />
-    </div>
-  );
 }
 
 function toDateTimeLocal(date: string, minutes: number) {
@@ -915,8 +821,8 @@ export function TournamentEditor({
         setError("Debes cargar al menos una categoría.");
         return;
       }
-      if (publish && !payload.courtBlocks.length) {
-        setError("Para publicar debes cargar al menos un bloque de cancha.");
+      if (!payload.courtBlocks.length) {
+        setError("Debes cargar al menos un bloque de cancha.");
         return;
       }
       const invalidOwnBlock = ownBlockValidity.find(
@@ -965,7 +871,7 @@ export function TournamentEditor({
   };
 
   return (
-    <div className="min-w-0 space-y-4 overflow-x-hidden">
+    <div className="space-y-4">
       {showHeaderCard ? (
         <section className="rounded-2xl border border-border/80 bg-card px-5 py-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -997,12 +903,12 @@ export function TournamentEditor({
         </section>
       ) : null}
 
-      <section className="min-w-0 overflow-hidden rounded-2xl border border-border/80 bg-card px-3 py-3 shadow-sm sm:px-4">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+      <section className="rounded-2xl border border-border/80 bg-card px-4 py-3 shadow-sm">
+        <div className="mb-4 flex flex-wrap justify-end gap-2">
           <Button
             variant="outline"
             size="lg"
-            className="w-full rounded-lg sm:w-auto"
+            className="rounded-lg"
             onClick={() => router.push("/dashboard/club/torneos")}
           >
             <CircleSlash className="size-4" />
@@ -1011,7 +917,7 @@ export function TournamentEditor({
           <Button
             variant="outline"
             size="lg"
-            className="w-full rounded-lg sm:w-auto"
+            className="rounded-lg"
             onClick={() => persist(false)}
             disabled={isPending}
           >
@@ -1021,7 +927,7 @@ export function TournamentEditor({
           {tournament ? (
             <Button
               size="lg"
-              className="w-full rounded-lg sm:w-auto"
+              className="rounded-lg"
               onClick={() => persist(true)}
               disabled={isPending}
             >
@@ -1039,17 +945,17 @@ export function TournamentEditor({
 
         <details
           open
-          className="min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card p-3 sm:p-4"
+          className="rounded-xl border border-border/80 bg-card p-4"
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold sm:text-base">
-            <span className="inline-flex min-w-0 items-center gap-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
+            <span className="inline-flex items-center gap-2">
               <ClipboardList className="size-4 text-primary" />
               Datos generales
             </span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronDown className="size-4 text-muted-foreground" />
           </summary>
           <div className="mt-4 grid gap-4">
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label htmlFor="tournament-name">Nombre del torneo</Label>
               <Input
                 id="tournament-name"
@@ -1059,7 +965,7 @@ export function TournamentEditor({
                 placeholder="Nombre del torneo"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label htmlFor="tournament-description">Descripción</Label>
               <Textarea
                 id="tournament-description"
@@ -1070,7 +976,7 @@ export function TournamentEditor({
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="min-w-0 space-y-1.5">
+              <div className="space-y-1.5">
                 <Label>Formato</Label>
                 <select
                   className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
@@ -1080,7 +986,7 @@ export function TournamentEditor({
                   <option value="TORNEO">Torneo</option>
                 </select>
               </div>
-              <div className="min-w-0 space-y-1.5">
+              <div className="space-y-1.5">
                 <Label htmlFor="tournament-venue-mode">Sede</Label>
                 <select
                   id="tournament-venue-mode"
@@ -1108,7 +1014,7 @@ export function TournamentEditor({
               </div>
             </div>
             {venueMode === "OWN_CLUB" ? (
-              <div className="min-w-0 space-y-1.5">
+              <div className="space-y-1.5">
                 <Label htmlFor="tournament-own-club">Club anfitrión</Label>
                 <Input
                   id="tournament-own-club"
@@ -1164,80 +1070,95 @@ export function TournamentEditor({
 
         <details
           open
-          className="mt-4 min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card p-3 sm:p-4"
+          className="mt-4 rounded-xl border border-border/80 bg-card p-4"
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold sm:text-base">
-            <span className="inline-flex min-w-0 items-center gap-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
+            <span className="inline-flex items-center gap-2">
               <CalendarClock className="size-4 text-primary" />
               Fechas y duración de partidos
             </span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronDown className="size-4 text-muted-foreground" />
           </summary>
-          <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
-            <div className="min-w-0 space-y-1.5">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
               <Label>Inicio del torneo</Label>
-              <DateTimeInput
+              <Input
+                type="datetime-local"
                 value={startsAt}
                 onChange={(e) => setStartsAt(e.target.value)}
+                className="h-10 rounded-lg"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Fin del torneo</Label>
-              <DateTimeInput
+              <Input
+                type="datetime-local"
                 value={endsAt}
                 onChange={(e) => setEndsAt(e.target.value)}
+                className="h-10 rounded-lg"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Inicio de inscripciones</Label>
-              <DateTimeInput
+              <Input
+                type="datetime-local"
                 value={registrationStartsAt}
                 onChange={(e) => setRegistrationStartsAt(e.target.value)}
+                className="h-10 rounded-lg"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Fin de inscripciones</Label>
-              <DateTimeInput
+              <Input
+                type="datetime-local"
                 value={registrationEndsAt}
                 onChange={(e) => setRegistrationEndsAt(e.target.value)}
+                className="h-10 rounded-lg"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Inicio fase de grupos</Label>
-              <DateTimeInput
+              <Input
+                type="datetime-local"
                 value={groupStartsAt}
                 onChange={(e) => setGroupStartsAt(e.target.value)}
+                className="h-10 rounded-lg"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Fin fase de grupos</Label>
-              <DateTimeInput
+              <Input
+                type="datetime-local"
                 value={groupEndsAt}
                 onChange={(e) => setGroupEndsAt(e.target.value)}
+                className="h-10 rounded-lg"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Inicio fase de cuadros</Label>
-              <DateTimeInput
+              <Input
+                type="datetime-local"
                 value={knockoutStartsAt}
                 onChange={(e) => setKnockoutStartsAt(e.target.value)}
+                className="h-10 rounded-lg"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Fin fase de cuadros</Label>
-              <DateTimeInput
+              <Input
+                type="datetime-local"
                 value={knockoutEndsAt}
                 onChange={(e) => setKnockoutEndsAt(e.target.value)}
+                className="h-10 rounded-lg"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Duración partido — grupos (min)</Label>
-              <NumberStepper
+              <Input
+                type="number"
                 value={categories[0]?.groupDurationMin ?? 60}
-                fallback={60}
-                min={1}
-                step={15}
-                onChange={(value) => {
+                onChange={(e) => {
+                  const value = Number(e.target.value) || 60;
                   setCategories((current) =>
                     current.map((item) => ({
                       ...item,
@@ -1245,16 +1166,16 @@ export function TournamentEditor({
                     })),
                   );
                 }}
+                className="h-10 rounded-lg"
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Duración partido — cuadros (min)</Label>
-              <NumberStepper
+              <Input
+                type="number"
                 value={categories[0]?.knockoutDurationMin ?? 90}
-                fallback={90}
-                min={1}
-                step={15}
-                onChange={(value) => {
+                onChange={(e) => {
+                  const value = Number(e.target.value) || 90;
                   setCategories((current) =>
                     current.map((item) => ({
                       ...item,
@@ -1262,6 +1183,7 @@ export function TournamentEditor({
                     })),
                   );
                 }}
+                className="h-10 rounded-lg"
               />
             </div>
           </div>
@@ -1269,14 +1191,14 @@ export function TournamentEditor({
 
         <details
           open
-          className="mt-4 min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card p-3 sm:p-4"
+          className="mt-4 rounded-xl border border-border/80 bg-card p-4"
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold sm:text-base">
-            <span className="inline-flex min-w-0 items-center gap-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
+            <span className="inline-flex items-center gap-2">
               <Users className="size-4 text-primary" />
               Categorías y modalidades
             </span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronDown className="size-4 text-muted-foreground" />
           </summary>
           <div className="mt-4 space-y-4">
             {categories.map((category, index) => {
@@ -1303,9 +1225,9 @@ export function TournamentEditor({
               return (
                 <div
                   key={category.id ?? index}
-                  className="min-w-0 space-y-4 overflow-hidden rounded-lg border border-border/80 p-3 sm:p-4"
+                  className="space-y-4 rounded-lg border border-border/80 p-4"
                 >
-                  <div className="grid min-w-0 gap-2 sm:grid-cols-12">
+                  <div className="grid gap-2 sm:grid-cols-12">
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="text-muted-foreground text-[11px]">
                         Categoría
@@ -1349,42 +1271,45 @@ export function TournamentEditor({
                       <Label className="text-muted-foreground text-[11px]">
                         Cupo
                       </Label>
-                      <NumberStepper
+                      <Input
+                        type="number"
                         value={category.maxPairs}
-                        fallback={16}
-                        min={1}
-                        onChange={(value) =>
-                          applyCategoryChange(index, { maxPairs: value })
+                        onChange={(e) =>
+                          applyCategoryChange(index, {
+                            maxPairs: Number(e.target.value),
+                          })
                         }
+                        className="h-10 rounded-lg"
                       />
                     </div>
                     <div className="space-y-1 sm:col-span-1">
                       <Label className="text-muted-foreground text-[11px]">
                         Mínimo
                       </Label>
-                      <NumberStepper
+                      <Input
+                        type="number"
                         value={category.minPairs}
-                        fallback={8}
-                        min={0}
-                        onChange={(value) =>
-                          applyCategoryChange(index, { minPairs: value })
+                        onChange={(e) =>
+                          applyCategoryChange(index, {
+                            minPairs: Number(e.target.value),
+                          })
                         }
+                        className="h-10 rounded-lg"
                       />
                     </div>
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="text-muted-foreground text-[11px]">
                         Precio
                       </Label>
-                      <NumberStepper
+                      <Input
+                        type="number"
                         value={category.registrationFeeCents}
-                        fallback={0}
-                        min={0}
-                        step={1000}
-                        onChange={(value) =>
+                        onChange={(e) =>
                           applyCategoryChange(index, {
-                            registrationFeeCents: value,
+                            registrationFeeCents: Number(e.target.value),
                           })
                         }
+                        className="h-10 rounded-lg"
                       />
                     </div>
                     <div className="sm:col-span-2 flex h-full items-center text-xs text-muted-foreground">
@@ -1435,82 +1360,82 @@ export function TournamentEditor({
                   {/* Fase de grupos */}
                   <details
                     open
-                    className="min-w-0 overflow-hidden rounded-lg border border-primary/30 bg-card p-3 sm:p-4"
+                    className="rounded-lg border border-primary/30 bg-card p-4"
                   >
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold sm:text-base">
-                      <span className="inline-flex min-w-0 items-center gap-2">
+                    <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
+                      <span className="inline-flex items-center gap-2">
                         <Grip className="size-4 text-primary" />
                         Fase de grupos
                       </span>
-                      <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                      <ChevronDown className="size-4 text-muted-foreground" />
                     </summary>
-                    <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
-                      <div className="min-w-0 space-y-1.5">
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
                         <Label>Equipos por zona</Label>
-                        <NumberStepper
+                        <Input
+                          type="number"
                           value={category.groupTeamsPerZone}
-                          fallback={4}
-                          min={2}
-                          onChange={(value) =>
+                          onChange={(e) =>
                             applyCategoryChange(index, {
-                              groupTeamsPerZone: value,
+                              groupTeamsPerZone: Number(e.target.value) || 4,
                             })
                           }
+                          className="h-10 rounded-lg"
                         />
                       </div>
-                      <div className="min-w-0 space-y-1.5">
+                      <div className="space-y-1.5">
                         <Label>Clasifican por zona</Label>
-                        <NumberStepper
+                        <Input
+                          type="number"
                           value={category.groupQualifiers}
-                          fallback={2}
-                          min={1}
-                          onChange={(value) =>
+                          onChange={(e) =>
                             applyCategoryChange(index, {
-                              groupQualifiers: value,
+                              groupQualifiers: Number(e.target.value) || 2,
                             })
                           }
+                          className="h-10 rounded-lg"
                         />
                       </div>
-                      <div className="min-w-0 space-y-1.5">
+                      <div className="space-y-1.5">
                         <Label>Puntos por ganado</Label>
-                        <NumberStepper
+                        <Input
+                          type="number"
                           value={category.groupPointsWin}
-                          fallback={3}
-                          min={0}
-                          onChange={(value) =>
+                          onChange={(e) =>
                             applyCategoryChange(index, {
-                              groupPointsWin: value,
+                              groupPointsWin: Number(e.target.value) || 3,
                             })
                           }
+                          className="h-10 rounded-lg"
                         />
                       </div>
-                      <div className="min-w-0 space-y-1.5">
+                      <div className="space-y-1.5">
                         <Label>Puntos por perdido</Label>
-                        <NumberStepper
+                        <Input
+                          type="number"
                           value={category.groupPointsLoss}
-                          fallback={1}
-                          min={0}
-                          onChange={(value) =>
+                          onChange={(e) =>
                             applyCategoryChange(index, {
-                              groupPointsLoss: value,
+                              groupPointsLoss: Number(e.target.value) || 1,
                             })
                           }
+                          className="h-10 rounded-lg"
                         />
                       </div>
-                      <div className="min-w-0 space-y-1.5">
+                      <div className="space-y-1.5">
                         <Label>Puntos por no presentado (WO)</Label>
-                        <NumberStepper
+                        <Input
+                          type="number"
                           value={category.groupPointsNoShow}
-                          fallback={0}
-                          min={0}
-                          onChange={(value) =>
+                          onChange={(e) =>
                             applyCategoryChange(index, {
-                              groupPointsNoShow: value,
+                              groupPointsNoShow: Number(e.target.value) || 0,
                             })
                           }
+                          className="h-10 rounded-lg"
                         />
                       </div>
-                      <div className="min-w-0 space-y-1.5">
+                      <div className="space-y-1.5">
                         <Label>Cantidad de sets</Label>
                         <select
                           className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
@@ -1559,30 +1484,31 @@ export function TournamentEditor({
                   {/* Cuadro (eliminación) */}
                   <details
                     open
-                    className="min-w-0 overflow-hidden rounded-lg border border-primary/30 bg-card p-3 sm:p-4"
+                    className="rounded-lg border border-primary/30 bg-card p-4"
                   >
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold sm:text-base">
-                      <span className="inline-flex min-w-0 items-center gap-2">
+                    <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
+                      <span className="inline-flex items-center gap-2">
                         <Dumbbell className="size-4 text-primary" />
                         Cuadro
                       </span>
-                      <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                      <ChevronDown className="size-4 text-muted-foreground" />
                     </summary>
-                    <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">
-                      <div className="min-w-0 space-y-1.5">
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
                         <Label>Partidos de la primera fase</Label>
-                        <NumberStepper
+                        <Input
+                          type="number"
                           value={category.knockoutFirstRoundMatches}
-                          fallback={2}
-                          min={1}
-                          onChange={(value) =>
+                          onChange={(e) =>
                             applyCategoryChange(index, {
-                              knockoutFirstRoundMatches: value,
+                              knockoutFirstRoundMatches:
+                                Number(e.target.value) || 2,
                             })
                           }
+                          className="h-10 rounded-lg"
                         />
                       </div>
-                      <div className="min-w-0 space-y-1.5">
+                      <div className="space-y-1.5">
                         <Label>Cantidad de sets</Label>
                         <select
                           className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
@@ -1649,14 +1575,14 @@ export function TournamentEditor({
 
         <details
           open
-          className="mt-4 min-w-0 overflow-hidden rounded-xl border border-border/80 bg-card p-3 sm:p-4"
+          className="mt-4 rounded-xl border border-border/80 bg-card p-4"
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold sm:text-base">
-            <span className="inline-flex min-w-0 items-center gap-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
+            <span className="inline-flex items-center gap-2">
               <Landmark className="size-4 text-primary" />
               Canchas y horarios
             </span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronDown className="size-4 text-muted-foreground" />
           </summary>
           <div className="mt-4 space-y-4">
             <div className="space-y-2">
@@ -1682,7 +1608,7 @@ export function TournamentEditor({
                         cambiarlo, eliminá esta fila y agregá una nueva.
                       </p>
                     ) : null}
-                    <div className="grid min-w-0 gap-2 sm:grid-cols-12">
+                    <div className="grid gap-2 sm:grid-cols-12">
                       <div className="space-y-1 sm:col-span-3">
                         <Label className="text-muted-foreground text-[11px]">
                           Cancha
@@ -1705,12 +1631,13 @@ export function TournamentEditor({
                           ))}
                         </select>
                       </div>
-                      <div className="min-w-0 space-y-1 sm:col-span-4">
+                      <div className="space-y-1 sm:col-span-4">
                         <Label className="text-muted-foreground text-[11px]">
                           Desde
                         </Label>
-                        <DateTimeInput
-                          className="disabled:cursor-not-allowed disabled:opacity-60"
+                        <Input
+                          type="datetime-local"
+                          className="h-10 rounded-lg disabled:cursor-not-allowed disabled:opacity-60"
                           value={block.startsAt}
                           disabled={isPersistedBlock}
                           onChange={(e) =>
@@ -1720,12 +1647,13 @@ export function TournamentEditor({
                           }
                         />
                       </div>
-                      <div className="min-w-0 space-y-1 sm:col-span-4">
+                      <div className="space-y-1 sm:col-span-4">
                         <Label className="text-muted-foreground text-[11px]">
                           Hasta
                         </Label>
-                        <DateTimeInput
-                          className="disabled:cursor-not-allowed disabled:opacity-60"
+                        <Input
+                          type="datetime-local"
+                          className="h-10 rounded-lg disabled:cursor-not-allowed disabled:opacity-60"
                           value={block.endsAt}
                           disabled={isPersistedBlock}
                           onChange={(e) =>
@@ -1811,8 +1739,8 @@ export function TournamentEditor({
                       key={block.id ?? `external-${externalIndex}`}
                       className="rounded-lg border border-border/80 p-3"
                     >
-                      <div className="grid min-w-0 gap-2 sm:grid-cols-12">
-                        <div className="min-w-0 space-y-1 sm:col-span-3">
+                      <div className="grid gap-2 sm:grid-cols-12">
+                        <div className="space-y-1 sm:col-span-3">
                           <Label className="text-muted-foreground text-[11px]">
                             Club
                           </Label>
@@ -1842,11 +1770,13 @@ export function TournamentEditor({
                             }
                           />
                         </div>
-                        <div className="min-w-0 space-y-1 sm:col-span-3">
+                        <div className="space-y-1 sm:col-span-3">
                           <Label className="text-muted-foreground text-[11px]">
                             Desde
                           </Label>
-                          <DateTimeInput
+                          <Input
+                            type="datetime-local"
+                            className="h-10 rounded-lg"
                             value={block.startsAt}
                             onChange={(e) =>
                               applyBlockChange(globalIndex, {
@@ -1855,11 +1785,13 @@ export function TournamentEditor({
                             }
                           />
                         </div>
-                        <div className="min-w-0 space-y-1 sm:col-span-3">
+                        <div className="space-y-1 sm:col-span-3">
                           <Label className="text-muted-foreground text-[11px]">
                             Hasta
                           </Label>
-                          <DateTimeInput
+                          <Input
+                            type="datetime-local"
+                            className="h-10 rounded-lg"
                             value={block.endsAt}
                             onChange={(e) =>
                               applyBlockChange(globalIndex, {

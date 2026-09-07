@@ -231,16 +231,30 @@ function buildFirstRoundSlot(
     };
   }
 
-  const base = zoneCount % 2 === 1 ? 1 : 0;
-  const offset = zoneCount % 2 === 1 ? matchIndex - 1 : matchIndex;
-  const homeIdx = base + offset * 2;
-  const awayIdx = homeIdx + 1;
-  const homeZone = sortedZones[homeIdx];
-  const awayZone = sortedZones[awayIdx];
+  const effectiveIndex = zoneCount % 2 === 1 ? matchIndex - 1 : matchIndex;
+  const zonePairBase = zoneCount % 2 === 1 ? 1 : 0;
+  const pairIndex = Math.floor(effectiveIndex / 2);
+  const subMatch = effectiveIndex % 2;
+  const zoneA = sortedZones[zonePairBase + pairIndex * 2];
+  const zoneB = sortedZones[zonePairBase + pairIndex * 2 + 1];
+
+  if (!zoneA) {
+    return { home: "A definir", away: "BYE" };
+  }
+  if (!zoneB) {
+    return { home: `1° ${zoneA.name}`, away: "BYE" };
+  }
+
+  if (subMatch === 0) {
+    return {
+      home: `1° ${zoneA.name}`,
+      away: `2° ${zoneB.name}`,
+    };
+  }
 
   return {
-    home: homeZone ? `1° ${homeZone.name}` : "A definir",
-    away: awayZone ? `1° ${awayZone.name}` : "BYE",
+    home: `1° ${zoneB.name}`,
+    away: `2° ${zoneA.name}`,
   };
 }
 
@@ -301,8 +315,12 @@ function getKnockoutSlotLabels(
   if (roundIndex <= 0) {
     const fallback = buildFirstRoundSlot(category.zones, orderInRound - 1);
     return {
-      home: homeFromKey ?? fallback.home,
-      away: awayFromKey ?? fallback.away,
+      home: match.homeRegistration
+        ? pairLabel(match.homeRegistration)
+        : (homeFromKey ?? fallback.home),
+      away: match.awayRegistration
+        ? pairLabel(match.awayRegistration)
+        : (awayFromKey ?? fallback.away),
     };
   }
 
@@ -404,12 +422,8 @@ function collectFixtureMatches(
         phase: "KNOCKOUT",
         stageLabel,
         isRoundWindow: true,
-        homeLabel: match.homeRegistration
-          ? pairLabel(match.homeRegistration)
-          : slots.home,
-        awayLabel: match.awayRegistration
-          ? pairLabel(match.awayRegistration)
-          : slots.away,
+        homeLabel: slots.home,
+        awayLabel: slots.away,
         durationMin: category.knockoutMatchDurationMin,
         ownClubName,
         courtBlocks,
@@ -434,13 +448,13 @@ function FixtureViewToggle({
   onChange: (view: FixtureView) => void;
 }) {
   return (
-    <div className="rounded-xl border border-border/80 border-l-4 border-l-primary bg-card px-3 py-3 shadow-sm sm:px-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="inline-flex w-full rounded-full border border-border/80 bg-background p-1 sm:w-auto">
+    <div className="rounded-xl border border-border/80 border-l-4 border-l-primary bg-card px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="inline-flex rounded-full border border-border/80 bg-background p-1">
           <button
             type="button"
             onClick={() => onChange("day")}
-            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
+            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
               view === "day"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-foreground/80 hover:text-foreground"
@@ -454,7 +468,7 @@ function FixtureViewToggle({
           <button
             type="button"
             onClick={() => onChange("court")}
-            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors sm:flex-none sm:px-4 ${
+            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
               view === "court"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-foreground/80 hover:text-foreground"

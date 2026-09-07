@@ -5,6 +5,10 @@ import { CalendarDays, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { updateTournamentMatchResultAction } from "@/actions/tournaments";
+import {
+  getKnockoutMatchLabels,
+  getKnockoutRoundLabel,
+} from "@/lib/tournament-knockout-display";
 import type {
   TournamentCategory,
   TournamentMatch,
@@ -171,27 +175,6 @@ function buildPayloadFromDraft(params: {
   return payload;
 }
 
-function getKnockoutRoundLabel(
-  category: TournamentCategory,
-  roundNumber: number,
-) {
-  const firstRound = Math.max(1, category.knockoutFirstRoundMatches ?? 2);
-  const roundCounts: number[] = [];
-  let count = firstRound;
-  while (count >= 1) {
-    roundCounts.push(count);
-    count = Math.floor(count / 2);
-  }
-  const totalRounds = roundCounts.length;
-  const index = Math.max(0, Math.min(totalRounds - 1, roundNumber - 1));
-  const remaining = totalRounds - index;
-  if (remaining === 1) return "Final";
-  if (remaining === 2) return "Semifinal";
-  if (remaining === 3) return "Cuartos de final";
-  if (remaining === 4) return "Octavos de final";
-  return `Ronda ${roundNumber}`;
-}
-
 function collectMatches(
   categories: TournamentCategory[],
   allMatches: TournamentMatch[],
@@ -237,6 +220,7 @@ function collectMatches(
     if (match.phase !== "KNOCKOUT" || zoneMatchIds.has(match.id)) continue;
     const category = categoryById.get(match.categoryId);
     if (!category) continue;
+    const knockoutLabels = getKnockoutMatchLabels(match, category);
     items.push({
       id: match.id,
       zoneName: getKnockoutRoundLabel(category, match.roundNumber),
@@ -245,8 +229,8 @@ function collectMatches(
       categoryName: category.name,
       matchDate: match.matchDate,
       startTimeMinutes: match.startTimeMinutes,
-      homeLabel: pairLabel(match.homeRegistration),
-      awayLabel: pairLabel(match.awayRegistration),
+      homeLabel: knockoutLabels.home,
+      awayLabel: knockoutLabels.away,
       homeRegistrationId: match.homeRegistration?.id ?? null,
       awayRegistrationId: match.awayRegistration?.id ?? null,
       homeGames: match.homeGames,

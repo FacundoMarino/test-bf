@@ -41,6 +41,90 @@ function formatPairLabel(
   return `${player} / ${registration.partnerName}`;
 }
 
+function formatZoneSlotKey(
+  key: string | null | undefined,
+  zones: TournamentCategory["zones"],
+) {
+  if (!key?.startsWith("zone:")) return null;
+  const [, zoneId, rankRaw] = key.split(":");
+  const zone = zones.find((row) => row.id === zoneId);
+  if (!zone) return null;
+  return `${rankRaw}° ${zone.name}`;
+}
+
+function getKnockoutRoundMeta(
+  category: TournamentCategory,
+  roundNumber: number,
+) {
+  const firstRoundMatches = Math.max(1, category.knockoutFirstRoundMatches);
+  const roundMatchCounts: number[] = [];
+  let count = firstRoundMatches;
+  while (count >= 1) {
+    roundMatchCounts.push(count);
+    count = Math.floor(count / 2);
+  }
+  const roundIndex = roundNumber - 1;
+  const totalRounds = roundMatchCounts.length;
+  return { roundIndex, totalRounds };
+}
+
+function getKnockoutWinnerSlotLabels(
+  category: TournamentCategory,
+  roundNumber: number,
+  orderInRound: number,
+) {
+  const { roundIndex, totalRounds } = getKnockoutRoundMeta(
+    category,
+    roundNumber,
+  );
+  const matchIndex = Math.max(0, orderInRound - 1);
+  const prevRemaining = totalRounds - (roundIndex - 1);
+  let prevPrefix = "R";
+  if (prevRemaining === 2) prevPrefix = "SF";
+  else if (prevRemaining === 3) prevPrefix = "CF";
+  else if (prevRemaining === 4) prevPrefix = "OF";
+
+  return {
+    home: `Ganador ${prevPrefix}${matchIndex * 2 + 1}`,
+    away: `Ganador ${prevPrefix}${matchIndex * 2 + 2}`,
+  };
+}
+
+function formatSlotDisplayLabel(
+  match: TournamentMatch,
+  side: "home" | "away",
+  isFirstRound: boolean,
+  category: TournamentCategory,
+  zoneOptions: ReturnType<typeof zoneRankOptions>,
+) {
+  const isBye = side === "home" ? match.homeSlotBye : match.awaySlotBye;
+  if (isBye) return "—";
+
+  const registration =
+    side === "home" ? match.homeRegistration : match.awayRegistration;
+  if (registration) return formatPairLabel(registration);
+
+  const key = side === "home" ? match.homeSlotKey : match.awaySlotKey;
+  if (key?.startsWith("zone:")) {
+    return (
+      zoneOptions.find((option) => option.value === key)?.label ??
+      formatZoneSlotKey(key, category.zones) ??
+      "—"
+    );
+  }
+
+  if (!isFirstRound || key === "prev") {
+    const winnerLabels = getKnockoutWinnerSlotLabels(
+      category,
+      match.roundNumber,
+      match.orderInRound,
+    );
+    return side === "home" ? winnerLabels.home : winnerLabels.away;
+  }
+
+  return "—";
+}
+
 function zoneRankOptions(category: TournamentCategory) {
   const zones = [...category.zones].sort((a, b) => a.order - b.order);
   const ranks = Math.max(1, category.groupQualifiers ?? 2);
@@ -164,6 +248,7 @@ function MatchSlot({
   pairs,
   clubId,
   tournamentId,
+  category,
   disabled,
 }: {
   match: TournamentMatch;
@@ -173,6 +258,7 @@ function MatchSlot({
   pairs: ReturnType<typeof pairOptions>;
   clubId: string;
   tournamentId: string;
+  category: TournamentCategory;
   disabled: boolean;
 }) {
   const router = useRouter();
@@ -183,6 +269,13 @@ function MatchSlot({
     side === "home" ? match.homeRegistration : match.awayRegistration;
   const isBye = side === "home" ? match.homeSlotBye : match.awaySlotBye;
   const selectValue = getSlotSelectValue(match, side, isFirstRound);
+  const displayLabel = formatSlotDisplayLabel(
+    match,
+    side,
+    isFirstRound,
+    category,
+    zoneOptions,
+  );
   const advances =
     Boolean(match.winnerRegistrationId) &&
     match.winnerRegistrationId ===
@@ -242,7 +335,7 @@ function MatchSlot({
               : "text-foreground"
           }`}
         >
-          {isBye ? "—" : formatPairLabel(registration)}
+          {isBye ? "—" : displayLabel}
         </p>
         {advances ? (
           <span className="bg-primary/10 text-primary shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase">
@@ -300,6 +393,7 @@ function MatchCard({
   pairs,
   clubId,
   tournamentId,
+  category,
 }: {
   match: TournamentMatch;
   isFirstRound: boolean;
@@ -307,6 +401,7 @@ function MatchCard({
   pairs: ReturnType<typeof pairOptions>;
   clubId: string;
   tournamentId: string;
+  category: TournamentCategory;
 }) {
   const disabled = match.status === "FINISHED";
 
@@ -326,6 +421,7 @@ function MatchCard({
           pairs={pairs}
           clubId={clubId}
           tournamentId={tournamentId}
+          category={category}
           disabled={disabled}
         />
         <p className="text-center text-[11px] font-medium text-muted-foreground">
@@ -339,6 +435,7 @@ function MatchCard({
           pairs={pairs}
           clubId={clubId}
           tournamentId={tournamentId}
+          category={category}
           disabled={disabled}
         />
       </div>
@@ -388,11 +485,11 @@ export function TournamentKnockoutBoard({
   if (!categories.length) return null;
 
   return (
-    <section className="min-w-0 space-y-4 p-3 sm:p-4">
+    <section className="space-y-4 p-4">
       <div className="rounded-xl border border-border/80 border-l-4 border-l-primary bg-card px-4 py-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <select
-            className="border-input bg-background h-10 w-full min-w-0 rounded-lg border px-3 text-sm sm:w-auto"
+            className="border-input bg-background h-10 min-w-52 rounded-lg border px-3 text-sm"
             value={selectedCategoryId}
             onChange={(event) => setSelectedCategoryId(event.target.value)}
           >
@@ -441,6 +538,7 @@ export function TournamentKnockoutBoard({
                       pairs={options}
                       clubId={clubId}
                       tournamentId={tournamentId}
+                      category={selectedCategory!}
                     />
                   ))}
                 </div>

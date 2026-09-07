@@ -452,11 +452,11 @@ export function TournamentInscriptionsBoard({
   };
 
   return (
-    <section className="min-w-0 space-y-3 p-3 sm:p-4">
+    <section className="space-y-3 p-4">
       <div className="rounded-xl border border-border/80 border-l-4 border-l-primary bg-card px-5 py-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <select
-            className="border-input bg-background h-10 w-full min-w-0 rounded-lg border px-3 text-sm sm:w-auto"
+            className="border-input bg-background h-10 min-w-48 rounded-lg border px-3 text-sm"
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
           >
