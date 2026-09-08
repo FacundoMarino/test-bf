@@ -39,6 +39,20 @@ export function getKnockoutRoundLabel(
   return getKnockoutRoundMeta(category, roundNumber).label;
 }
 
+export function getKnockoutStageLabel(
+  category: TournamentCategory,
+  roundNumber: number,
+  orderInRound: number,
+) {
+  const { label, roundIndex, roundMatchCounts } = getKnockoutRoundMeta(
+    category,
+    roundNumber,
+  );
+  const matchCount = roundMatchCounts[roundIndex] ?? 1;
+  if (matchCount <= 1) return label;
+  return `${label} ${orderInRound}`;
+}
+
 function buildFirstRoundSlot(
   zones: TournamentCategory["zones"],
   matchIndex: number,
@@ -124,9 +138,38 @@ function getKnockoutWinnerSlotLabels(
   };
 }
 
+function resolveFeederWinnerLabel(
+  match: TournamentMatch,
+  category: TournamentCategory,
+  side: "home" | "away",
+  knockoutMatches: TournamentMatch[],
+) {
+  const { roundIndex } = getKnockoutRoundMeta(category, match.roundNumber);
+  if (roundIndex <= 0) return null;
+
+  const matchIndex = Math.max(0, match.orderInRound - 1);
+  const feederOrder = side === "home" ? matchIndex * 2 + 1 : matchIndex * 2 + 2;
+  const feeder = knockoutMatches.find(
+    (row) =>
+      row.categoryId === match.categoryId &&
+      row.roundNumber === match.roundNumber - 1 &&
+      row.orderInRound === feederOrder,
+  );
+  if (!feeder?.winnerRegistrationId) return null;
+
+  const winner =
+    feeder.winnerRegistrationId === feeder.homeRegistration?.id
+      ? feeder.homeRegistration
+      : feeder.winnerRegistrationId === feeder.awayRegistration?.id
+        ? feeder.awayRegistration
+        : null;
+  return winner ? pairLabel(winner) : null;
+}
+
 export function getKnockoutMatchLabels(
   match: TournamentMatch,
   category: TournamentCategory,
+  options?: { knockoutMatches?: TournamentMatch[] },
 ) {
   const roundNumber = match.roundNumber;
   const orderInRound = match.orderInRound;
@@ -166,17 +209,34 @@ export function getKnockoutMatchLabels(
     };
   }
 
+  let labels: { home: string; away: string };
   if (homeFromKey || awayFromKey) {
     const prev = getKnockoutWinnerSlotLabels(
       category,
       roundNumber,
       orderInRound,
     );
-    return {
+    labels = {
       home: homeFromKey ?? prev.home,
       away: awayFromKey ?? prev.away,
     };
+  } else {
+    labels = getKnockoutWinnerSlotLabels(category, roundNumber, orderInRound);
   }
 
-  return getKnockoutWinnerSlotLabels(category, roundNumber, orderInRound);
+  if (options?.knockoutMatches?.length) {
+    const knockoutMatches = options.knockoutMatches;
+    return {
+      home: match.homeRegistration
+        ? pairLabel(match.homeRegistration)
+        : (resolveFeederWinnerLabel(match, category, "home", knockoutMatches) ??
+          labels.home),
+      away: match.awayRegistration
+        ? pairLabel(match.awayRegistration)
+        : (resolveFeederWinnerLabel(match, category, "away", knockoutMatches) ??
+          labels.away),
+    };
+  }
+
+  return labels;
 }
