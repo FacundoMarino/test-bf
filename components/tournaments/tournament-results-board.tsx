@@ -182,6 +182,9 @@ function collectMatches(
   const items: ResultMatch[] = [];
   const categoryById = new Map(categories.map((c) => [c.id, c]));
   const zoneMatchIds = new Set<string>();
+  const knockoutMatches = allMatches.filter(
+    (match) => match.phase === "KNOCKOUT",
+  );
 
   for (const category of categories) {
     for (const zone of category.zones) {
@@ -220,7 +223,9 @@ function collectMatches(
     if (match.phase !== "KNOCKOUT" || zoneMatchIds.has(match.id)) continue;
     const category = categoryById.get(match.categoryId);
     if (!category) continue;
-    const knockoutLabels = getKnockoutMatchLabels(match, category);
+    const knockoutLabels = getKnockoutMatchLabels(match, category, {
+      knockoutMatches,
+    });
     items.push({
       id: match.id,
       zoneName: getKnockoutRoundLabel(category, match.roundNumber),
