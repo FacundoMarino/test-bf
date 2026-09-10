@@ -1,4 +1,8 @@
 import type { TournamentCategory, TournamentMatch } from "@/types/tournament";
+import {
+  buildFirstRoundKnockoutSlots,
+  zoneKnockoutQualifierCount,
+} from "@/lib/knockout-first-round";
 
 type KnockoutLabelOptions = {
   knockoutMatches?: TournamentMatch[];
@@ -21,54 +25,48 @@ export function zoneHasPlayedGroupMatch(
   return Boolean(zone?.matches?.some((match) => match.status === "FINISHED"));
 }
 
+export function zoneTeamCount(
+  zone: TournamentCategory["zones"][number] | undefined,
+) {
+  if (!zone) return 0;
+  const withPair = zone.entries.filter(
+    (entry) => !entry.isBye && entry.registration,
+  ).length;
+  if (withPair > 0) return withPair;
+  return zone.entries.filter((entry) => !entry.isBye).length;
+}
+
 export function buildFirstRoundKnockoutSlotLabels(
   zones: TournamentCategory["zones"],
   matchIndex: number,
   firstRoundMatches = matchIndex + 1,
+  defaultQualifiers = 2,
 ) {
   const needed = Math.max(1, firstRoundMatches);
-  const sorted = [...zones].sort((a, b) => a.order - b.order);
-  const slots: Array<{ home: string; away: string }> = [];
-
-  const pushCrossovers = (homeRank: number, awayRank: number) => {
-    let start = 0;
-    if (sorted.length % 2 === 1 && homeRank === 1 && awayRank === 2) {
-      slots.push({
-        home: `1° ${sorted[0].name}`,
-        away: "BYE",
-      });
-      start = 1;
-    }
-    for (let index = start; index < sorted.length; index += 2) {
-      const zoneA = sorted[index];
-      const zoneB = sorted[index + 1];
-      if (!zoneB) {
-        slots.push({ home: `${homeRank}° ${zoneA.name}`, away: "BYE" });
-        break;
-      }
-      slots.push({
-        home: `${homeRank}° ${zoneA.name}`,
-        away: `${awayRank}° ${zoneB.name}`,
-      });
-      slots.push({
-        home: `${homeRank}° ${zoneB.name}`,
-        away: `${awayRank}° ${zoneA.name}`,
-      });
-    }
+  const seeds = [...zones]
+    .sort((a, b) => a.order - b.order)
+    .map((zone) => ({
+      id: zone.id,
+      name: zone.name,
+      order: zone.order,
+      qualifierCount: zoneKnockoutQualifierCount(
+        zoneTeamCount(zone),
+        defaultQualifiers,
+      ),
+    }));
+  const slot = buildFirstRoundKnockoutSlots(seeds, needed)[matchIndex];
+  if (!slot) return { home: "A definir", away: "BYE" };
+  const label = (
+    side: { zoneName: string; rank: number } | null,
+    isBye: boolean,
+  ) => {
+    if (isBye || !side) return "BYE";
+    return `${side.rank}° ${side.zoneName}`;
   };
-
-  if (!sorted.length) {
-    return { home: "1° Zona A", away: "BYE" };
-  }
-
-  pushCrossovers(1, 2);
-  for (let rank = 3; slots.length < needed && rank <= 8; rank += 1) {
-    pushCrossovers(rank, rank);
-  }
-  while (slots.length < needed) {
-    slots.push({ home: "A definir", away: "BYE" });
-  }
-  return slots[matchIndex] ?? { home: "A definir", away: "BYE" };
+  return {
+    home: label(slot.home, false),
+    away: label(slot.away, slot.awayBye),
+  };
 }
 
 function getKnockoutRoundMeta(
@@ -108,6 +106,7 @@ function getKnockoutWinnerSlotLabels(
       category.zones,
       matchIndex,
       category.knockoutFirstRoundMatches,
+      category.groupQualifiers ?? 2,
     );
   }
 
@@ -237,6 +236,7 @@ function resolveSideLabel(
       category.zones,
       matchIndex,
       category.knockoutFirstRoundMatches,
+      category.groupQualifiers ?? 2,
     );
     return side === "home" ? fallback.home : fallback.away;
   }

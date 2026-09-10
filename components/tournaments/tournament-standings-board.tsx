@@ -148,7 +148,7 @@ export function TournamentStandingsBoard({
             {standings?.groupPointsNoShow ?? selectedCategory.groupPointsNoShow}{" "}
             · clasifican{" "}
             {standings?.groupQualifiers ?? selectedCategory.groupQualifiers} por
-            zona
+            zona (3 en grupos de 4)
           </p>
         </div>
       ) : null}

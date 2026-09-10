@@ -6,6 +6,7 @@ import { Info, Trophy } from "lucide-react";
 
 import { updateKnockoutMatchSlotAction } from "@/actions/tournaments";
 import { zoneHasPlayedGroupMatch } from "@/lib/tournament-knockout-display";
+import { zoneKnockoutQualifierCount } from "@/lib/knockout-first-round";
 import type {
   TournamentCategory,
   TournamentMatch,
@@ -136,7 +137,7 @@ function formatSlotDisplayLabel(
 
 function zoneRankOptions(category: TournamentCategory) {
   const zones = [...category.zones].sort((a, b) => a.order - b.order);
-  const ranks = Math.max(1, category.groupQualifiers ?? 2);
+  const defaultQualifiers = Math.max(1, category.groupQualifiers ?? 2);
   const options: Array<{
     value: string;
     label: string;
@@ -144,6 +145,12 @@ function zoneRankOptions(category: TournamentCategory) {
     rank: number;
   }> = [];
   for (const zone of zones) {
+    const teamCount = zone.entries.filter((entry) => !entry.isBye).length;
+    const ranks = Math.max(
+      3,
+      zoneKnockoutQualifierCount(teamCount, defaultQualifiers),
+      defaultQualifiers,
+    );
     for (let rank = 1; rank <= ranks; rank += 1) {
       options.push({
         value: `zone:${zone.id}:${rank}`,
