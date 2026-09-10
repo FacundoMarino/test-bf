@@ -9,7 +9,10 @@ import {
   saveTournamentManualZonesAction,
 } from "@/actions/tournaments";
 import { Button } from "@/components/ui/button";
-import type { TournamentCategory } from "@/types/tournament";
+import type {
+  TournamentCategory,
+  TournamentZoneGroupFormat,
+} from "@/types/tournament";
 
 type ZoneEntryView = {
   id: string;
@@ -18,10 +21,17 @@ type ZoneEntryView = {
   isBye: boolean;
 };
 
+type CrossMatchView = {
+  homeRegistrationId: string;
+  awayRegistrationId: string;
+};
+
 type ZoneView = {
   id: string;
   name: string;
   order: number;
+  groupMatchFormat: TournamentZoneGroupFormat;
+  groupCrossPairing: CrossMatchView[];
   entries: ZoneEntryView[];
 };
 
@@ -43,6 +53,59 @@ function pairLabelFromRegistration(
   return `${playerName} / ${registration.partnerName}`;
 }
 
+function parseCrossPairing(
+  value: TournamentCategory["zones"][number]["groupCrossPairing"],
+): CrossMatchView[] {
+  if (!value) return [];
+  const rows = Array.isArray(value)
+    ? value
+    : Array.isArray((value as { firstRound?: CrossMatchView[] }).firstRound)
+      ? (value as { firstRound: CrossMatchView[] }).firstRound
+      : [];
+  return rows
+    .map((row) => ({
+      homeRegistrationId: row.homeRegistrationId,
+      awayRegistrationId: row.awayRegistrationId,
+    }))
+    .filter((row) => row.homeRegistrationId && row.awayRegistrationId);
+}
+
+function isEvenGroupSize(count: number) {
+  return count >= 2 && count % 2 === 0;
+}
+
+function normalizeZoneFormat(zone: ZoneView): ZoneView {
+  const realCount = zone.entries.filter(
+    (entry) => entry.registrationId && !entry.isBye,
+  ).length;
+  if (!isEvenGroupSize(realCount)) {
+    return {
+      ...zone,
+      groupMatchFormat: "ROUND_ROBIN",
+      groupCrossPairing: [],
+    };
+  }
+  if (
+    zone.groupMatchFormat === "CROSSED" &&
+    zone.groupCrossPairing.length !== realCount / 2
+  ) {
+    return { ...zone, groupCrossPairing: defaultCrossPairing(zone.entries) };
+  }
+  return zone;
+}
+
+function defaultCrossPairing(entries: ZoneEntryView[]): CrossMatchView[] {
+  const real = entries
+    .map((entry) => entry.registrationId)
+    .filter((id): id is string => Boolean(id));
+  if (!isEvenGroupSize(real.length)) return [];
+  const half = real.length / 2;
+  return Array.from({ length: half }, (_, index) => ({
+    homeRegistrationId: real[index],
+    awayRegistrationId: real[index + half],
+  }));
+}
+
 function buildInitialZones(categories: TournamentCategory[]) {
   return Object.fromEntries(
     categories.map((category) => [
@@ -51,6 +114,9 @@ function buildInitialZones(categories: TournamentCategory[]) {
         id: zone.id,
         name: zone.name,
         order: zone.order,
+        groupMatchFormat:
+          zone.groupMatchFormat === "CROSSED" ? "CROSSED" : "ROUND_ROBIN",
+        groupCrossPairing: parseCrossPairing(zone.groupCrossPairing),
         entries: zone.entries.map((entry) => ({
           id: entry.id,
           registrationId: entry.registration?.id ?? null,
@@ -161,6 +227,11 @@ export function TournamentDrawBoard({
         {
           zones: selectedZones.map((zone) => ({
             zoneId: zone.id,
+            groupMatchFormat: zone.groupMatchFormat,
+            groupCrossPairing:
+              zone.groupMatchFormat === "CROSSED"
+                ? zone.groupCrossPairing
+                : undefined,
             entries: zone.entries.map((entry) => ({
               registrationId: entry.registrationId ?? undefined,
               isBye: entry.isBye,
@@ -193,7 +264,10 @@ export function TournamentDrawBoard({
         (item) => item.id !== entry.id,
       );
       targetZone.entries = [...targetZone.entries, entry];
-      return { ...current, [selectedCategoryId]: zones };
+      return {
+        ...current,
+        [selectedCategoryId]: zones.map((zone) => normalizeZoneFormat(zone)),
+      };
     });
     setDraggingEntry(null);
   };
@@ -208,7 +282,10 @@ export function TournamentDrawBoard({
             }
           : zone,
       );
-      return { ...current, [selectedCategoryId]: zones };
+      return {
+        ...current,
+        [selectedCategoryId]: zones.map((zone) => normalizeZoneFormat(zone)),
+      };
     });
   };
 
@@ -289,8 +366,10 @@ export function TournamentDrawBoard({
         </div>
         <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
           <Info className="size-3.5" />
-          Arrastrá una pareja de una zona a otra para moverla. Sorteo publicado:
-          solo ajustes manuales.
+          Arrastrá una pareja de una zona a otra. En zonas con cantidad par
+          podés elegir todos contra todos o el cruce (primera ronda + ganador vs
+          perdedor) para que todos jueguen 2 partidos, igual que en zonas
+          impares.
         </p>
       </div>
 
@@ -365,6 +444,175 @@ export function TournamentDrawBoard({
                       BYE
                     </Button>
                   </div>
+                  {(() => {
+                    const realEntries = zone.entries.filter(
+                      (entry) => entry.registrationId && !entry.isBye,
+                    );
+                    const canCross = isEvenGroupSize(realEntries.length);
+                    return (
+                      <div className="space-y-2 px-3 pb-2">
+                        <select
+                          className="border-input bg-background h-9 w-full rounded-lg border px-2 text-xs"
+                          value={canCross ? zone.groupMatchFormat : "ROUND_ROBIN"}
+                          disabled={!canCross}
+                          onChange={(event) => {
+                            const format = event.target.value as
+                              | "ROUND_ROBIN"
+                              | "CROSSED";
+                            setZonesByCategory((current) => {
+                              const zones = (current[selectedCategoryId] ?? []).map(
+                                (item) =>
+                                  item.id === zone.id
+                                    ? {
+                                        ...item,
+                                        groupMatchFormat: format,
+                                        groupCrossPairing:
+                                          format === "CROSSED"
+                                            ? item.groupCrossPairing.length ===
+                                              realEntries.length / 2
+                                              ? item.groupCrossPairing
+                                              : defaultCrossPairing(item.entries)
+                                            : [],
+                                      }
+                                    : item,
+                              );
+                              return { ...current, [selectedCategoryId]: zones };
+                            });
+                          }}
+                        >
+                          <option value="ROUND_ROBIN">
+                            Todos contra todos
+                          </option>
+                          <option value="CROSSED">
+                            Cruce (2 partidos por pareja)
+                          </option>
+                        </select>
+                        {canCross && zone.groupMatchFormat === "CROSSED" ? (
+                          <div className="space-y-1.5 rounded-lg border border-border/70 bg-background p-2">
+                            <p className="text-muted-foreground text-[11px]">
+                              Definí los partidos de la primera ronda. Después se
+                              juega Ganador 1 vs Perdedor 2, Ganador 2 vs Perdedor
+                              3, y así (el último contra el perdedor del primero).
+                            </p>
+                            {Array.from(
+                              { length: realEntries.length / 2 },
+                              (_, matchIndex) => {
+                              const pairing =
+                                zone.groupCrossPairing[matchIndex] ?? {
+                                  homeRegistrationId:
+                                    realEntries[matchIndex * 2]?.registrationId ??
+                                    "",
+                                  awayRegistrationId:
+                                    realEntries[matchIndex * 2 + 1]
+                                      ?.registrationId ?? "",
+                                };
+                              const usedElsewhere = new Set(
+                                zone.groupCrossPairing
+                                  .filter((_, index) => index !== matchIndex)
+                                  .flatMap((row) => [
+                                    row.homeRegistrationId,
+                                    row.awayRegistrationId,
+                                  ]),
+                              );
+                              return (
+                                <div
+                                  key={`cross-${zone.id}-${matchIndex}`}
+                                  className="grid grid-cols-[1fr_auto_1fr] items-center gap-1"
+                                >
+                                  <select
+                                    className="border-input h-8 rounded-md border px-1 text-[11px]"
+                                    value={pairing.homeRegistrationId}
+                                    onChange={(event) => {
+                                      const homeRegistrationId = event.target.value;
+                                      setZonesByCategory((current) => {
+                                        const zones = (
+                                          current[selectedCategoryId] ?? []
+                                        ).map((item) => {
+                                          if (item.id !== zone.id) return item;
+                                          const next = [...item.groupCrossPairing];
+                                          next[matchIndex] = {
+                                            ...pairing,
+                                            homeRegistrationId,
+                                          };
+                                          return {
+                                            ...item,
+                                            groupCrossPairing: next,
+                                          };
+                                        });
+                                        return {
+                                          ...current,
+                                          [selectedCategoryId]: zones,
+                                        };
+                                      });
+                                    }}
+                                  >
+                                    {realEntries.map((entry) => (
+                                      <option
+                                        key={entry.id}
+                                        value={entry.registrationId ?? ""}
+                                        disabled={usedElsewhere.has(
+                                          entry.registrationId ?? "",
+                                        )}
+                                      >
+                                        {entry.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <span className="text-muted-foreground text-[10px] font-semibold">
+                                    VS
+                                  </span>
+                                  <select
+                                    className="border-input h-8 rounded-md border px-1 text-[11px]"
+                                    value={pairing.awayRegistrationId}
+                                    onChange={(event) => {
+                                      const awayRegistrationId = event.target.value;
+                                      setZonesByCategory((current) => {
+                                        const zones = (
+                                          current[selectedCategoryId] ?? []
+                                        ).map((item) => {
+                                          if (item.id !== zone.id) return item;
+                                          const next = [...item.groupCrossPairing];
+                                          next[matchIndex] = {
+                                            ...pairing,
+                                            awayRegistrationId,
+                                          };
+                                          return {
+                                            ...item,
+                                            groupCrossPairing: next,
+                                          };
+                                        });
+                                        return {
+                                          ...current,
+                                          [selectedCategoryId]: zones,
+                                        };
+                                      });
+                                    }}
+                                  >
+                                    {realEntries.map((entry) => (
+                                      <option
+                                        key={entry.id}
+                                        value={entry.registrationId ?? ""}
+                                        disabled={usedElsewhere.has(
+                                          entry.registrationId ?? "",
+                                        )}
+                                      >
+                                        {entry.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                        {!canCross ? (
+                          <p className="text-muted-foreground text-[11px]">
+                            El cruce se habilita con una cantidad par de parejas.
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                   <div className="space-y-2 px-3 pb-3">
                     {zone.entries.map((entry) => (
                       <div

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { updateTournamentMatchResultAction } from "@/actions/tournaments";
 import {
+  formatGroupFeederLabel,
   getKnockoutMatchLabels,
   getKnockoutRoundLabel,
 } from "@/lib/tournament-knockout-display";
@@ -198,8 +199,8 @@ function collectMatches(
           categoryName: category.name,
           matchDate: match.matchDate,
           startTimeMinutes: match.startTimeMinutes,
-          homeLabel: pairLabel(match.homeRegistration),
-          awayLabel: pairLabel(match.awayRegistration),
+          homeLabel: formatGroupFeederLabel(match, "home", zone.matches),
+          awayLabel: formatGroupFeederLabel(match, "away", zone.matches),
           homeRegistrationId: match.homeRegistration?.id ?? null,
           awayRegistrationId: match.awayRegistration?.id ?? null,
           homeGames: match.homeGames,

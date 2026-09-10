@@ -284,9 +284,14 @@ export async function saveTournamentManualZonesAction(
   clubId: string,
   tournamentId: string,
   categoryId: string,
-  payload: {
+      payload: {
     zones: Array<{
       zoneId: string;
+      groupMatchFormat?: "ROUND_ROBIN" | "CROSSED";
+      groupCrossPairing?: Array<{
+        homeRegistrationId: string;
+        awayRegistrationId: string;
+      }>;
       entries: Array<{ registrationId?: string; isBye?: boolean }>;
     }>;
   },

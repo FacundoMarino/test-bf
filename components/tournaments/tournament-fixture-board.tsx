@@ -7,6 +7,7 @@ import { CalendarDays, Info, MapPin, Pencil, Trophy } from "lucide-react";
 import { updateTournamentMatchScheduleAction } from "@/actions/tournaments";
 import { Button } from "@/components/ui/button";
 import {
+  formatGroupFeederLabel,
   getKnockoutMatchLabels,
   getKnockoutStageLabel,
 } from "@/lib/tournament-knockout-display";
@@ -216,8 +217,8 @@ function collectFixtureMatches(
             phase: "GROUP",
             stageLabel: zone.name,
             isRoundWindow: false,
-            homeLabel: pairLabel(match.homeRegistration),
-            awayLabel: pairLabel(match.awayRegistration),
+            homeLabel: formatGroupFeederLabel(match, "home", zone.matches),
+            awayLabel: formatGroupFeederLabel(match, "away", zone.matches),
             durationMin: category.groupMatchDurationMin,
             ownClubName,
             courtBlocks,

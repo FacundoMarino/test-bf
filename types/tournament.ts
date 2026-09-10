@@ -89,10 +89,19 @@ export type TournamentMatch = {
   awaySlotKey?: string | null;
 };
 
+export type TournamentZoneGroupFormat = "ROUND_ROBIN" | "CROSSED";
+
+export type TournamentZoneCrossMatch = {
+  homeRegistrationId: string;
+  awayRegistrationId: string;
+};
+
 export type TournamentZone = {
   id: string;
   name: string;
   order: number;
+  groupMatchFormat?: TournamentZoneGroupFormat;
+  groupCrossPairing?: TournamentZoneCrossMatch[] | null;
   entries: TournamentZoneEntry[];
   matches: TournamentMatch[];
 };

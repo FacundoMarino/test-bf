@@ -18,9 +18,7 @@ function formatZoneSlotKey(
 export function zoneHasPlayedGroupMatch(
   zone: TournamentCategory["zones"][number] | undefined,
 ) {
-  return Boolean(
-    zone?.matches?.some((match) => match.status === "FINISHED"),
-  );
+  return Boolean(zone?.matches?.some((match) => match.status === "FINISHED"));
 }
 
 export function buildFirstRoundKnockoutSlotLabels(
@@ -295,4 +293,26 @@ export function getKnockoutStageLabel(
   const matchCount = roundMatchCounts[roundIndex] ?? 1;
   if (matchCount <= 1) return label;
   return `${label} ${orderInRound}`;
+}
+
+export function formatGroupFeederLabel(
+  match: TournamentMatch,
+  side: "home" | "away",
+  zoneMatches: TournamentMatch[],
+) {
+  const registration =
+    side === "home" ? match.homeRegistration : match.awayRegistration;
+  if (registration) {
+    return `${registration.playerProfile.fullName ?? "Jugador"} / ${registration.partnerName}`;
+  }
+  const key = side === "home" ? match.homeSlotKey : match.awaySlotKey;
+  if (key?.startsWith("gwin:")) {
+    const feeder = zoneMatches.find((row) => row.id === key.slice(5));
+    return `Ganador ${feeder?.orderInRound ?? 1}`;
+  }
+  if (key?.startsWith("glose:")) {
+    const feeder = zoneMatches.find((row) => row.id === key.slice(6));
+    return `Perdedor ${feeder?.orderInRound ?? 1}`;
+  }
+  return "A definir";
 }
