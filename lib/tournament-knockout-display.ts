@@ -1,11 +1,76 @@
 import type { TournamentCategory, TournamentMatch } from "@/types/tournament";
 
-function pairLabel(
-  registration: TournamentMatch["homeRegistration"],
-  fallback = "A definir",
+type KnockoutLabelOptions = {
+  knockoutMatches?: TournamentMatch[];
+};
+
+function formatZoneSlotKey(
+  key: string | null | undefined,
+  zones: TournamentCategory["zones"],
 ) {
-  if (!registration) return fallback;
-  return `${registration.playerProfile.fullName ?? "Jugador"} / ${registration.partnerName}`;
+  if (!key?.startsWith("zone:")) return null;
+  const [, zoneId, rankRaw] = key.split(":");
+  const zone = zones.find((row) => row.id === zoneId);
+  if (!zone) return null;
+  return `${rankRaw}° ${zone.name}`;
+}
+
+export function zoneHasPlayedGroupMatch(
+  zone: TournamentCategory["zones"][number] | undefined,
+) {
+  return Boolean(
+    zone?.matches?.some((match) => match.status === "FINISHED"),
+  );
+}
+
+export function buildFirstRoundKnockoutSlotLabels(
+  zones: TournamentCategory["zones"],
+  matchIndex: number,
+  firstRoundMatches = matchIndex + 1,
+) {
+  const needed = Math.max(1, firstRoundMatches);
+  const sorted = [...zones].sort((a, b) => a.order - b.order);
+  const slots: Array<{ home: string; away: string }> = [];
+
+  const pushCrossovers = (homeRank: number, awayRank: number) => {
+    let start = 0;
+    if (sorted.length % 2 === 1 && homeRank === 1 && awayRank === 2) {
+      slots.push({
+        home: `1° ${sorted[0].name}`,
+        away: "BYE",
+      });
+      start = 1;
+    }
+    for (let index = start; index < sorted.length; index += 2) {
+      const zoneA = sorted[index];
+      const zoneB = sorted[index + 1];
+      if (!zoneB) {
+        slots.push({ home: `${homeRank}° ${zoneA.name}`, away: "BYE" });
+        break;
+      }
+      slots.push({
+        home: `${homeRank}° ${zoneA.name}`,
+        away: `${awayRank}° ${zoneB.name}`,
+      });
+      slots.push({
+        home: `${homeRank}° ${zoneB.name}`,
+        away: `${awayRank}° ${zoneA.name}`,
+      });
+    }
+  };
+
+  if (!sorted.length) {
+    return { home: "1° Zona A", away: "BYE" };
+  }
+
+  pushCrossovers(1, 2);
+  for (let rank = 3; slots.length < needed && rank <= 8; rank += 1) {
+    pushCrossovers(rank, rank);
+  }
+  while (slots.length < needed) {
+    slots.push({ home: "A definir", away: "BYE" });
+  }
+  return slots[matchIndex] ?? { home: "A definir", away: "BYE" };
 }
 
 function getKnockoutRoundMeta(
@@ -19,7 +84,6 @@ function getKnockoutRoundMeta(
     roundMatchCounts.push(count);
     count = Math.floor(count / 2);
   }
-
   const roundIndex = roundNumber - 1;
   const totalRounds = roundMatchCounts.length;
   const remaining = totalRounds - roundIndex;
@@ -28,8 +92,188 @@ function getKnockoutRoundMeta(
   else if (remaining === 2) label = "Semifinal";
   else if (remaining === 3) label = "Cuartos de final";
   else if (remaining === 4) label = "Octavos de final";
-
   return { label, roundIndex, totalRounds, roundMatchCounts };
+}
+
+function getKnockoutWinnerSlotLabels(
+  category: TournamentCategory,
+  roundNumber: number,
+  orderInRound: number,
+) {
+  const { roundIndex, totalRounds } = getKnockoutRoundMeta(
+    category,
+    roundNumber,
+  );
+  const matchIndex = Math.max(0, orderInRound - 1);
+  if (roundIndex <= 0) {
+    return buildFirstRoundKnockoutSlotLabels(
+      category.zones,
+      matchIndex,
+      category.knockoutFirstRoundMatches,
+    );
+  }
+
+  const prevRemaining = totalRounds - (roundIndex - 1);
+  let prevPrefix = "R";
+  if (prevRemaining === 2) prevPrefix = "SF";
+  else if (prevRemaining === 3) prevPrefix = "CF";
+  else if (prevRemaining === 4) prevPrefix = "OF";
+
+  return {
+    home: `Ganador ${prevPrefix}${matchIndex * 2 + 1}`,
+    away: `Ganador ${prevPrefix}${matchIndex * 2 + 2}`,
+  };
+}
+
+function pairLabel(
+  registration: TournamentMatch["homeRegistration"],
+  fallback = "A definir",
+) {
+  if (!registration) return fallback;
+  return `${registration.playerProfile.fullName ?? "Jugador"} / ${registration.partnerName}`;
+}
+
+function resolveRegistrationLabel(
+  category: TournamentCategory,
+  registration: TournamentMatch["homeRegistration"],
+  registrationId: string | null | undefined,
+) {
+  if (registration) return pairLabel(registration);
+  if (!registrationId) return null;
+  const fromCategory = category.registrations.find(
+    (row) => row.id === registrationId,
+  );
+  return fromCategory ? pairLabel(fromCategory) : null;
+}
+
+function resolvePreviousRoundWinnerLabel(
+  match: TournamentMatch,
+  side: "home" | "away",
+  category: TournamentCategory,
+  knockoutMatches: TournamentMatch[],
+) {
+  if (match.roundNumber <= 1) return null;
+
+  const feederOrder =
+    side === "home" ? match.orderInRound * 2 - 1 : match.orderInRound * 2;
+  const feeder = knockoutMatches.find(
+    (row) =>
+      row.categoryId === match.categoryId &&
+      row.roundNumber === match.roundNumber - 1 &&
+      row.orderInRound === feederOrder,
+  );
+  if (!feeder?.winnerRegistrationId) return null;
+
+  const winner = category.registrations.find(
+    (row) => row.id === feeder.winnerRegistrationId,
+  );
+  return winner ? pairLabel(winner) : null;
+}
+
+function resolveSideLabel(
+  match: TournamentMatch,
+  side: "home" | "away",
+  category: TournamentCategory,
+  options?: KnockoutLabelOptions,
+) {
+  const registration =
+    side === "home" ? match.homeRegistration : match.awayRegistration;
+  const registrationId =
+    side === "home" ? match.homeRegistrationId : match.awayRegistrationId;
+  const slotKey = side === "home" ? match.homeSlotKey : match.awaySlotKey;
+  const manual = side === "home" ? match.homeSlotManual : match.awaySlotManual;
+
+  if (manual) {
+    const fromRegistration = resolveRegistrationLabel(
+      category,
+      registration,
+      registrationId ?? null,
+    );
+    if (fromRegistration) return fromRegistration;
+  }
+
+  if (slotKey?.startsWith("zone:")) {
+    const zoneId = slotKey.split(":")[1];
+    const zone = category.zones.find((row) => row.id === zoneId);
+    const zoneLabel = formatZoneSlotKey(slotKey, category.zones);
+    if (!zoneHasPlayedGroupMatch(zone)) {
+      return zoneLabel ?? "A definir";
+    }
+    if (registration) return pairLabel(registration);
+    const fromRegistration = resolveRegistrationLabel(
+      category,
+      registration,
+      registrationId ?? null,
+    );
+    if (fromRegistration) return fromRegistration;
+    if (zoneLabel) return zoneLabel;
+  }
+
+  if (registration) return pairLabel(registration);
+  const fromRegistration = resolveRegistrationLabel(
+    category,
+    registration,
+    registrationId ?? null,
+  );
+  if (fromRegistration && match.roundNumber > 1) return fromRegistration;
+
+  const knockoutMatches =
+    options?.knockoutMatches?.filter(
+      (row) => row.phase === "KNOCKOUT" && row.categoryId === match.categoryId,
+    ) ?? [];
+  const fromPrevious = resolvePreviousRoundWinnerLabel(
+    match,
+    side,
+    category,
+    knockoutMatches,
+  );
+  if (fromPrevious) return fromPrevious;
+
+  const zoneLabel = formatZoneSlotKey(slotKey, category.zones);
+  if (zoneLabel) return zoneLabel;
+
+  const { roundIndex } = getKnockoutRoundMeta(category, match.roundNumber);
+  const matchIndex = Math.max(0, match.orderInRound - 1);
+  if (roundIndex <= 0) {
+    const fallback = buildFirstRoundKnockoutSlotLabels(
+      category.zones,
+      matchIndex,
+      category.knockoutFirstRoundMatches,
+    );
+    return side === "home" ? fallback.home : fallback.away;
+  }
+
+  const winnerLabels = getKnockoutWinnerSlotLabels(
+    category,
+    match.roundNumber,
+    match.orderInRound,
+  );
+  return side === "home" ? winnerLabels.home : winnerLabels.away;
+}
+
+export function getKnockoutMatchLabels(
+  match: TournamentMatch,
+  category: TournamentCategory,
+  options?: KnockoutLabelOptions,
+) {
+  if (match.homeSlotBye) {
+    return {
+      home: "BYE",
+      away: resolveSideLabel(match, "away", category, options),
+    };
+  }
+
+  if (match.awaySlotBye) {
+    return {
+      home: resolveSideLabel(match, "home", category, options),
+      away: "BYE",
+    };
+  }
+
+  return {
+    home: resolveSideLabel(match, "home", category, options),
+    away: resolveSideLabel(match, "away", category, options),
+  };
 }
 
 export function getKnockoutRoundLabel(
@@ -51,192 +295,4 @@ export function getKnockoutStageLabel(
   const matchCount = roundMatchCounts[roundIndex] ?? 1;
   if (matchCount <= 1) return label;
   return `${label} ${orderInRound}`;
-}
-
-function buildFirstRoundSlot(
-  zones: TournamentCategory["zones"],
-  matchIndex: number,
-) {
-  const sortedZones = [...zones].sort((a, b) => a.order - b.order);
-  if (!sortedZones.length) {
-    return {
-      home: "1° Zona A",
-      away: "BYE",
-    };
-  }
-
-  const zoneCount = sortedZones.length;
-  if (zoneCount % 2 === 1 && matchIndex === 0) {
-    return {
-      home: `1° ${sortedZones[0].name}`,
-      away: "BYE",
-    };
-  }
-
-  const effectiveIndex = zoneCount % 2 === 1 ? matchIndex - 1 : matchIndex;
-  const zonePairBase = zoneCount % 2 === 1 ? 1 : 0;
-  const pairIndex = Math.floor(effectiveIndex / 2);
-  const subMatch = effectiveIndex % 2;
-  const zoneA = sortedZones[zonePairBase + pairIndex * 2];
-  const zoneB = sortedZones[zonePairBase + pairIndex * 2 + 1];
-
-  if (!zoneA) {
-    return { home: "A definir", away: "BYE" };
-  }
-  if (!zoneB) {
-    return { home: `1° ${zoneA.name}`, away: "BYE" };
-  }
-
-  if (subMatch === 0) {
-    return {
-      home: `1° ${zoneA.name}`,
-      away: `2° ${zoneB.name}`,
-    };
-  }
-
-  return {
-    home: `1° ${zoneB.name}`,
-    away: `2° ${zoneA.name}`,
-  };
-}
-
-function formatZoneSlotKey(
-  key: string | null | undefined,
-  zones: TournamentCategory["zones"],
-) {
-  if (!key?.startsWith("zone:")) return null;
-  const [, zoneId, rankRaw] = key.split(":");
-  const zone = zones.find((row) => row.id === zoneId);
-  if (!zone) return null;
-  return `${rankRaw}° ${zone.name}`;
-}
-
-function getKnockoutWinnerSlotLabels(
-  category: TournamentCategory,
-  roundNumber: number,
-  orderInRound: number,
-) {
-  const { roundIndex, totalRounds } = getKnockoutRoundMeta(
-    category,
-    roundNumber,
-  );
-  const matchIndex = Math.max(0, orderInRound - 1);
-
-  if (roundIndex <= 0) {
-    return buildFirstRoundSlot(category.zones, matchIndex);
-  }
-
-  const prevRemaining = totalRounds - (roundIndex - 1);
-  let prevPrefix = "R";
-  if (prevRemaining === 2) prevPrefix = "SF";
-  else if (prevRemaining === 3) prevPrefix = "CF";
-  else if (prevRemaining === 4) prevPrefix = "OF";
-
-  return {
-    home: `Ganador ${prevPrefix}${matchIndex * 2 + 1}`,
-    away: `Ganador ${prevPrefix}${matchIndex * 2 + 2}`,
-  };
-}
-
-function resolveFeederWinnerLabel(
-  match: TournamentMatch,
-  category: TournamentCategory,
-  side: "home" | "away",
-  knockoutMatches: TournamentMatch[],
-) {
-  const { roundIndex } = getKnockoutRoundMeta(category, match.roundNumber);
-  if (roundIndex <= 0) return null;
-
-  const matchIndex = Math.max(0, match.orderInRound - 1);
-  const feederOrder = side === "home" ? matchIndex * 2 + 1 : matchIndex * 2 + 2;
-  const feeder = knockoutMatches.find(
-    (row) =>
-      row.categoryId === match.categoryId &&
-      row.roundNumber === match.roundNumber - 1 &&
-      row.orderInRound === feederOrder,
-  );
-  if (!feeder?.winnerRegistrationId) return null;
-
-  const winner =
-    feeder.winnerRegistrationId === feeder.homeRegistration?.id
-      ? feeder.homeRegistration
-      : feeder.winnerRegistrationId === feeder.awayRegistration?.id
-        ? feeder.awayRegistration
-        : null;
-  return winner ? pairLabel(winner) : null;
-}
-
-export function getKnockoutMatchLabels(
-  match: TournamentMatch,
-  category: TournamentCategory,
-  options?: { knockoutMatches?: TournamentMatch[] },
-) {
-  const roundNumber = match.roundNumber;
-  const orderInRound = match.orderInRound;
-
-  if (match.homeSlotBye) {
-    return {
-      home: "BYE",
-      away: match.awayRegistration
-        ? pairLabel(match.awayRegistration)
-        : (formatZoneSlotKey(match.awaySlotKey, category.zones) ??
-          buildFirstRoundSlot(category.zones, orderInRound - 1).away),
-    };
-  }
-  if (match.awaySlotBye) {
-    return {
-      home: match.homeRegistration
-        ? pairLabel(match.homeRegistration)
-        : (formatZoneSlotKey(match.homeSlotKey, category.zones) ??
-          buildFirstRoundSlot(category.zones, orderInRound - 1).home),
-      away: "BYE",
-    };
-  }
-
-  const homeFromKey = formatZoneSlotKey(match.homeSlotKey, category.zones);
-  const awayFromKey = formatZoneSlotKey(match.awaySlotKey, category.zones);
-  const { roundIndex } = getKnockoutRoundMeta(category, roundNumber);
-
-  if (roundIndex <= 0) {
-    const fallback = buildFirstRoundSlot(category.zones, orderInRound - 1);
-    return {
-      home: match.homeRegistration
-        ? pairLabel(match.homeRegistration)
-        : (homeFromKey ?? fallback.home),
-      away: match.awayRegistration
-        ? pairLabel(match.awayRegistration)
-        : (awayFromKey ?? fallback.away),
-    };
-  }
-
-  let labels: { home: string; away: string };
-  if (homeFromKey || awayFromKey) {
-    const prev = getKnockoutWinnerSlotLabels(
-      category,
-      roundNumber,
-      orderInRound,
-    );
-    labels = {
-      home: homeFromKey ?? prev.home,
-      away: awayFromKey ?? prev.away,
-    };
-  } else {
-    labels = getKnockoutWinnerSlotLabels(category, roundNumber, orderInRound);
-  }
-
-  if (options?.knockoutMatches?.length) {
-    const knockoutMatches = options.knockoutMatches;
-    return {
-      home: match.homeRegistration
-        ? pairLabel(match.homeRegistration)
-        : (resolveFeederWinnerLabel(match, category, "home", knockoutMatches) ??
-          labels.home),
-      away: match.awayRegistration
-        ? pairLabel(match.awayRegistration)
-        : (resolveFeederWinnerLabel(match, category, "away", knockoutMatches) ??
-          labels.away),
-    };
-  }
-
-  return labels;
 }

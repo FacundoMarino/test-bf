@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Info, Trophy } from "lucide-react";
 
 import { updateKnockoutMatchSlotAction } from "@/actions/tournaments";
+import { zoneHasPlayedGroupMatch } from "@/lib/tournament-knockout-display";
 import type {
   TournamentCategory,
   TournamentMatch,
@@ -102,16 +103,24 @@ function formatSlotDisplayLabel(
 
   const registration =
     side === "home" ? match.homeRegistration : match.awayRegistration;
-  if (registration) return formatPairLabel(registration);
-
+  const manual = side === "home" ? match.homeSlotManual : match.awaySlotManual;
   const key = side === "home" ? match.homeSlotKey : match.awaySlotKey;
+
+  if (manual && registration) return formatPairLabel(registration);
+
   if (key?.startsWith("zone:")) {
-    return (
+    const zoneId = key.split(":")[1];
+    const zone = category.zones.find((row) => row.id === zoneId);
+    const zoneLabel =
       zoneOptions.find((option) => option.value === key)?.label ??
       formatZoneSlotKey(key, category.zones) ??
-      "—"
-    );
+      "—";
+    if (!zoneHasPlayedGroupMatch(zone)) return zoneLabel;
+    if (registration) return formatPairLabel(registration);
+    return zoneLabel;
   }
+
+  if (registration && !isFirstRound) return formatPairLabel(registration);
 
   if (!isFirstRound || key === "prev") {
     const winnerLabels = getKnockoutWinnerSlotLabels(
