@@ -504,18 +504,10 @@ export function TournamentFixtureBoard({
     setError(null);
   };
 
-  const saveSchedule = () => {
-    if (!editing) return;
-    setError(null);
+  const overlapWarning = useMemo(() => {
+    if (!editing) return null;
     const startTimeMinutes = timeToMinutes(timeValue);
-    if (!dateValue || startTimeMinutes === null) {
-      setError("Completá fecha y hora.");
-      return;
-    }
-    if (!courtId) {
-      setError("Seleccioná una cancha.");
-      return;
-    }
+    if (!dateValue || startTimeMinutes === null || !courtId) return null;
 
     const conflict = fixtureMatches.find((match) => {
       if (match.id === editing.id) return false;
@@ -529,10 +521,21 @@ export function TournamentFixtureBoard({
         match.durationMin,
       );
     });
-    if (conflict) {
-      setError(
-        `El horario se superpone con ${conflict.stageLabel} (${conflict.homeLabel} vs ${conflict.awayLabel}).`,
-      );
+    if (!conflict) return null;
+
+    return `El horario se superpone con ${conflict.stageLabel} (${conflict.homeLabel} vs ${conflict.awayLabel}). Podés guardar igual.`;
+  }, [courtId, dateValue, editing, fixtureMatches, timeValue]);
+
+  const saveSchedule = () => {
+    if (!editing) return;
+    setError(null);
+    const startTimeMinutes = timeToMinutes(timeValue);
+    if (!dateValue || startTimeMinutes === null) {
+      setError("Completá fecha y hora.");
+      return;
+    }
+    if (!courtId) {
+      setError("Seleccioná una cancha.");
       return;
     }
 
@@ -667,6 +670,12 @@ export function TournamentFixtureBoard({
                   ))}
                 </select>
               </div>
+
+              {overlapWarning ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  {overlapWarning}
+                </p>
+              ) : null}
 
               {error ? (
                 <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
