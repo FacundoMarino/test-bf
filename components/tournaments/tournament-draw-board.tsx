@@ -192,8 +192,6 @@ export function TournamentDrawBoard({
     () => zonesByCategory[selectedCategoryId] ?? [],
     [zonesByCategory, selectedCategoryId],
   );
-  const oddTotalPairs =
-    (selectedCategory?.registrations.length ?? 0) % 2 === 1;
   const hasUnsavedChanges = useMemo(() => {
     if (!selectedCategory) return false;
     const original =
@@ -368,10 +366,9 @@ export function TournamentDrawBoard({
         </div>
         <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
           <Info className="size-3.5" />
-          Arrastrá una pareja de una zona a otra. Si el total de parejas de la
-          categoría es impar, en la zona que quede par podés usar el cruce
-          (primera ronda + ganador vs perdedor) para que todos jueguen 2
-          partidos.
+          Arrastrá una pareja de una zona a otra. En cualquier zona con
+          cantidad par de parejas podés usar el cruce (primera ronda + ganador
+          vs perdedor) para que todos jueguen 2 partidos.
         </p>
       </div>
 
@@ -450,36 +447,41 @@ export function TournamentDrawBoard({
                     const realEntries = zone.entries.filter(
                       (entry) => entry.registrationId && !entry.isBye,
                     );
-                    const canCross =
-                      oddTotalPairs && isEvenGroupSize(realEntries.length);
+                    const canCross = isEvenGroupSize(realEntries.length);
                     return (
                       <div className="space-y-2 px-3 pb-2">
                         <select
                           className="border-input bg-background h-9 w-full rounded-lg border px-2 text-xs"
-                          value={canCross ? zone.groupMatchFormat : "ROUND_ROBIN"}
+                          value={
+                            canCross ? zone.groupMatchFormat : "ROUND_ROBIN"
+                          }
                           disabled={!canCross}
                           onChange={(event) => {
                             const format = event.target.value as
                               | "ROUND_ROBIN"
                               | "CROSSED";
                             setZonesByCategory((current) => {
-                              const zones = (current[selectedCategoryId] ?? []).map(
-                                (item) =>
-                                  item.id === zone.id
-                                    ? {
-                                        ...item,
-                                        groupMatchFormat: format,
-                                        groupCrossPairing:
-                                          format === "CROSSED"
-                                            ? item.groupCrossPairing.length ===
-                                              realEntries.length / 2
-                                              ? item.groupCrossPairing
-                                              : defaultCrossPairing(item.entries)
-                                            : [],
-                                      }
-                                    : item,
+                              const zones = (
+                                current[selectedCategoryId] ?? []
+                              ).map((item) =>
+                                item.id === zone.id
+                                  ? {
+                                      ...item,
+                                      groupMatchFormat: format,
+                                      groupCrossPairing:
+                                        format === "CROSSED"
+                                          ? item.groupCrossPairing.length ===
+                                            realEntries.length / 2
+                                            ? item.groupCrossPairing
+                                            : defaultCrossPairing(item.entries)
+                                          : [],
+                                    }
+                                  : item,
                               );
-                              return { ...current, [selectedCategoryId]: zones };
+                              return {
+                                ...current,
+                                [selectedCategoryId]: zones,
+                              };
                             });
                           }}
                         >
@@ -493,126 +495,136 @@ export function TournamentDrawBoard({
                         {canCross && zone.groupMatchFormat === "CROSSED" ? (
                           <div className="space-y-1.5 rounded-lg border border-border/70 bg-background p-2">
                             <p className="text-muted-foreground text-[11px]">
-                              Definí los partidos de la primera ronda. Después se
-                              juega Ganador 1 vs Perdedor 2, Ganador 2 vs Perdedor
-                              3, y así (el último contra el perdedor del primero).
+                              Definí los partidos de la primera ronda. Después
+                              se juega Ganador 1 vs Perdedor 2, Ganador 2 vs
+                              Perdedor 3, y así (el último contra el perdedor
+                              del primero).
                             </p>
                             {Array.from(
                               { length: realEntries.length / 2 },
                               (_, matchIndex) => {
-                              const pairing =
-                                zone.groupCrossPairing[matchIndex] ?? {
+                                const pairing = zone.groupCrossPairing[
+                                  matchIndex
+                                ] ?? {
                                   homeRegistrationId:
-                                    realEntries[matchIndex * 2]?.registrationId ??
-                                    "",
+                                    realEntries[matchIndex * 2]
+                                      ?.registrationId ?? "",
                                   awayRegistrationId:
                                     realEntries[matchIndex * 2 + 1]
                                       ?.registrationId ?? "",
                                 };
-                              const usedElsewhere = new Set(
-                                zone.groupCrossPairing
-                                  .filter((_, index) => index !== matchIndex)
-                                  .flatMap((row) => [
-                                    row.homeRegistrationId,
-                                    row.awayRegistrationId,
-                                  ]),
-                              );
-                              return (
-                                <div
-                                  key={`cross-${zone.id}-${matchIndex}`}
-                                  className="grid grid-cols-[1fr_auto_1fr] items-center gap-1"
-                                >
-                                  <select
-                                    className="border-input h-8 rounded-md border px-1 text-[11px]"
-                                    value={pairing.homeRegistrationId}
-                                    onChange={(event) => {
-                                      const homeRegistrationId = event.target.value;
-                                      setZonesByCategory((current) => {
-                                        const zones = (
-                                          current[selectedCategoryId] ?? []
-                                        ).map((item) => {
-                                          if (item.id !== zone.id) return item;
-                                          const next = [...item.groupCrossPairing];
-                                          next[matchIndex] = {
-                                            ...pairing,
-                                            homeRegistrationId,
-                                          };
+                                const usedElsewhere = new Set(
+                                  zone.groupCrossPairing
+                                    .filter((_, index) => index !== matchIndex)
+                                    .flatMap((row) => [
+                                      row.homeRegistrationId,
+                                      row.awayRegistrationId,
+                                    ]),
+                                );
+                                return (
+                                  <div
+                                    key={`cross-${zone.id}-${matchIndex}`}
+                                    className="grid grid-cols-[1fr_auto_1fr] items-center gap-1"
+                                  >
+                                    <select
+                                      className="border-input h-8 rounded-md border px-1 text-[11px]"
+                                      value={pairing.homeRegistrationId}
+                                      onChange={(event) => {
+                                        const homeRegistrationId =
+                                          event.target.value;
+                                        setZonesByCategory((current) => {
+                                          const zones = (
+                                            current[selectedCategoryId] ?? []
+                                          ).map((item) => {
+                                            if (item.id !== zone.id)
+                                              return item;
+                                            const next = [
+                                              ...item.groupCrossPairing,
+                                            ];
+                                            next[matchIndex] = {
+                                              ...pairing,
+                                              homeRegistrationId,
+                                            };
+                                            return {
+                                              ...item,
+                                              groupCrossPairing: next,
+                                            };
+                                          });
                                           return {
-                                            ...item,
-                                            groupCrossPairing: next,
+                                            ...current,
+                                            [selectedCategoryId]: zones,
                                           };
                                         });
-                                        return {
-                                          ...current,
-                                          [selectedCategoryId]: zones,
-                                        };
-                                      });
-                                    }}
-                                  >
-                                    {realEntries.map((entry) => (
-                                      <option
-                                        key={entry.id}
-                                        value={entry.registrationId ?? ""}
-                                        disabled={usedElsewhere.has(
-                                          entry.registrationId ?? "",
-                                        )}
-                                      >
-                                        {entry.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <span className="text-muted-foreground text-[10px] font-semibold">
-                                    VS
-                                  </span>
-                                  <select
-                                    className="border-input h-8 rounded-md border px-1 text-[11px]"
-                                    value={pairing.awayRegistrationId}
-                                    onChange={(event) => {
-                                      const awayRegistrationId = event.target.value;
-                                      setZonesByCategory((current) => {
-                                        const zones = (
-                                          current[selectedCategoryId] ?? []
-                                        ).map((item) => {
-                                          if (item.id !== zone.id) return item;
-                                          const next = [...item.groupCrossPairing];
-                                          next[matchIndex] = {
-                                            ...pairing,
-                                            awayRegistrationId,
-                                          };
+                                      }}
+                                    >
+                                      {realEntries.map((entry) => (
+                                        <option
+                                          key={entry.id}
+                                          value={entry.registrationId ?? ""}
+                                          disabled={usedElsewhere.has(
+                                            entry.registrationId ?? "",
+                                          )}
+                                        >
+                                          {entry.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <span className="text-muted-foreground text-[10px] font-semibold">
+                                      VS
+                                    </span>
+                                    <select
+                                      className="border-input h-8 rounded-md border px-1 text-[11px]"
+                                      value={pairing.awayRegistrationId}
+                                      onChange={(event) => {
+                                        const awayRegistrationId =
+                                          event.target.value;
+                                        setZonesByCategory((current) => {
+                                          const zones = (
+                                            current[selectedCategoryId] ?? []
+                                          ).map((item) => {
+                                            if (item.id !== zone.id)
+                                              return item;
+                                            const next = [
+                                              ...item.groupCrossPairing,
+                                            ];
+                                            next[matchIndex] = {
+                                              ...pairing,
+                                              awayRegistrationId,
+                                            };
+                                            return {
+                                              ...item,
+                                              groupCrossPairing: next,
+                                            };
+                                          });
                                           return {
-                                            ...item,
-                                            groupCrossPairing: next,
+                                            ...current,
+                                            [selectedCategoryId]: zones,
                                           };
                                         });
-                                        return {
-                                          ...current,
-                                          [selectedCategoryId]: zones,
-                                        };
-                                      });
-                                    }}
-                                  >
-                                    {realEntries.map((entry) => (
-                                      <option
-                                        key={entry.id}
-                                        value={entry.registrationId ?? ""}
-                                        disabled={usedElsewhere.has(
-                                          entry.registrationId ?? "",
-                                        )}
-                                      >
-                                        {entry.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              );
-                            })}
+                                      }}
+                                    >
+                                      {realEntries.map((entry) => (
+                                        <option
+                                          key={entry.id}
+                                          value={entry.registrationId ?? ""}
+                                          disabled={usedElsewhere.has(
+                                            entry.registrationId ?? "",
+                                          )}
+                                        >
+                                          {entry.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                );
+                              },
+                            )}
                           </div>
                         ) : null}
                         {!canCross ? (
                           <p className="text-muted-foreground text-[11px]">
-                            {oddTotalPairs
-                              ? "El cruce se usa en la zona que quedó con cantidad par."
-                              : "El cruce se habilita cuando el total de parejas de la categoría es impar."}
+                            El cruce se habilita cuando la zona tiene una
+                            cantidad par de parejas.
                           </p>
                         ) : null}
                       </div>
