@@ -19,10 +19,25 @@ function formatZoneSlotKey(
   return `${rankRaw}° ${zone.name}`;
 }
 
+export function zoneGroupClassificationReady(
+  zone: TournamentCategory["zones"][number] | undefined,
+) {
+  if (!zone) return false;
+  const matches = (zone.matches ?? []).filter(
+    (match) => match.phase === "GROUP",
+  );
+  const groupMatches = matches.length > 0 ? matches : (zone.matches ?? []);
+  if (!groupMatches.length) return false;
+  if (zone.groupMatchFormat === "CROSSED") {
+    return groupMatches.some((match) => match.status === "FINISHED");
+  }
+  return groupMatches.every((match) => match.status === "FINISHED");
+}
+
 export function zoneHasPlayedGroupMatch(
   zone: TournamentCategory["zones"][number] | undefined,
 ) {
-  return Boolean(zone?.matches?.some((match) => match.status === "FINISHED"));
+  return zoneGroupClassificationReady(zone);
 }
 
 export function zoneTeamCount(
