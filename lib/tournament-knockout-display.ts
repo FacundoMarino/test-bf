@@ -28,9 +28,6 @@ export function zoneGroupClassificationReady(
   );
   const groupMatches = matches.length > 0 ? matches : (zone.matches ?? []);
   if (!groupMatches.length) return false;
-  if (zone.groupMatchFormat === "CROSSED") {
-    return groupMatches.some((match) => match.status === "FINISHED");
-  }
   return groupMatches.every((match) => match.status === "FINISHED");
 }
 
