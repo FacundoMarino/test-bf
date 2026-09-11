@@ -366,9 +366,9 @@ export function TournamentDrawBoard({
         </div>
         <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
           <Info className="size-3.5" />
-          Arrastrá una pareja de una zona a otra. En cualquier zona con
-          cantidad par de parejas podés usar el cruce (primera ronda + ganador
-          vs perdedor) para que todos jueguen 2 partidos.
+          Arrastrá una pareja de una zona a otra. En cualquier zona con cantidad
+          par de parejas podés usar el cruce (primera ronda + ganador vs
+          perdedor) para que todos jueguen 2 partidos.
         </p>
       </div>
 

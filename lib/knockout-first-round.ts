@@ -27,20 +27,7 @@ export function zoneKnockoutQualifierCount(
   return fallback;
 }
 
-export function knockoutFirstRoundMatchCount(
-  qualifierCount: number,
-  configured: number,
-) {
-  const n = Math.max(2, qualifierCount);
-  let bracket = 2;
-  while (bracket < n) bracket *= 2;
-  return Math.max(Math.max(1, configured), Math.floor(bracket / 2));
-}
-
-function ref(
-  zone: KnockoutZoneSeed,
-  rank: number,
-): KnockoutZoneRef {
+function ref(zone: KnockoutZoneSeed, rank: number): KnockoutZoneRef {
   return { zoneId: zone.id, zoneName: zone.name, rank };
 }
 
@@ -94,7 +81,7 @@ export function buildFirstRoundKnockoutSlotsLegacy(
 
   if (!sorted.length) {
     return Array.from({ length: needed }, () => ({
-      home: { zoneId: '', zoneName: 'Zona A', rank: 1 },
+      home: { zoneId: "", zoneName: "Zona A", rank: 1 },
       away: null,
       awayBye: true,
     }));
@@ -120,7 +107,7 @@ export function buildFirstRoundKnockoutSlots(
 
   if (!sorted.length) {
     return Array.from({ length: needed }, () => ({
-      home: { zoneId: '', zoneName: 'Zona A', rank: 1 },
+      home: { zoneId: "", zoneName: "Zona A", rank: 1 },
       away: null,
       awayBye: true,
     }));
