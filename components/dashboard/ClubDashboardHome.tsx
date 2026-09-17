@@ -75,7 +75,13 @@ function MetricCard({
   );
 }
 
-export function ClubDashboardHome({ data }: { data: ClubDashboardResponse }) {
+export function ClubDashboardHome({
+  data,
+  showRevenue = true,
+}: {
+  data: ClubDashboardResponse;
+  showRevenue?: boolean;
+}) {
   const cmp = data.comparisonLabel;
   const arsFmt = new Intl.NumberFormat("es-AR", {
     maximumFractionDigits: 0,
@@ -92,7 +98,12 @@ export function ClubDashboardHome({ data }: { data: ClubDashboardResponse }) {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div
+        className={cn(
+          "grid gap-4",
+          showRevenue ? "sm:grid-cols-3" : "sm:grid-cols-2",
+        )}
+      >
         <MetricCard
           title="Reservas hoy"
           value={String(data.metrics.bookings.value)}
@@ -100,13 +111,15 @@ export function ClubDashboardHome({ data }: { data: ClubDashboardResponse }) {
           comparisonLabel={cmp}
           icon={CalendarDays}
         />
-        <MetricCard
-          title="Ingresos hoy"
-          value={`$ ${arsFmt.format(data.metrics.revenue.valueEUR)}`}
-          changePercent={data.metrics.revenue.changePercent}
-          comparisonLabel={cmp}
-          icon={DollarSign}
-        />
+        {showRevenue ? (
+          <MetricCard
+            title="Ingresos hoy"
+            value={`$ ${arsFmt.format(data.metrics.revenue.valueEUR)}`}
+            changePercent={data.metrics.revenue.changePercent}
+            comparisonLabel={cmp}
+            icon={DollarSign}
+          />
+        ) : null}
         <MetricCard
           title="Ocupación hoy"
           value={`${data.metrics.occupancy.valuePercent}%`}

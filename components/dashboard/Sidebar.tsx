@@ -16,8 +16,10 @@ import {
   PanelLeftClose,
   PanelLeft,
   Trophy,
+  Users,
 } from "lucide-react";
 
+import { canViewMetrics } from "@/lib/club-permissions";
 import { cn } from "@/lib/utils";
 
 const baseNav = [{ href: "/dashboard", label: "Inicio", icon: Home }] as const;
@@ -57,9 +59,11 @@ function getActiveNavHref(
 export function Sidebar({
   showClubNav = false,
   showSuperAdminNav = false,
+  clubRole,
 }: {
   showClubNav?: boolean;
   showSuperAdminNav?: boolean;
+  clubRole?: "ADMINISTRADOR" | "RESERVAS" | null;
 }) {
   const nav = showSuperAdminNav
     ? ([
@@ -72,6 +76,11 @@ export function Sidebar({
           href: "/dashboard/admin/cities",
           label: "Ciudades",
           icon: MapPin,
+        },
+        {
+          href: "/dashboard/admin/usuarios",
+          label: "Usuarios clubes",
+          icon: Users,
         },
       ] as const)
     : ([
@@ -103,11 +112,15 @@ export function Sidebar({
                 label: "Turnos fijos",
                 icon: Repeat,
               },
-              {
-                href: "/dashboard/club/metricas",
-                label: "Métricas",
-                icon: BarChart3,
-              },
+              ...(canViewMetrics(clubRole ?? "ADMINISTRADOR")
+                ? ([
+                    {
+                      href: "/dashboard/club/metricas",
+                      label: "Métricas",
+                      icon: BarChart3,
+                    },
+                  ] as const)
+                : []),
             ] as const)
           : []),
       ] as const);

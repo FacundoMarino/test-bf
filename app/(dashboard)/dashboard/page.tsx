@@ -7,6 +7,7 @@ import {
   StatsSection,
   StatsSectionSkeleton,
 } from "@/components/dashboard";
+import { canViewRevenue, resolveClubRole } from "@/lib/club-permissions";
 import { getDashboardContext, isClubAccount } from "@/lib/dashboard-context";
 import { fetchClubDashboard } from "@/lib/club-dashboard";
 import { env } from "@/lib/env";
@@ -17,6 +18,9 @@ export default async function DashboardPage() {
 
   const { session } = ctx;
   const clubUser = isClubAccount(ctx);
+  const clubRole = clubUser
+    ? resolveClubRole(session.user, ctx.clubRole)
+    : null;
 
   const cookieStore = await cookies();
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
@@ -47,7 +51,10 @@ export default async function DashboardPage() {
         clubDashboard?.error || !clubDashboard?.data ? (
           <ClubDashboardError />
         ) : (
-          <ClubDashboardHome data={clubDashboard.data} />
+          <ClubDashboardHome
+            data={clubDashboard.data}
+            showRevenue={clubRole ? canViewRevenue(clubRole) : true}
+          />
         )
       ) : (
         <section>

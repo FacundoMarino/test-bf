@@ -14,6 +14,7 @@ export type DashboardContext = {
   session: UserSession;
   profile: ProfileRecord | null;
   club: ClubRecord | null;
+  clubRole: "ADMINISTRADOR" | "RESERVAS" | null;
 };
 
 async function readDashboardContext(): Promise<DashboardContext | null> {
@@ -30,10 +31,20 @@ async function readDashboardContext(): Promise<DashboardContext | null> {
   ]);
 
   const profile = profileRes.error ? null : profileRes.data;
-  const club =
-    clubRes.error || !clubRes.data ? null : (clubRes.data.club ?? null);
+  const clubData = clubRes.error || !clubRes.data ? null : clubRes.data;
+  const club = clubData?.club ?? null;
+  const clubRole =
+    clubData?.role === "ADMINISTRADOR" || clubData?.role === "RESERVAS"
+      ? clubData.role
+      : club
+        ? "ADMINISTRADOR"
+        : null;
+  const nextSession: UserSession =
+    clubRole == null
+      ? session
+      : { ...session, user: { ...session.user, clubRole } };
 
-  return { session, profile, club };
+  return { session: nextSession, profile, club, clubRole };
 }
 
 export const getDashboardContext = cache(readDashboardContext);

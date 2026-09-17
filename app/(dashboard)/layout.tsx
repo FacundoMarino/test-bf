@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ClubSetupGate } from "@/components/club";
 import { DashboardShell, DashboardShellSkeleton } from "@/components/dashboard";
 import { AuthProvider } from "@/hooks";
+import { resolveClubRole } from "@/lib/club-permissions";
 import {
   getDashboardContext,
   isClubAccount,
@@ -32,12 +33,16 @@ async function DashboardSessionLayout({
 
   const superAdminUser = isSuperAdminAccount(ctx);
   const clubUser = isClubAccount(ctx) && !superAdminUser;
+  const clubRole = clubUser
+    ? resolveClubRole(ctx.session.user, ctx.clubRole)
+    : null;
 
   return (
     <AuthProvider user={ctx.session.user} isClubAccount={clubUser}>
       <DashboardShell
         showClubNav={clubUser}
         showSuperAdminNav={superAdminUser}
+        clubRole={clubRole}
         preContent={
           <ClubSetupGate
             isClubUser={clubUser}

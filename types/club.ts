@@ -5,6 +5,7 @@ const optionalProfileCityZ = z.union([z.literal(""), z.string().trim().min(1)]);
 
 export type MyClubResponse = {
   club: ClubRecord | null;
+  role?: "ADMINISTRADOR" | "RESERVAS" | null;
 };
 
 export type ClubRecord = {

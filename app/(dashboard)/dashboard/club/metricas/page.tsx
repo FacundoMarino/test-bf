@@ -9,6 +9,7 @@ import {
   fetchClubAnalytics,
   normalizeAnalyticsRange,
 } from "@/lib/club-analytics";
+import { canViewMetrics, resolveClubRole } from "@/lib/club-permissions";
 import { getDashboardContext, isClubAccount } from "@/lib/dashboard-context";
 import { env } from "@/lib/env";
 
@@ -21,6 +22,8 @@ export default async function ClubMetricasPage({
   if (!ctx) redirect("/login");
   if (!isClubAccount(ctx)) redirect("/dashboard");
   if (!ctx.club) redirect("/dashboard/club");
+  const clubRole = resolveClubRole(ctx.session.user, ctx.clubRole);
+  if (!canViewMetrics(clubRole)) redirect("/dashboard");
 
   const sp = (await searchParams) ?? {};
   const range = normalizeAnalyticsRange(sp.range);
