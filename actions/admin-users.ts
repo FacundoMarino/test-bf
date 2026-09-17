@@ -107,3 +107,51 @@ export async function assignAdminClubUserRoleAction(input: {
   revalidatePath("/dashboard/admin/usuarios");
   return { ok: true };
 }
+
+export async function createAdminClubUserAction(input: {
+  email: string;
+  fullName: string;
+  clubId: string;
+  role: "ADMINISTRADOR" | "RESERVAS";
+}): Promise<
+  | {
+      ok: true;
+      user: { id: string; email: string; name: string };
+      membership: {
+        clubId: string;
+        clubName: string;
+        role: "ADMINISTRADOR" | "RESERVAS";
+      };
+      temporaryPassword: string;
+    }
+  | { ok: false; error: string }
+> {
+  const token = await getTokenOrRedirect();
+  const res = await apiFetch<{
+    user: { id: string; email: string; name: string };
+    membership: {
+      clubId: string;
+      clubName: string;
+      role: "ADMINISTRADOR" | "RESERVAS";
+    };
+    temporaryPassword: string;
+  }>("/clubs/admin/users", {
+    authToken: token,
+    method: "POST",
+    body: JSON.stringify({
+      email: input.email,
+      fullName: input.fullName,
+      clubId: input.clubId,
+      role: input.role,
+    }),
+  });
+
+  if (res.error) return { ok: false, error: res.error.message };
+  revalidatePath("/dashboard/admin/usuarios");
+  return {
+    ok: true,
+    user: res.data.user,
+    membership: res.data.membership,
+    temporaryPassword: res.data.temporaryPassword,
+  };
+}

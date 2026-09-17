@@ -4,6 +4,7 @@ import {
   assignAdminClubUserRoleAction,
   listAdminClubUsersByQueryAction,
 } from "@/actions/admin-users";
+import { CreateClubUserForm } from "@/components/admin/CreateClubUserForm";
 import {
   getDashboardContext,
   isSuperAdminAccount,
@@ -70,9 +71,13 @@ export default async function AdminUsuariosPage({ searchParams }: Props) {
           Usuarios de clubes
         </h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Asigná club y rol operativo para cada usuario del panel.
+          Creá usuarios, asignales club y rol operativo, y copiá la contraseña
+          temporal.
         </p>
       </div>
+
+      <CreateClubUserForm clubs={res.ok ? res.clubs : []} />
+
       <form
         method="GET"
         className="grid gap-3 rounded-xl border border-border bg-card p-4 md:grid-cols-[2fr_1fr_1fr_auto]"
