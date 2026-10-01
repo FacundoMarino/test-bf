@@ -26,6 +26,11 @@ function isInvalidOrExpiredTokenMessage(message: string): boolean {
   return message.toLowerCase().includes("invalid or expired token");
 }
 
+export async function getAccessToken(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(env.SESSION_COOKIE_NAME)?.value ?? null;
+}
+
 /**
  * Server-only fetch to auth-service. Pass `authToken` for Bearer routes (e.g. /auth/me).
  * Browser cookies are not forwarded to another origin; the session token is read in RSC/actions and sent explicitly.
