@@ -19,6 +19,11 @@ export type ClubRecord = {
   email: string | null;
   web: string | null;
   notifyReservationByEmail?: boolean | null;
+  telepagosEnabled?: boolean | null;
+  telepagosUsername?: string | null;
+  telepagosCvu?: string | null;
+  telepagosCuit?: string | null;
+  telepagosAlias?: string | null;
   avatarUrl: string | null;
   pricing: unknown;
   approvalStatus?: "PENDING" | "APPROVED" | "REJECTED" | null;
@@ -133,6 +138,12 @@ export const clubProfileSaveSchema = z.object({
       z.string().email("Introduce un email válido"),
     ]),
     notifyReservationByEmail: z.boolean().optional(),
+    telepagosEnabled: z.boolean().optional(),
+    telepagosUsername: z.string().optional(),
+    telepagosPassword: z.string().optional(),
+    telepagosCvu: z.string().optional(),
+    telepagosCuit: z.string().optional(),
+    telepagosAlias: z.string().optional(),
     web: optionalWebUrlSchema,
     avatarUrl: clubAvatarUrlSchema,
     courtCount: z.coerce.number().int().min(1),

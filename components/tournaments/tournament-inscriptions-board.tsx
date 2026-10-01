@@ -263,6 +263,7 @@ export function TournamentInscriptionsBoard({
     let playersPaid = 0;
     let cashCents = 0;
     let transferCents = 0;
+    let telepagosCents = 0;
 
     for (const reg of filtered) {
       const sides: PaymentSide[] = ["player", "partner"];
@@ -280,6 +281,7 @@ export function TournamentInscriptionsBoard({
             : reg.partnerPaymentMethod);
         if (method === "Efectivo") cashCents += reg.feeCents;
         else if (method === "Transferencia") transferCents += reg.feeCents;
+        else if (method === "TelePagos") telepagosCents += reg.feeCents;
       }
     }
 
@@ -289,7 +291,8 @@ export function TournamentInscriptionsBoard({
       playersTotal,
       cashCents,
       transferCents,
-      revenueCents: cashCents + transferCents,
+      telepagosCents,
+      revenueCents: cashCents + transferCents + telepagosCents,
     };
   }, [filtered, paymentOverrides]);
 
@@ -443,6 +446,7 @@ export function TournamentInscriptionsBoard({
           <option>Método</option>
           <option>Efectivo</option>
           <option>Transferencia</option>
+          <option>TelePagos</option>
         </select>
         <span className="min-w-0 truncate text-xs text-muted-foreground">
           {firstName(fullName)} · {formatCurrency(reg.feeCents)}
@@ -491,6 +495,12 @@ export function TournamentInscriptionsBoard({
             Transferencias:{" "}
             <strong className="font-semibold text-foreground">
               {formatCurrency(stats.transferCents)}
+            </strong>
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-border border-l-4 border-l-amber-400 bg-background px-4 py-2 text-sm text-muted-foreground">
+            TelePagos:{" "}
+            <strong className="font-semibold text-foreground">
+              {formatCurrency(stats.telepagosCents)}
             </strong>
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-border border-l-4 border-l-primary bg-background px-4 py-2 text-sm text-muted-foreground">

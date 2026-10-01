@@ -15,8 +15,8 @@ import {
   Home,
   PanelLeftClose,
   PanelLeft,
-  Trophy,
   Users,
+  Trophy,
 } from "lucide-react";
 
 import { canViewMetrics } from "@/lib/club-permissions";
@@ -146,7 +146,7 @@ export function Sidebar({
       <aside
         className={cn(
           "border-border bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-40 flex w-56 -translate-x-full flex-col border-r transition-[transform,width] duration-150 ease-out peer-checked/nav:translate-x-0 md:relative md:z-0 md:translate-x-0",
-          collapsed ? "md:w-[4.5rem]" : "md:w-56",
+          collapsed ? "md:w-18" : "md:w-56",
         )}
       >
         <div className="flex h-14 items-center justify-between gap-2 border-b border-border/80 px-3">
@@ -186,7 +186,7 @@ export function Sidebar({
                 )}
                 title={collapsed ? label : undefined}
               >
-                <Icon className="size-[1.125rem] shrink-0" />
+                <Icon className="size-4.5 shrink-0" />
                 <span className={cn("truncate", collapsed && "md:sr-only")}>
                   {label}
                 </span>

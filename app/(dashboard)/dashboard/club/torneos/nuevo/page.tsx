@@ -47,7 +47,7 @@ export default async function NewTournamentPage() {
   );
 
   return (
-    <div className="w-full min-w-0 overflow-x-hidden">
+    <div className="w-full">
       <TournamentEditor
         clubId={ctx.club.id}
         ownClubName={ctx.club.name}

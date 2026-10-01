@@ -284,7 +284,7 @@ export async function saveTournamentManualZonesAction(
   clubId: string,
   tournamentId: string,
   categoryId: string,
-      payload: {
+  payload: {
     zones: Array<{
       zoneId: string;
       groupMatchFormat?: "ROUND_ROBIN" | "CROSSED";

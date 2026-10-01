@@ -182,8 +182,8 @@ export function CreateClubUserForm({ clubs }: Props) {
       {created ? (
         <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
           <p className="font-medium">
-            Usuario creado: {created.name} ({created.email}) · {created.clubName}{" "}
-            · {created.role}
+            Usuario creado: {created.name} ({created.email}) ·{" "}
+            {created.clubName} · {created.role}
           </p>
           <p className="text-emerald-900/80">
             Guardá o copiá la contraseña ahora; no se vuelve a mostrar.
