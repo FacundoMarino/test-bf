@@ -1,4 +1,6 @@
 export type TournamentModality = "MALE" | "FEMALE" | "MIXED";
+export type TournamentSport = "PADEL" | "TENNIS";
+export type TournamentPlayFormat = "SINGLES" | "DOUBLES";
 export type TournamentStatus =
   | "DRAFT"
   | "PUBLISHED"
@@ -151,6 +153,8 @@ export type TournamentRecord = {
   clubId: string;
   name: string;
   format: "TORNEO";
+  sport: TournamentSport;
+  playFormat: TournamentPlayFormat;
   description: string | null;
   venueMode: TournamentVenueMode;
   participantClubNames: string[];

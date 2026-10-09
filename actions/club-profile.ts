@@ -54,7 +54,6 @@ export async function saveClubProfileAction(
   if (club.avatarUrl) clubJson.avatarUrl = club.avatarUrl;
 
   try {
-    let resolvedClubId = clubId ?? null;
     if (clubId) {
       const res = await fetch(`${base}/clubs/${clubId}`, {
         method: "PATCH",
@@ -82,36 +81,6 @@ export async function saveClubProfileAction(
       const body: unknown = await res.json().catch(() => ({}));
       if (!res.ok) {
         const message = normalizeMessage(body);
-        await maybeLogoutOnInvalidToken(message);
-        return { ok: false, error: message };
-      }
-      if (body && typeof body === "object" && "id" in body) {
-        const id = (body as { id?: unknown }).id;
-        if (typeof id === "string") {
-          resolvedClubId = id;
-        }
-      }
-    }
-
-    if (resolvedClubId) {
-      const teleRes = await fetch(`${base}/clubs/${resolvedClubId}/telepagos`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          telepagosEnabled: club.telepagosEnabled ?? false,
-          telepagosUsername: club.telepagosUsername?.trim() || null,
-          telepagosPassword: club.telepagosPassword?.trim() || null,
-          telepagosCvu: club.telepagosCvu?.trim() || null,
-          telepagosCuit: club.telepagosCuit?.trim() || null,
-          telepagosAlias: club.telepagosAlias?.trim() || null,
-        }),
-      });
-      const teleBody: unknown = await teleRes.json().catch(() => ({}));
-      if (!teleRes.ok) {
-        const message = normalizeMessage(teleBody);
         await maybeLogoutOnInvalidToken(message);
         return { ok: false, error: message };
       }

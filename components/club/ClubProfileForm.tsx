@@ -52,18 +52,6 @@ export function ClubProfileForm({
   const [notifyReservationByEmail, setNotifyReservationByEmail] = useState(
     initial.notifyReservationByEmail,
   );
-  const [telepagosEnabled, setTelepagosEnabled] = useState(
-    initial.telepagosEnabled,
-  );
-  const [telepagosUsername, setTelepagosUsername] = useState(
-    initial.telepagosUsername,
-  );
-  const [telepagosPassword, setTelepagosPassword] = useState(
-    initial.telepagosPassword,
-  );
-  const [telepagosCvu, setTelepagosCvu] = useState(initial.telepagosCvu);
-  const [telepagosCuit, setTelepagosCuit] = useState(initial.telepagosCuit);
-  const [telepagosAlias, setTelepagosAlias] = useState(initial.telepagosAlias);
   const [web, setWeb] = useState(initial.web);
   const [phone, setPhone] = useState(initial.phone);
   const [location, setLocation] = useState(initial.location);
@@ -113,12 +101,6 @@ export function ClubProfileForm({
         location,
         email,
         notifyReservationByEmail,
-        telepagosEnabled,
-        telepagosUsername,
-        telepagosPassword,
-        telepagosCvu,
-        telepagosCuit,
-        telepagosAlias,
         web,
         avatarUrl,
         courtCount,
@@ -404,77 +386,6 @@ export function ClubProfileForm({
                     <option value="outdoor">Exterior</option>
                     <option value="both">Ambas</option>
                   </select>
-                </div>
-              </div>
-              <div className="rounded-lg border border-[#788ce3]/25 bg-[#f5f7ff] p-4">
-                <div className="mb-2 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-[#1e3a8a]">
-                      Cobro por transferencia (TelePagos)
-                    </p>
-                    <p className="text-xs text-[#334155]">
-                      Si está activo, la app va a pedir transferencia online para
-                      reservas e inscripciones.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={telepagosEnabled}
-                    onCheckedChange={setTelepagosEnabled}
-                    aria-label="Activar TelePagos"
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="telepagosUsername">Usuario API</Label>
-                    <Input
-                      id="telepagosUsername"
-                      value={telepagosUsername}
-                      onChange={(e) => setTelepagosUsername(e.target.value)}
-                      className="h-10 rounded-lg"
-                      placeholder="usuario-api"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="telepagosPassword">Password API</Label>
-                    <Input
-                      id="telepagosPassword"
-                      type="password"
-                      value={telepagosPassword}
-                      onChange={(e) => setTelepagosPassword(e.target.value)}
-                      className="h-10 rounded-lg"
-                      placeholder="********"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="telepagosCvu">CVU receptor del club</Label>
-                    <Input
-                      id="telepagosCvu"
-                      value={telepagosCvu}
-                      onChange={(e) => setTelepagosCvu(e.target.value)}
-                      className="h-10 rounded-lg"
-                      placeholder="00000031000..."
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="telepagosCuit">CUIT receptor del club</Label>
-                    <Input
-                      id="telepagosCuit"
-                      value={telepagosCuit}
-                      onChange={(e) => setTelepagosCuit(e.target.value)}
-                      className="h-10 rounded-lg"
-                      placeholder="20123456789"
-                    />
-                  </div>
-                  <div className="space-y-1 sm:col-span-2">
-                    <Label htmlFor="telepagosAlias">Alias (opcional)</Label>
-                    <Input
-                      id="telepagosAlias"
-                      value={telepagosAlias}
-                      onChange={(e) => setTelepagosAlias(e.target.value)}
-                      className="h-10 rounded-lg"
-                      placeholder="mi.alias.club"
-                    />
-                  </div>
                 </div>
               </div>
             </div>

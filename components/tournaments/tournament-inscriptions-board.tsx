@@ -19,11 +19,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { TournamentCategory } from "@/types/tournament";
+import type {
+  TournamentCategory,
+  TournamentPlayFormat,
+  TournamentSport,
+} from "@/types/tournament";
 
 type Props = {
   clubId: string;
   tournamentId: string;
+  sport: TournamentSport;
+  playFormat: TournamentPlayFormat;
   categories: TournamentCategory[];
   startsAt: string;
   endsAt: string;
@@ -48,15 +54,16 @@ type FlatRegistration = {
   feeCents: number;
 };
 
-const TIME_SLOTS = [
-  { id: "any", label: "En cualquier horario" },
-  { id: "9-14", label: "9 a 14" },
-  { id: "14-18", label: "14 a 18" },
-  { id: "14+", label: "14 en adelante" },
-  { id: "18+", label: "18 en adelante" },
-] as const;
+const HOUR_OPTIONS = Array.from({ length: 16 }, (_, index) => {
+  const hour = String(index + 8).padStart(2, "0");
+  return `${hour}:00`;
+});
 
-type TimeSlotId = (typeof TIME_SLOTS)[number]["id"];
+type DayAvailability = {
+  any: boolean;
+  from: string;
+  to: string;
+};
 
 const WEEKDAYS_ES = [
   "Domingo",
@@ -93,20 +100,17 @@ function tournamentDaysBetween(startsAt: string, endsAt: string) {
 function buildPreferredTimeNotes(params: {
   days: Array<{ key: string; label: string }>;
   selectedDays: string[];
-  daySlots: Record<string, TimeSlotId[]>;
+  dayAvailability: Record<string, DayAvailability>;
   notes: string;
 }) {
   const lines = params.days
     .filter((day) => params.selectedDays.includes(day.key))
     .map((day) => {
-      const slotIds = params.daySlots[day.key] ?? [];
-      if (!slotIds.length) return null;
-      const slotLabels = slotIds.map(
-        (slotId) =>
-          TIME_SLOTS.find((slot) => slot.id === slotId)?.label ??
-          "En cualquier horario",
-      );
-      return `${day.label}: ${slotLabels.join(", ")}`;
+      const availability = params.dayAvailability[day.key];
+      if (!availability) return null;
+      if (availability.any) return `${day.label}: En cualquier horario`;
+      if (!availability.from || !availability.to) return null;
+      return `${day.label}: ${availability.from} a ${availability.to}`;
     })
     .filter(Boolean) as string[];
   const notes = params.notes.trim();
@@ -169,6 +173,8 @@ type PaymentOverride = {
 export function TournamentInscriptionsBoard({
   clubId,
   tournamentId,
+  sport,
+  playFormat,
   categories,
   startsAt,
   endsAt,
@@ -179,12 +185,15 @@ export function TournamentInscriptionsBoard({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [daySlots, setDaySlots] = useState<Record<string, TimeSlotId[]>>({});
+  const [dayAvailability, setDayAvailability] = useState<
+    Record<string, DayAvailability>
+  >({});
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FlatRegistration | null>(
     null,
   );
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const isSingles = sport === "TENNIS" && playFormat === "SINGLES";
 
   const allRegistrations = useMemo(() => flatten(categories), [categories]);
   const days = useMemo(
@@ -259,14 +268,15 @@ export function TournamentInscriptionsBoard({
 
   const stats = useMemo(() => {
     const pairs = filtered.length;
-    const playersTotal = pairs * 2;
+    const playersTotal = pairs * (isSingles ? 1 : 2);
     let playersPaid = 0;
     let cashCents = 0;
     let transferCents = 0;
-    let telepagosCents = 0;
 
     for (const reg of filtered) {
-      const sides: PaymentSide[] = ["player", "partner"];
+      const sides: PaymentSide[] = isSingles
+        ? ["player"]
+        : ["player", "partner"];
       for (const side of sides) {
         const override = paymentOverrides[`${reg.id}:${side}`];
         const isPaid =
@@ -281,7 +291,6 @@ export function TournamentInscriptionsBoard({
             : reg.partnerPaymentMethod);
         if (method === "Efectivo") cashCents += reg.feeCents;
         else if (method === "Transferencia") transferCents += reg.feeCents;
-        else if (method === "TelePagos") telepagosCents += reg.feeCents;
       }
     }
 
@@ -291,10 +300,9 @@ export function TournamentInscriptionsBoard({
       playersTotal,
       cashCents,
       transferCents,
-      telepagosCents,
-      revenueCents: cashCents + transferCents + telepagosCents,
+      revenueCents: cashCents + transferCents,
     };
-  }, [filtered, paymentOverrides]);
+  }, [filtered, isSingles, paymentOverrides]);
 
   const openDialog = () => {
     setForm({
@@ -302,7 +310,7 @@ export function TournamentInscriptionsBoard({
       categoryId: categories[0]?.id ?? "",
     });
     setSelectedDays([]);
-    setDaySlots({});
+    setDayAvailability({});
     setFormError(null);
     setDialogOpen(true);
   };
@@ -310,29 +318,35 @@ export function TournamentInscriptionsBoard({
   const toggleDay = (key: string) => {
     setSelectedDays((prev) => {
       if (prev.includes(key)) {
-        setDaySlots((slots) => {
+        setDayAvailability((slots) => {
           const next = { ...slots };
           delete next[key];
           return next;
         });
         return prev.filter((d) => d !== key);
       }
-      setDaySlots((slots) => ({ ...slots, [key]: slots[key] ?? ["any"] }));
+      setDayAvailability((slots) => ({
+        ...slots,
+        [key]: slots[key] ?? { any: false, from: "09:00", to: "18:00" },
+      }));
       return [...prev, key];
     });
   };
 
-  const toggleDaySlot = (dayKey: string, slotId: TimeSlotId) => {
-    setDaySlots((prev) => {
-      const current = prev[dayKey] ?? [];
-      if (slotId === "any") {
-        return { ...prev, [dayKey]: ["any"] };
-      }
-      const withoutAny = current.filter((id) => id !== "any");
-      const next = withoutAny.includes(slotId)
-        ? withoutAny.filter((id) => id !== slotId)
-        : [...withoutAny, slotId];
-      return { ...prev, [dayKey]: next.length ? next : ["any"] };
+  const patchDayAvailability = (
+    dayKey: string,
+    patch: Partial<DayAvailability>,
+  ) => {
+    setDayAvailability((prev) => {
+      const current = prev[dayKey] ?? {
+        any: false,
+        from: "09:00",
+        to: "18:00",
+      };
+      return {
+        ...prev,
+        [dayKey]: { ...current, ...patch },
+      };
     });
   };
 
@@ -346,27 +360,36 @@ export function TournamentInscriptionsBoard({
       setFormError("Indicá el mail o teléfono del jugador 1.");
       return;
     }
-    if (!form.player2Name.trim()) {
-      setFormError("Indicá el nombre del jugador 2.");
-      return;
-    }
-    if (!form.player2Contact.trim()) {
-      setFormError("Indicá el mail o teléfono del jugador 2.");
-      return;
+    if (!isSingles) {
+      if (!form.player2Name.trim()) {
+        setFormError("Indicá el nombre del jugador 2.");
+        return;
+      }
+      if (!form.player2Contact.trim()) {
+        setFormError("Indicá el mail o teléfono del jugador 2.");
+        return;
+      }
     }
 
-    const missingSlots = selectedDays.some(
-      (dayKey) => !(daySlots[dayKey]?.length ?? 0),
-    );
-    if (selectedDays.length > 0 && missingSlots) {
-      setFormError("Elegí al menos un horario para cada día seleccionado.");
+    const invalidRange = selectedDays.some((dayKey) => {
+      const availability = dayAvailability[dayKey];
+      if (!availability) return true;
+      if (availability.any) return false;
+      return (
+        !availability.from ||
+        !availability.to ||
+        availability.from >= availability.to
+      );
+    });
+    if (selectedDays.length > 0 && invalidRange) {
+      setFormError("Completá un rango válido para cada día seleccionado.");
       return;
     }
 
     const preferredTimeNotes = buildPreferredTimeNotes({
       days,
       selectedDays,
-      daySlots,
+      dayAvailability,
       notes: form.notes,
     });
 
@@ -378,8 +401,8 @@ export function TournamentInscriptionsBoard({
         {
           playerContact: form.player1Contact.trim(),
           playerName: form.player1Name.trim() || undefined,
-          partnerName: form.player2Name.trim(),
-          partnerContact: form.player2Contact.trim(),
+          partnerName: isSingles ? undefined : form.player2Name.trim(),
+          partnerContact: isSingles ? undefined : form.player2Contact.trim(),
           preferredTimeNotes: preferredTimeNotes || undefined,
         },
       );
@@ -446,7 +469,6 @@ export function TournamentInscriptionsBoard({
           <option>Método</option>
           <option>Efectivo</option>
           <option>Transferencia</option>
-          <option>TelePagos</option>
         </select>
         <span className="min-w-0 truncate text-xs text-muted-foreground">
           {firstName(fullName)} · {formatCurrency(reg.feeCents)}
@@ -473,7 +495,7 @@ export function TournamentInscriptionsBoard({
           </select>
           <span className="inline-flex items-center gap-2 rounded-full border border-border border-l-4 border-l-sky-400 bg-background px-4 py-2 text-sm text-muted-foreground">
             <Users className="size-4 text-muted-foreground" />
-            Inscriptas:{" "}
+            {isSingles ? "Inscriptos:" : "Inscriptas:"}{" "}
             <strong className="font-semibold text-foreground">
               {stats.pairs}
             </strong>
@@ -497,12 +519,6 @@ export function TournamentInscriptionsBoard({
               {formatCurrency(stats.transferCents)}
             </strong>
           </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-border border-l-4 border-l-amber-400 bg-background px-4 py-2 text-sm text-muted-foreground">
-            TelePagos:{" "}
-            <strong className="font-semibold text-foreground">
-              {formatCurrency(stats.telepagosCents)}
-            </strong>
-          </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-border border-l-4 border-l-primary bg-background px-4 py-2 text-sm text-muted-foreground">
             $ Recaudado:{" "}
             <strong className="font-semibold text-foreground">
@@ -512,7 +528,7 @@ export function TournamentInscriptionsBoard({
           <div className="ml-auto">
             <Button type="button" onClick={openDialog} disabled={isPending}>
               <Plus className="size-4" />
-              Agregar pareja
+              {isSingles ? "Agregar jugador" : "Agregar pareja"}
             </Button>
           </div>
         </div>
@@ -523,7 +539,9 @@ export function TournamentInscriptionsBoard({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/60 text-left text-xs font-medium text-muted-foreground">
-                <th className="py-3 pl-5 pr-3 font-medium">Pareja</th>
+                <th className="py-3 pl-5 pr-3 font-medium">
+                  {isSingles ? "Jugador" : "Pareja"}
+                </th>
                 <th className="px-3 py-3 font-medium">Mails</th>
                 <th className="px-3 py-3 font-medium">Categoría</th>
                 <th className="px-3 py-3 font-medium">$ Precio</th>
@@ -546,17 +564,21 @@ export function TournamentInscriptionsBoard({
                     <p className="text-sm font-semibold leading-snug text-foreground">
                       {reg.playerName}
                     </p>
-                    <p className="text-sm leading-snug text-muted-foreground">
-                      {reg.partnerName}
-                    </p>
+                    {!isSingles ? (
+                      <p className="text-sm leading-snug text-muted-foreground">
+                        {reg.partnerName}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-3 py-4 align-top">
                     <p className="truncate text-xs leading-relaxed text-muted-foreground">
                       {reg.playerEmail ?? "—"}
                     </p>
-                    <p className="truncate text-xs leading-relaxed text-muted-foreground">
-                      {reg.partnerEmail ?? "—"}
-                    </p>
+                    {!isSingles ? (
+                      <p className="truncate text-xs leading-relaxed text-muted-foreground">
+                        {reg.partnerEmail ?? "—"}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-3 py-4 align-middle text-sm text-foreground">
                     {reg.categoryName}
@@ -574,7 +596,9 @@ export function TournamentInscriptionsBoard({
                   </td>
                   <td className="space-y-2 py-4 pl-3 pr-3 align-middle">
                     {renderPlayerPayment(reg, "player", reg.playerName)}
-                    {renderPlayerPayment(reg, "partner", reg.partnerName)}
+                    {!isSingles
+                      ? renderPlayerPayment(reg, "partner", reg.partnerName)
+                      : null}
                   </td>
                   <td className="py-4 pr-5 align-middle">
                     <button
@@ -585,7 +609,11 @@ export function TournamentInscriptionsBoard({
                       }}
                       disabled={isPending}
                       className="text-muted-foreground/70 rounded-md p-1.5 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label={`Eliminar pareja ${reg.playerName} / ${reg.partnerName}`}
+                      aria-label={
+                        isSingles
+                          ? `Eliminar jugador ${reg.playerName}`
+                          : `Eliminar pareja ${reg.playerName} / ${reg.partnerName}`
+                      }
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -604,7 +632,9 @@ export function TournamentInscriptionsBoard({
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Agregar pareja</DialogTitle>
+            <DialogTitle>
+              {isSingles ? "Agregar jugador" : "Agregar pareja"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -626,8 +656,9 @@ export function TournamentInscriptionsBoard({
             </div>
 
             <p className="text-muted-foreground rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs leading-relaxed">
-              Ambos jugadores deben tener cuenta en Puntoo. El mail o teléfono
-              tiene que coincidir con su usuario; el nombre lo cargás vos.
+              {isSingles
+                ? "El jugador debe tener cuenta en Puntoo. El mail o teléfono tiene que coincidir con su usuario; el nombre lo cargás vos."
+                : "Ambos jugadores deben tener cuenta en Puntoo. El mail o teléfono tiene que coincidir con su usuario; el nombre lo cargás vos."}
             </p>
 
             <div className="space-y-3 rounded-lg border border-border/70 p-3">
@@ -662,42 +693,46 @@ export function TournamentInscriptionsBoard({
               </div>
             </div>
 
-            <div className="space-y-3 rounded-lg border border-border/70 p-3">
-              <p className="text-sm font-semibold text-foreground">Jugador 2</p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Nombre</Label>
-                  <Input
-                    value={form.player2Name}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        player2Name: e.target.value,
-                      }))
-                    }
-                    placeholder="Ej: Martín Sosa"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Mail o teléfono</Label>
-                  <Input
-                    value={form.player2Contact}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        player2Contact: e.target.value,
-                      }))
-                    }
-                    placeholder="mail@ejemplo.com o +54 9..."
-                  />
+            {!isSingles ? (
+              <div className="space-y-3 rounded-lg border border-border/70 p-3">
+                <p className="text-sm font-semibold text-foreground">
+                  Jugador 2
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Nombre</Label>
+                    <Input
+                      value={form.player2Name}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          player2Name: e.target.value,
+                        }))
+                      }
+                      placeholder="Ej: Martín Sosa"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Mail o teléfono</Label>
+                    <Input
+                      value={form.player2Contact}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          player2Contact: e.target.value,
+                        }))
+                      }
+                      placeholder="mail@ejemplo.com o +54 9..."
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label>Disponibilidad</Label>
               <p className="text-muted-foreground text-xs">
-                Podés elegir más de un horario por día.
+                Activá cada día y elegí un rango horario.
               </p>
               <div className="flex flex-wrap gap-2">
                 {days.map((day) => {
@@ -722,27 +757,70 @@ export function TournamentInscriptionsBoard({
                 <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
                   {selectedDayRows.map((day) => (
                     <div key={day.key} className="space-y-2">
-                      <span className="text-xs font-semibold">{day.label}</span>
-                      <div className="flex flex-wrap gap-2">
-                        {TIME_SLOTS.map((slot) => {
-                          const active = (daySlots[day.key] ?? []).includes(
-                            slot.id,
-                          );
-                          return (
-                            <button
-                              key={slot.id}
-                              type="button"
-                              onClick={() => toggleDaySlot(day.key, slot.id)}
-                              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                                active
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border bg-background text-muted-foreground hover:bg-muted"
-                              }`}
-                            >
-                              {slot.label}
-                            </button>
-                          );
-                        })}
+                      <span className="text-xs font-semibold text-foreground">
+                        {day.label}
+                      </span>
+                      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">
+                            Desde
+                          </Label>
+                          <select
+                            className="border-input bg-background h-9 w-full rounded-lg border px-2 text-sm"
+                            value={dayAvailability[day.key]?.from ?? "09:00"}
+                            disabled={dayAvailability[day.key]?.any === true}
+                            onChange={(event) =>
+                              patchDayAvailability(day.key, {
+                                from: event.target.value,
+                              })
+                            }
+                          >
+                            {HOUR_OPTIONS.map((hour) => (
+                              <option
+                                key={`${day.key}-from-${hour}`}
+                                value={hour}
+                              >
+                                {hour}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">
+                            Hasta
+                          </Label>
+                          <select
+                            className="border-input bg-background h-9 w-full rounded-lg border px-2 text-sm"
+                            value={dayAvailability[day.key]?.to ?? "18:00"}
+                            disabled={dayAvailability[day.key]?.any === true}
+                            onChange={(event) =>
+                              patchDayAvailability(day.key, {
+                                to: event.target.value,
+                              })
+                            }
+                          >
+                            {HOUR_OPTIONS.map((hour) => (
+                              <option
+                                key={`${day.key}-to-${hour}`}
+                                value={hour}
+                              >
+                                {hour}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <label className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={dayAvailability[day.key]?.any === true}
+                            onChange={(event) =>
+                              patchDayAvailability(day.key, {
+                                any: event.target.checked,
+                              })
+                            }
+                          />
+                          En cualquier horario
+                        </label>
                       </div>
                     </div>
                   ))}
@@ -775,7 +853,7 @@ export function TournamentInscriptionsBoard({
                 Cancelar
               </Button>
               <Button type="button" onClick={submitPair} disabled={isPending}>
-                Guardar pareja
+                {isSingles ? "Guardar jugador" : "Guardar pareja"}
               </Button>
             </div>
           </div>
@@ -793,13 +871,17 @@ export function TournamentInscriptionsBoard({
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Eliminar pareja</DialogTitle>
+            <DialogTitle>
+              {isSingles ? "Eliminar jugador" : "Eliminar pareja"}
+            </DialogTitle>
           </DialogHeader>
           {deleteTarget ? (
             <p className="text-sm text-muted-foreground">
               ¿Eliminar la inscripción de{" "}
               <strong className="font-medium text-foreground">
-                {deleteTarget.playerName} / {deleteTarget.partnerName}
+                {isSingles
+                  ? deleteTarget.playerName
+                  : `${deleteTarget.playerName} / ${deleteTarget.partnerName}`}
               </strong>{" "}
               en {deleteTarget.categoryName}? Si ya estaba sorteada, se quitará
               de las zonas y de los partidos pendientes.
@@ -823,7 +905,11 @@ export function TournamentInscriptionsBoard({
               onClick={confirmDelete}
               disabled={isPending}
             >
-              {isPending ? "Eliminando..." : "Eliminar pareja"}
+              {isPending
+                ? "Eliminando..."
+                : isSingles
+                  ? "Eliminar jugador"
+                  : "Eliminar pareja"}
             </Button>
           </div>
         </DialogContent>

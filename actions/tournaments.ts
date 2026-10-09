@@ -218,8 +218,8 @@ export async function createClubTournamentRegistrationAction(
   payload: {
     playerContact: string;
     playerName?: string;
-    partnerName: string;
-    partnerContact: string;
+    partnerName?: string;
+    partnerContact?: string;
     preferredTimeNotes?: string;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {

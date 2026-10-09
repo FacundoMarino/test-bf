@@ -100,6 +100,8 @@ export function TournamentWorkspace({
         <TournamentInscriptionsBoard
           clubId={clubId}
           tournamentId={tournament.id}
+          sport={tournament.sport}
+          playFormat={tournament.playFormat}
           categories={tournament.categories}
           startsAt={tournament.startsAt}
           endsAt={tournament.endsAt}

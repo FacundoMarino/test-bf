@@ -5,13 +5,11 @@ export function DashboardShell({
   children,
   showClubNav = false,
   showSuperAdminNav = false,
-  clubRole,
   preContent,
 }: {
   children: React.ReactNode;
   showClubNav?: boolean;
   showSuperAdminNav?: boolean;
-  clubRole?: "ADMINISTRADOR" | "RESERVAS" | null;
   preContent?: React.ReactNode;
 }) {
   return (
@@ -20,7 +18,6 @@ export function DashboardShell({
         <Sidebar
           showClubNav={showClubNav}
           showSuperAdminNav={showSuperAdminNav}
-          clubRole={clubRole}
         />
         <div className="flex min-h-screen min-w-0 flex-1 flex-col pt-14 md:pt-0">
           <Header />

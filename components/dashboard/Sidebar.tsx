@@ -15,11 +15,9 @@ import {
   Home,
   PanelLeftClose,
   PanelLeft,
-  Users,
   Trophy,
 } from "lucide-react";
 
-import { canViewMetrics } from "@/lib/club-permissions";
 import { cn } from "@/lib/utils";
 
 const baseNav = [{ href: "/dashboard", label: "Inicio", icon: Home }] as const;
@@ -59,11 +57,9 @@ function getActiveNavHref(
 export function Sidebar({
   showClubNav = false,
   showSuperAdminNav = false,
-  clubRole,
 }: {
   showClubNav?: boolean;
   showSuperAdminNav?: boolean;
-  clubRole?: "ADMINISTRADOR" | "RESERVAS" | null;
 }) {
   const nav = showSuperAdminNav
     ? ([
@@ -76,11 +72,6 @@ export function Sidebar({
           href: "/dashboard/admin/cities",
           label: "Ciudades",
           icon: MapPin,
-        },
-        {
-          href: "/dashboard/admin/usuarios",
-          label: "Usuarios clubes",
-          icon: Users,
         },
       ] as const)
     : ([
@@ -112,15 +103,11 @@ export function Sidebar({
                 label: "Turnos fijos",
                 icon: Repeat,
               },
-              ...(canViewMetrics(clubRole ?? "ADMINISTRADOR")
-                ? ([
-                    {
-                      href: "/dashboard/club/metricas",
-                      label: "Métricas",
-                      icon: BarChart3,
-                    },
-                  ] as const)
-                : []),
+              {
+                href: "/dashboard/club/metricas",
+                label: "Métricas",
+                icon: BarChart3,
+              },
             ] as const)
           : []),
       ] as const);
@@ -146,7 +133,7 @@ export function Sidebar({
       <aside
         className={cn(
           "border-border bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-40 flex w-56 -translate-x-full flex-col border-r transition-[transform,width] duration-150 ease-out peer-checked/nav:translate-x-0 md:relative md:z-0 md:translate-x-0",
-          collapsed ? "md:w-18" : "md:w-56",
+          collapsed ? "md:w-[4.5rem]" : "md:w-56",
         )}
       >
         <div className="flex h-14 items-center justify-between gap-2 border-b border-border/80 px-3">
@@ -186,7 +173,7 @@ export function Sidebar({
                 )}
                 title={collapsed ? label : undefined}
               >
-                <Icon className="size-4.5 shrink-0" />
+                <Icon className="size-[1.125rem] shrink-0" />
                 <span className={cn("truncate", collapsed && "md:sr-only")}>
                   {label}
                 </span>

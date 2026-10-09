@@ -32,7 +32,9 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   TournamentCourtBlock,
+  TournamentPlayFormat,
   TournamentRecord,
+  TournamentSport,
 } from "@/types/tournament";
 
 type CourtOption = {
@@ -97,9 +99,59 @@ const tournamentStatusLabel: Record<string, string> = {
   CANCELLED: "Cancelado",
 };
 
-function defaultCategory(): CategoryDraft {
+const PADEL_LEVEL_OPTIONS = [
+  { value: 1, label: "1ª" },
+  { value: 2, label: "2ª" },
+  { value: 3, label: "3ª" },
+  { value: 4, label: "4ª" },
+  { value: 5, label: "5ª" },
+  { value: 6, label: "6ª" },
+  { value: 7, label: "7ª" },
+  { value: 8, label: "8ª" },
+  { value: 9, label: "9ª" },
+] as const;
+
+const TENNIS_LEVEL_OPTIONS = [
+  { value: 1, label: "A" },
+  { value: 2, label: "B" },
+  { value: 3, label: "C" },
+  { value: 4, label: "C1" },
+  { value: 5, label: "C2" },
+  { value: 6, label: "D" },
+] as const;
+
+const KNOCKOUT_FIRST_ROUND_OPTIONS = [
+  { value: 16, label: "Dieciseisavos" },
+  { value: 8, label: "Octavos" },
+  { value: 4, label: "Cuartos" },
+  { value: 2, label: "Semifinal" },
+] as const;
+
+function modalityLabel(modality: CategoryDraft["modality"]) {
+  return modality === "MALE"
+    ? "Masculino"
+    : modality === "FEMALE"
+      ? "Femenino"
+      : "Mixto";
+}
+
+function categoryLevelLabel(level: number, sport: TournamentSport) {
+  const options =
+    sport === "TENNIS" ? TENNIS_LEVEL_OPTIONS : PADEL_LEVEL_OPTIONS;
+  return (
+    options.find((option) => option.value === level)?.label ?? String(level)
+  );
+}
+
+function buildCategoryName(category: CategoryDraft, sport: TournamentSport) {
+  return `${categoryLevelLabel(category.level, sport)} ${modalityLabel(
+    category.modality,
+  )}`;
+}
+
+function defaultCategory(sport: TournamentSport): CategoryDraft {
   return {
-    level: 4,
+    level: sport === "TENNIS" ? 1 : 4,
     modality: "MALE",
     maxPairs: 16,
     minPairs: 8,
@@ -117,6 +169,23 @@ function defaultCategory(): CategoryDraft {
     groupDurationMin: 60,
     knockoutDurationMin: 90,
   };
+}
+
+function normalizeLevelForSport(level: number, sport: TournamentSport) {
+  const options =
+    sport === "TENNIS" ? TENNIS_LEVEL_OPTIONS : PADEL_LEVEL_OPTIONS;
+  if (options.some((option) => option.value === level)) {
+    return level;
+  }
+  return options[0]?.value ?? 1;
+}
+
+function firstRoundLabel(matches: number) {
+  if (matches >= 16) return "Dieciseisavos";
+  if (matches >= 8) return "Octavos";
+  if (matches >= 4) return "Cuartos";
+  if (matches >= 2) return "Semifinal";
+  return "Final";
 }
 
 function toDateTimeLocal(date: string, minutes: number) {
@@ -461,6 +530,12 @@ export function TournamentEditor({
 
   const [name, setName] = useState(tournament?.name ?? "");
   const [description, setDescription] = useState(tournament?.description ?? "");
+  const [sport, setSport] = useState<TournamentSport>(
+    tournament?.sport ?? "PADEL",
+  );
+  const [playFormat, setPlayFormat] = useState<TournamentPlayFormat>(
+    tournament?.playFormat ?? "DOUBLES",
+  );
   const [venueMode, setVenueMode] = useState<"OWN_CLUB" | "MULTI_CLUB">(
     tournament?.venueMode ?? "OWN_CLUB",
   );
@@ -515,7 +590,7 @@ export function TournamentEditor({
           groupDurationMin: category.groupMatchDurationMin,
           knockoutDurationMin: category.knockoutMatchDurationMin,
         }))
-      : [],
+      : [defaultCategory(tournament?.sport ?? "PADEL")],
   );
 
   const [blocks, setBlocks] = useState<CourtBlockDraft[]>(
@@ -534,6 +609,14 @@ export function TournamentEditor({
     );
     return { categories: categories.length, pairs: totalPairs };
   }, [categories]);
+  const levelOptions =
+    sport === "TENNIS" ? TENNIS_LEVEL_OPTIONS : PADEL_LEVEL_OPTIONS;
+  const participantsLabel =
+    sport === "TENNIS" && playFormat === "SINGLES" ? "jugadores" : "parejas";
+  const participantsEnrolledLabel =
+    sport === "TENNIS" && playFormat === "SINGLES"
+      ? "inscriptos"
+      : "inscriptas";
 
   const applyCategoryChange = (
     index: number,
@@ -686,16 +769,23 @@ export function TournamentEditor({
     );
   };
 
+  const changeSport = (nextSport: TournamentSport) => {
+    setSport(nextSport);
+    if (nextSport === "PADEL") {
+      setPlayFormat("DOUBLES");
+    }
+    setCategories((current) =>
+      current.map((category) => ({
+        ...category,
+        level: normalizeLevelForSport(category.level, nextSport),
+      })),
+    );
+  };
+
   const payload = useMemo(() => {
     const preparedCategories = categories.map((category) => ({
       ...(category.id ? { id: category.id } : {}),
-      name: `${category.level}ª ${
-        category.modality === "MALE"
-          ? "Masculino"
-          : category.modality === "FEMALE"
-            ? "Femenino"
-            : "Mixto"
-      }`,
+      name: buildCategoryName(category, sport),
       level: category.level,
       modality: category.modality,
       maxPairs: category.maxPairs,
@@ -763,6 +853,8 @@ export function TournamentEditor({
     return {
       name,
       format: "TORNEO",
+      sport,
+      playFormat: sport === "TENNIS" ? playFormat : "DOUBLES",
       description: description || undefined,
       venueMode,
       participantClubNames:
@@ -806,6 +898,8 @@ export function TournamentEditor({
     startsAt,
     ownClubName,
     participantClubs,
+    playFormat,
+    sport,
     venueMode,
     courtById,
   ]);
@@ -888,7 +982,8 @@ export function TournamentEditor({
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <Users className="size-3.5" />
-                    {totals.pairs} parejas inscriptas
+                    {totals.pairs} {participantsLabel}{" "}
+                    {participantsEnrolledLabel}
                   </span>
                 </p>
               ) : null}
@@ -986,6 +1081,34 @@ export function TournamentEditor({
                   <option value="TORNEO">Torneo</option>
                 </select>
               </div>
+              <div className="space-y-1.5">
+                <Label>Deporte</Label>
+                <select
+                  className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
+                  value={sport}
+                  onChange={(event) =>
+                    changeSport(event.target.value as TournamentSport)
+                  }
+                >
+                  <option value="PADEL">Pádel</option>
+                  <option value="TENNIS">Tenis</option>
+                </select>
+              </div>
+              {sport === "TENNIS" ? (
+                <div className="space-y-1.5">
+                  <Label>Modalidad</Label>
+                  <select
+                    className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
+                    value={playFormat}
+                    onChange={(event) =>
+                      setPlayFormat(event.target.value as TournamentPlayFormat)
+                    }
+                  >
+                    <option value="SINGLES">Single</option>
+                    <option value="DOUBLES">Dobles</option>
+                  </select>
+                </div>
+              ) : null}
               <div className="space-y-1.5">
                 <Label htmlFor="tournament-venue-mode">Sede</Label>
                 <select
@@ -1213,14 +1336,9 @@ export function TournamentEditor({
                 category.knockoutFirstRoundMatches > 0
                   ? category.knockoutFirstRoundMatches * 2 - 1
                   : 0;
-              const knockoutFirstLabel =
-                category.knockoutFirstRoundMatches <= 1
-                  ? "Final"
-                  : category.knockoutFirstRoundMatches <= 2
-                    ? "Semifinal"
-                    : category.knockoutFirstRoundMatches <= 4
-                      ? "Cuartos de final"
-                      : `${category.knockoutFirstRoundMatches} partidos`;
+              const knockoutFirstLabel = firstRoundLabel(
+                category.knockoutFirstRoundMatches,
+              );
 
               return (
                 <div
@@ -1241,9 +1359,12 @@ export function TournamentEditor({
                           })
                         }
                       >
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((level) => (
-                          <option key={level} value={level}>
-                            {level}ª
+                        {levelOptions.map((levelOption) => (
+                          <option
+                            key={levelOption.value}
+                            value={levelOption.value}
+                          >
+                            {levelOption.label}
                           </option>
                         ))}
                       </select>
@@ -1316,7 +1437,7 @@ export function TournamentEditor({
                       <span className="rounded-full border border-border bg-muted/40 px-2 py-1">
                         Faltan{" "}
                         {Math.max(0, category.minPairs - registeredPairs)}{" "}
-                        parejas
+                        {participantsLabel}
                       </span>
                     </div>
                     <div className="sm:col-span-2 flex items-center justify-end gap-2">
@@ -1469,7 +1590,8 @@ export function TournamentEditor({
                       <div className="sm:col-span-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           <Settings2 className="size-3.5 text-primary" />
-                          {registeredPairs} parejas inscriptas →{" "}
+                          {registeredPairs} {participantsLabel}{" "}
+                          {participantsEnrolledLabel} →{" "}
                           <strong className="text-foreground">
                             {estimatedZones} zonas
                           </strong>{" "}
@@ -1495,9 +1617,9 @@ export function TournamentEditor({
                     </summary>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label>Partidos de la primera fase</Label>
-                        <Input
-                          type="number"
+                        <Label>La primera fase arranca en</Label>
+                        <select
+                          className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
                           value={category.knockoutFirstRoundMatches}
                           onChange={(e) =>
                             applyCategoryChange(index, {
@@ -1505,8 +1627,23 @@ export function TournamentEditor({
                                 Number(e.target.value) || 2,
                             })
                           }
-                          className="h-10 rounded-lg"
-                        />
+                        >
+                          {KNOCKOUT_FIRST_ROUND_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                          {!KNOCKOUT_FIRST_ROUND_OPTIONS.some(
+                            (option) =>
+                              option.value ===
+                              category.knockoutFirstRoundMatches,
+                          ) ? (
+                            <option value={category.knockoutFirstRoundMatches}>
+                              {category.knockoutFirstRoundMatches} partidos
+                              (actual)
+                            </option>
+                          ) : null}
+                        </select>
                       </div>
                       <div className="space-y-1.5">
                         <Label>Cantidad de sets</Label>
@@ -1544,9 +1681,10 @@ export function TournamentEditor({
                           <Settings2 className="size-3.5 text-primary" />
                           Primera fase:{" "}
                           <strong className="text-foreground">
-                            {category.knockoutFirstRoundMatches} partidos
+                            {knockoutFirstLabel}
                           </strong>{" "}
-                          ({knockoutFirstLabel}) · Total:{" "}
+                          ({category.knockoutFirstRoundMatches} partidos) ·
+                          Total:{" "}
                           <strong className="text-foreground">
                             {knockoutTotal} partidos
                           </strong>
@@ -1565,7 +1703,7 @@ export function TournamentEditor({
               size="lg"
               className="rounded-lg"
               onClick={() =>
-                setCategories((current) => [...current, defaultCategory()])
+                setCategories((current) => [...current, defaultCategory(sport)])
               }
             >
               <Plus className="size-4" />+ Agregar categoría

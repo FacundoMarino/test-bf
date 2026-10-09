@@ -20,14 +20,6 @@ export type AdminClubRow = {
   approvalStatus: ApprovalStatus;
 };
 
-export type PlatformPaymentSettings = {
-  id: string;
-  commissionPercent: number;
-  puntooCvu: string;
-  puntooCuit: string;
-  puntooAlias?: string | null;
-};
-
 async function getTokenOrRedirect() {
   const cookieStore = await cookies();
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
@@ -69,37 +61,6 @@ export async function rejectClubAction(
   const res = await apiFetch(`/clubs/admin/${clubId}/reject`, {
     authToken: token,
     method: "PATCH",
-  });
-  if (res.error) return { ok: false, error: res.error.message };
-  revalidatePath("/dashboard/admin/clubs");
-  return { ok: true };
-}
-
-export async function getPaymentSettingsAction(): Promise<
-  { ok: true; data: PlatformPaymentSettings | null } | { ok: false; error: string }
-> {
-  const token = await getTokenOrRedirect();
-  const res = await apiFetch<{ data: PlatformPaymentSettings | null }>(
-    "/admin/payment-settings",
-    {
-      authToken: token,
-    },
-  );
-  if (res.error) return { ok: false, error: res.error.message };
-  return { ok: true, data: res.data.data ?? null };
-}
-
-export async function updatePaymentSettingsAction(payload: {
-  commissionPercent: number;
-  puntooCvu: string;
-  puntooCuit: string;
-  puntooAlias?: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const token = await getTokenOrRedirect();
-  const res = await apiFetch("/admin/payment-settings", {
-    authToken: token,
-    method: "PATCH",
-    body: JSON.stringify(payload),
   });
   if (res.error) return { ok: false, error: res.error.message };
   revalidatePath("/dashboard/admin/clubs");
