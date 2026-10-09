@@ -22,6 +22,7 @@ import {
 
 import {
   createTournamentAction,
+  publishTournamentScheduleAction,
   publishTournamentAction,
   updateTournamentAction,
 } from "@/actions/tournaments";
@@ -617,6 +618,15 @@ export function TournamentEditor({
     sport === "TENNIS" && playFormat === "SINGLES"
       ? "inscriptos"
       : "inscriptas";
+  const hasDrawData = Boolean(
+    tournament &&
+    ((tournament.matches?.length ?? 0) > 0 ||
+      tournament.categories.some((category) =>
+        category.zones.some(
+          (zone) => zone.entries.length > 0 || zone.matches.length > 0,
+        ),
+      )),
+  );
 
   const applyCategoryChange = (
     index: number,
@@ -1028,6 +1038,32 @@ export function TournamentEditor({
             >
               <Flag className="size-4" />
               Publicar torneo
+            </Button>
+          ) : null}
+          {tournament && hasDrawData ? (
+            <Button
+              variant={tournament.schedulePublishedAt ? "secondary" : "default"}
+              size="lg"
+              className="rounded-lg"
+              onClick={() =>
+                startTransition(async () => {
+                  const result = await publishTournamentScheduleAction(
+                    clubId,
+                    tournament.id,
+                  );
+                  if (!result.ok) {
+                    setError(result.error);
+                    return;
+                  }
+                  router.refresh();
+                })
+              }
+              disabled={isPending || Boolean(tournament.schedulePublishedAt)}
+            >
+              <CalendarClock className="size-4" />
+              {tournament.schedulePublishedAt
+                ? "Horarios publicados"
+                : "Publicar horarios"}
             </Button>
           ) : null}
         </div>

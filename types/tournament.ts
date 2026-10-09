@@ -155,6 +155,7 @@ export type TournamentRecord = {
   format: "TORNEO";
   sport: TournamentSport;
   playFormat: TournamentPlayFormat;
+  schedulePublishedAt: string | null;
   description: string | null;
   venueMode: TournamentVenueMode;
   participantClubNames: string[];

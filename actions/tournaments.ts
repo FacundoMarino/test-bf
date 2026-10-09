@@ -97,6 +97,24 @@ export async function publishTournamentAction(
   return { ok: true };
 }
 
+export async function publishTournamentScheduleAction(
+  clubId: string,
+  tournamentId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = await getTokenOrRedirect();
+  const res = await apiFetch(
+    `/clubs/${clubId}/tournaments/${tournamentId}/publish-schedule`,
+    {
+      authToken: token,
+      method: "PATCH",
+    },
+  );
+  if (res.error) return { ok: false, error: res.error.message };
+  revalidatePath(`/dashboard/club/torneos/${tournamentId}`);
+  revalidatePath("/dashboard/club/torneos");
+  return { ok: true };
+}
+
 export async function runTournamentDrawAction(
   clubId: string,
   tournamentId: string,
