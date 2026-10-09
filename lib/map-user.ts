@@ -45,11 +45,19 @@ export function mapSupabaseUserToUser(u: SupabaseUserLike): User {
     app?.is_club === true ||
     app?.isClub === true;
 
+  const clubRoleRaw =
+    meta?.club_role ?? meta?.clubRole ?? app?.club_role ?? app?.clubRole;
+  const clubRole =
+    clubRoleRaw === "ADMINISTRADOR" || clubRoleRaw === "RESERVAS"
+      ? clubRoleRaw
+      : undefined;
+
   return {
     id: u.id,
     email,
     name,
     role,
+    ...(clubRole ? { clubRole } : {}),
     createdAt: u.created_at ?? new Date().toISOString(),
     ...(isClub ? { isClub: true } : {}),
   };
