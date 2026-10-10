@@ -822,23 +822,6 @@ export function TournamentInscriptionsBoard({
                           En cualquier horario
                         </label>
                       </div>
-                      {dayAvailability[day.key]?.any === true ? null : (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted"
-                            onClick={() =>
-                              patchDayAvailability(day.key, {
-                                any: false,
-                                from: "20:00",
-                                to: "23:00",
-                              })
-                            }
-                          >
-                            Después de las 20
-                          </button>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
