@@ -56,8 +56,6 @@ type CategoryDraft = {
   level: number;
   /** Padel-only: category is "Suma N" (sum of both players' categories). */
   isSuma: boolean;
-  /** When isSuma: which padel ranks (1–9) are allowed for each player. */
-  sumaLevels: number[];
   modality: "MALE" | "FEMALE" | "MIXED";
   maxPairs: number;
   minPairs: number;
@@ -195,7 +193,6 @@ function draftFromApiCategory(category: {
   id: string;
   name: string;
   level: number;
-  sumaLevels?: number[] | null;
   modality: CategoryDraft["modality"];
   maxPairs: number;
   minPairs: number | null;
@@ -217,11 +214,6 @@ function draftFromApiCategory(category: {
   const namedSuma = /^Suma\b/i.test(category.name);
   const isSuma = encodedSuma || namedSuma;
   const level = encodedSuma ? decodeSumaLevel(category.level) : category.level;
-  const sumaLevels = isSuma
-    ? [
-        ...new Set((category.sumaLevels ?? []).filter((v) => v >= 1 && v <= 9)),
-      ].sort((a, b) => a - b)
-    : [];
 
   return {
     id: category.id,
@@ -232,7 +224,6 @@ function draftFromApiCategory(category: {
         )
       : level,
     isSuma,
-    sumaLevels,
     modality: category.modality,
     maxPairs: category.maxPairs,
     minPairs: category.minPairs ?? 0,
@@ -256,7 +247,6 @@ function defaultCategory(sport: TournamentSport): CategoryDraft {
   return {
     level: sport === "TENNIS" ? 1 : 4,
     isSuma: false,
-    sumaLevels: [],
     modality: "MALE",
     maxPairs: 16,
     minPairs: 8,
@@ -281,7 +271,7 @@ function normalizeCategoryForSport(
   sport: TournamentSport,
 ): CategoryDraft {
   if (sport === "TENNIS" && category.isSuma) {
-    return { ...category, isSuma: false, level: 1, sumaLevels: [] };
+    return { ...category, isSuma: false, level: 1 };
   }
   if (category.isSuma) {
     return category;
@@ -289,25 +279,9 @@ function normalizeCategoryForSport(
   const options =
     sport === "TENNIS" ? TENNIS_LEVEL_OPTIONS : PADEL_LEVEL_OPTIONS;
   if (options.some((option) => option.value === category.level)) {
-    return { ...category, sumaLevels: [] };
+    return category;
   }
-  return { ...category, level: options[0]?.value ?? 1, sumaLevels: [] };
-}
-
-function toggleSumaLevel(current: number[], level: number) {
-  if (current.includes(level)) {
-    return current.filter((value) => value !== level);
-  }
-  return [...current, level].sort((a, b) => a - b);
-}
-
-/** Suma N from enabled ranks (e.g. 5ª+7ª → 12). */
-function sumaValueFromLevels(sumaLevels: number[]) {
-  if (sumaLevels.length === 0) {
-    return DEFAULT_SUMA_VALUE;
-  }
-  const value = Math.min(...sumaLevels) + Math.max(...sumaLevels);
-  return Math.min(SUMA_VALUE_MAX, Math.max(SUMA_VALUE_MIN, value));
+  return { ...category, level: options[0]?.value ?? 1 };
 }
 
 function firstRoundLabel(matches: number) {
@@ -749,20 +723,6 @@ export function TournamentEditor({
     );
   };
 
-  const handleToggleSumaLevel = (index: number, level: number) => () => {
-    setCategories((current) =>
-      current.map((item, rowIndex) => {
-        if (rowIndex !== index) return item;
-        const sumaLevels = toggleSumaLevel(item.sumaLevels, level);
-        return {
-          ...item,
-          sumaLevels,
-          level: sumaValueFromLevels(sumaLevels),
-        };
-      }),
-    );
-  };
-
   const applyBlockChange = (index: number, patch: Partial<CourtBlockDraft>) => {
     setBlocks((current) => {
       const currentItem = current[index];
@@ -918,7 +878,7 @@ export function TournamentEditor({
       ...(category.id ? { id: category.id } : {}),
       name: buildCategoryName(category, sport),
       level: apiLevelFromDraft(category),
-      sumaLevels: category.isSuma ? category.sumaLevels : [],
+      sumaLevels: [],
       modality: category.modality,
       maxPairs: category.maxPairs,
       minPairs: category.minPairs || undefined,
@@ -1508,79 +1468,58 @@ export function TournamentEditor({
                       <Label className="text-muted-foreground text-[11px]">
                         Categoría
                       </Label>
-                      <select
-                        className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm"
-                        value={
-                          category.isSuma ? "suma" : String(category.level)
-                        }
-                        onChange={(e) => {
-                          if (e.target.value === "suma") {
-                            applyCategoryChange(index, {
-                              isSuma: true,
-                              level: category.isSuma
-                                ? category.level
-                                : DEFAULT_SUMA_VALUE,
-                              sumaLevels: category.isSuma
-                                ? category.sumaLevels
-                                : [],
-                            });
-                            return;
+                      <div className="flex gap-2">
+                        <select
+                          className="border-input bg-background h-10 min-w-0 flex-1 rounded-lg border px-2 text-sm"
+                          value={
+                            category.isSuma ? "suma" : String(category.level)
                           }
-                          applyCategoryChange(index, {
-                            isSuma: false,
-                            level: Number(e.target.value),
-                            sumaLevels: [],
-                          });
-                        }}
-                      >
-                        {levelOptions.map((levelOption) => (
-                          <option
-                            key={levelOption.value}
-                            value={levelOption.value}
-                          >
-                            {levelOption.label}
-                          </option>
-                        ))}
-                        {sport === "PADEL" ? (
-                          <option value="suma">Suma</option>
+                          onChange={(e) => {
+                            if (e.target.value === "suma") {
+                              applyCategoryChange(index, {
+                                isSuma: true,
+                                level: category.isSuma
+                                  ? category.level
+                                  : DEFAULT_SUMA_VALUE,
+                              });
+                              return;
+                            }
+                            applyCategoryChange(index, {
+                              isSuma: false,
+                              level: Number(e.target.value),
+                            });
+                          }}
+                        >
+                          {levelOptions.map((levelOption) => (
+                            <option
+                              key={levelOption.value}
+                              value={levelOption.value}
+                            >
+                              {levelOption.label}
+                            </option>
+                          ))}
+                          {sport === "PADEL" ? (
+                            <option value="suma">Suma</option>
+                          ) : null}
+                        </select>
+                        {category.isSuma ? (
+                          <Input
+                            type="number"
+                            min={SUMA_VALUE_MIN}
+                            max={SUMA_VALUE_MAX}
+                            value={category.level}
+                            onChange={(e) =>
+                              applyCategoryChange(index, {
+                                level: Number(e.target.value),
+                              })
+                            }
+                            className="h-10 w-20 shrink-0 rounded-lg"
+                            aria-label="Valor de suma"
+                            title="Suma de categorías (ej. 12)"
+                          />
                         ) : null}
-                      </select>
-                    </div>
-                    {category.isSuma ? (
-                      <div className="space-y-1 sm:col-span-12">
-                        <Label className="text-muted-foreground text-[11px]">
-                          Categorías habilitadas
-                        </Label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {PADEL_LEVEL_OPTIONS.map((levelOption) => {
-                            const selected = category.sumaLevels.includes(
-                              levelOption.value,
-                            );
-                            return (
-                              <button
-                                key={levelOption.value}
-                                type="button"
-                                onClick={handleToggleSumaLevel(
-                                  index,
-                                  levelOption.value,
-                                )}
-                                className={
-                                  selected
-                                    ? "inline-flex h-8 items-center gap-1 rounded-full border border-emerald-600 bg-emerald-500 px-2.5 text-xs font-medium text-white"
-                                    : "inline-flex h-8 items-center gap-1 rounded-full border border-border bg-background px-2.5 text-xs font-medium text-muted-foreground hover:border-emerald-500/50 hover:text-foreground"
-                                }
-                                aria-pressed={selected}
-                              >
-                                {!selected ? (
-                                  <Plus className="size-3.5" />
-                                ) : null}
-                                {levelOption.label}
-                              </button>
-                            );
-                          })}
-                        </div>
                       </div>
-                    ) : null}
+                    </div>
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="text-muted-foreground text-[11px]">
                         Modalidad
