@@ -301,6 +301,15 @@ function toggleSumaLevel(current: number[], level: number) {
   return [...current, level].sort((a, b) => a - b);
 }
 
+/** Suma N from enabled ranks (e.g. 5ª+7ª → 12). */
+function sumaValueFromLevels(sumaLevels: number[]) {
+  if (sumaLevels.length === 0) {
+    return DEFAULT_SUMA_VALUE;
+  }
+  const value = Math.min(...sumaLevels) + Math.max(...sumaLevels);
+  return Math.min(SUMA_VALUE_MAX, Math.max(SUMA_VALUE_MIN, value));
+}
+
 function firstRoundLabel(matches: number) {
   if (matches >= 16) return "Dieciseisavos";
   if (matches >= 8) return "Octavos";
@@ -737,6 +746,20 @@ export function TournamentEditor({
       current.map((item, rowIndex) =>
         rowIndex === index ? { ...item, ...patch } : item,
       ),
+    );
+  };
+
+  const handleToggleSumaLevel = (index: number, level: number) => () => {
+    setCategories((current) =>
+      current.map((item, rowIndex) => {
+        if (rowIndex !== index) return item;
+        const sumaLevels = toggleSumaLevel(item.sumaLevels, level);
+        return {
+          ...item,
+          sumaLevels,
+          level: sumaValueFromLevels(sumaLevels),
+        };
+      }),
     );
   };
 
@@ -1485,61 +1508,43 @@ export function TournamentEditor({
                       <Label className="text-muted-foreground text-[11px]">
                         Categoría
                       </Label>
-                      <div className="flex gap-2">
-                        <select
-                          className="border-input bg-background h-10 min-w-0 flex-1 rounded-lg border px-2 text-sm"
-                          value={
-                            category.isSuma ? "suma" : String(category.level)
-                          }
-                          onChange={(e) => {
-                            if (e.target.value === "suma") {
-                              applyCategoryChange(index, {
-                                isSuma: true,
-                                level: category.isSuma
-                                  ? category.level
-                                  : DEFAULT_SUMA_VALUE,
-                                sumaLevels: category.isSuma
-                                  ? category.sumaLevels
-                                  : [],
-                              });
-                              return;
-                            }
+                      <select
+                        className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm"
+                        value={
+                          category.isSuma ? "suma" : String(category.level)
+                        }
+                        onChange={(e) => {
+                          if (e.target.value === "suma") {
                             applyCategoryChange(index, {
-                              isSuma: false,
-                              level: Number(e.target.value),
-                              sumaLevels: [],
+                              isSuma: true,
+                              level: category.isSuma
+                                ? category.level
+                                : DEFAULT_SUMA_VALUE,
+                              sumaLevels: category.isSuma
+                                ? category.sumaLevels
+                                : [],
                             });
-                          }}
-                        >
-                          {levelOptions.map((levelOption) => (
-                            <option
-                              key={levelOption.value}
-                              value={levelOption.value}
-                            >
-                              {levelOption.label}
-                            </option>
-                          ))}
-                          {sport === "PADEL" ? (
-                            <option value="suma">Suma</option>
-                          ) : null}
-                        </select>
-                        {category.isSuma ? (
-                          <Input
-                            type="number"
-                            min={SUMA_VALUE_MIN}
-                            max={SUMA_VALUE_MAX}
-                            value={category.level}
-                            onChange={(e) =>
-                              applyCategoryChange(index, {
-                                level: Number(e.target.value),
-                              })
-                            }
-                            className="h-10 w-20 shrink-0 rounded-lg"
-                            aria-label="Valor de suma"
-                            title="Suma de categorías (ej. 12)"
-                          />
+                            return;
+                          }
+                          applyCategoryChange(index, {
+                            isSuma: false,
+                            level: Number(e.target.value),
+                            sumaLevels: [],
+                          });
+                        }}
+                      >
+                        {levelOptions.map((levelOption) => (
+                          <option
+                            key={levelOption.value}
+                            value={levelOption.value}
+                          >
+                            {levelOption.label}
+                          </option>
+                        ))}
+                        {sport === "PADEL" ? (
+                          <option value="suma">Suma</option>
                         ) : null}
-                      </div>
+                      </select>
                     </div>
                     {category.isSuma ? (
                       <div className="space-y-1 sm:col-span-12">
@@ -1555,14 +1560,10 @@ export function TournamentEditor({
                               <button
                                 key={levelOption.value}
                                 type="button"
-                                onClick={() =>
-                                  applyCategoryChange(index, {
-                                    sumaLevels: toggleSumaLevel(
-                                      category.sumaLevels,
-                                      levelOption.value,
-                                    ),
-                                  })
-                                }
+                                onClick={handleToggleSumaLevel(
+                                  index,
+                                  levelOption.value,
+                                )}
                                 className={
                                   selected
                                     ? "inline-flex h-8 items-center gap-1 rounded-full border border-emerald-600 bg-emerald-500 px-2.5 text-xs font-medium text-white"
