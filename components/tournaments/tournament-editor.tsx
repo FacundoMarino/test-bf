@@ -52,7 +52,12 @@ type CourtOption = {
 
 type CategoryDraft = {
   id?: string;
+  /** Standard padel/tennis rank (1–9 / 1–6), or the sum value when isSuma. */
   level: number;
+  /** Padel-only: category is "Suma N" (sum of both players' categories). */
+  isSuma: boolean;
+  /** When isSuma: which padel ranks (1–9) are allowed for each player. */
+  sumaLevels: number[];
   modality: "MALE" | "FEMALE" | "MIXED";
   maxPairs: number;
   minPairs: number;
@@ -70,6 +75,24 @@ type CategoryDraft = {
   groupDurationMin: number;
   knockoutDurationMin: number;
 };
+
+/** Encoded in API `level` so Suma N never collides with Nª (unique on level+modality). */
+const SUMA_LEVEL_BASE = 100;
+const DEFAULT_SUMA_VALUE = 12;
+const SUMA_VALUE_MIN = 2;
+const SUMA_VALUE_MAX = 36;
+
+function encodeSumaLevel(sumaValue: number) {
+  return SUMA_LEVEL_BASE + sumaValue;
+}
+
+function decodeSumaLevel(level: number) {
+  return level - SUMA_LEVEL_BASE;
+}
+
+function isEncodedSumaLevel(level: number) {
+  return level >= SUMA_LEVEL_BASE;
+}
 
 type CourtBlockDraft = {
   clientKey: string;
@@ -136,23 +159,104 @@ function modalityLabel(modality: CategoryDraft["modality"]) {
       : "Mixto";
 }
 
-function categoryLevelLabel(level: number, sport: TournamentSport) {
+function categoryLevelLabel(category: CategoryDraft, sport: TournamentSport) {
+  if (category.isSuma) {
+    return `Suma ${category.level}`;
+  }
   const options =
     sport === "TENNIS" ? TENNIS_LEVEL_OPTIONS : PADEL_LEVEL_OPTIONS;
   return (
-    options.find((option) => option.value === level)?.label ?? String(level)
+    options.find((option) => option.value === category.level)?.label ??
+    String(category.level)
   );
 }
 
 function buildCategoryName(category: CategoryDraft, sport: TournamentSport) {
-  return `${categoryLevelLabel(category.level, sport)} ${modalityLabel(
+  return `${categoryLevelLabel(category, sport)} ${modalityLabel(
     category.modality,
   )}`;
+}
+
+function apiLevelFromDraft(category: CategoryDraft) {
+  if (category.isSuma) {
+    const sumaValue = Math.min(
+      SUMA_VALUE_MAX,
+      Math.max(
+        SUMA_VALUE_MIN,
+        Math.round(category.level) || DEFAULT_SUMA_VALUE,
+      ),
+    );
+    return encodeSumaLevel(sumaValue);
+  }
+  return category.level;
+}
+
+function draftFromApiCategory(category: {
+  id: string;
+  name: string;
+  level: number;
+  sumaLevels?: number[] | null;
+  modality: CategoryDraft["modality"];
+  maxPairs: number;
+  minPairs: number | null;
+  registrationFeeCents: number;
+  groupTeamsPerZone: number;
+  groupSets: number;
+  groupSuperTieBreak: boolean;
+  groupQualifiers: number;
+  groupPointsWin: number;
+  groupPointsLoss: number;
+  groupPointsNoShow: number;
+  knockoutFirstRoundMatches: number;
+  knockoutSets: number;
+  knockoutSuperTieBreak: boolean;
+  groupMatchDurationMin: number;
+  knockoutMatchDurationMin: number;
+}): CategoryDraft {
+  const encodedSuma = isEncodedSumaLevel(category.level);
+  const namedSuma = /^Suma\b/i.test(category.name);
+  const isSuma = encodedSuma || namedSuma;
+  const level = encodedSuma ? decodeSumaLevel(category.level) : category.level;
+  const sumaLevels = isSuma
+    ? [
+        ...new Set((category.sumaLevels ?? []).filter((v) => v >= 1 && v <= 9)),
+      ].sort((a, b) => a - b)
+    : [];
+
+  return {
+    id: category.id,
+    level: isSuma
+      ? Math.min(
+          SUMA_VALUE_MAX,
+          Math.max(SUMA_VALUE_MIN, level || DEFAULT_SUMA_VALUE),
+        )
+      : level,
+    isSuma,
+    sumaLevels,
+    modality: category.modality,
+    maxPairs: category.maxPairs,
+    minPairs: category.minPairs ?? 0,
+    registrationFeeCents: category.registrationFeeCents,
+    groupTeamsPerZone: category.groupTeamsPerZone,
+    groupSets: category.groupSets,
+    groupSuperTieBreak: category.groupSuperTieBreak,
+    groupQualifiers: category.groupQualifiers,
+    groupPointsWin: category.groupPointsWin,
+    groupPointsLoss: category.groupPointsLoss,
+    groupPointsNoShow: category.groupPointsNoShow,
+    knockoutFirstRoundMatches: category.knockoutFirstRoundMatches,
+    knockoutSets: category.knockoutSets,
+    knockoutSuperTieBreak: category.knockoutSuperTieBreak,
+    groupDurationMin: category.groupMatchDurationMin,
+    knockoutDurationMin: category.knockoutMatchDurationMin,
+  };
 }
 
 function defaultCategory(sport: TournamentSport): CategoryDraft {
   return {
     level: sport === "TENNIS" ? 1 : 4,
+    isSuma: false,
+    sumaLevels: [],
     modality: "MALE",
     maxPairs: 16,
     minPairs: 8,
@@ -172,13 +276,29 @@ function defaultCategory(sport: TournamentSport): CategoryDraft {
   };
 }
 
-function normalizeLevelForSport(level: number, sport: TournamentSport) {
+function normalizeCategoryForSport(
+  category: CategoryDraft,
+  sport: TournamentSport,
+): CategoryDraft {
+  if (sport === "TENNIS" && category.isSuma) {
+    return { ...category, isSuma: false, level: 1, sumaLevels: [] };
+  }
+  if (category.isSuma) {
+    return category;
+  }
   const options =
     sport === "TENNIS" ? TENNIS_LEVEL_OPTIONS : PADEL_LEVEL_OPTIONS;
-  if (options.some((option) => option.value === level)) {
-    return level;
+  if (options.some((option) => option.value === category.level)) {
+    return { ...category, sumaLevels: [] };
   }
-  return options[0]?.value ?? 1;
+  return { ...category, level: options[0]?.value ?? 1, sumaLevels: [] };
+}
+
+function toggleSumaLevel(current: number[], level: number) {
+  if (current.includes(level)) {
+    return current.filter((value) => value !== level);
+  }
+  return [...current, level].sort((a, b) => a - b);
 }
 
 function firstRoundLabel(matches: number) {
@@ -571,26 +691,7 @@ export function TournamentEditor({
 
   const [categories, setCategories] = useState<CategoryDraft[]>(
     tournament?.categories.length
-      ? tournament.categories.map((category) => ({
-          id: category.id,
-          level: category.level,
-          modality: category.modality,
-          maxPairs: category.maxPairs,
-          minPairs: category.minPairs ?? 0,
-          registrationFeeCents: category.registrationFeeCents,
-          groupTeamsPerZone: category.groupTeamsPerZone,
-          groupSets: category.groupSets,
-          groupSuperTieBreak: category.groupSuperTieBreak,
-          groupQualifiers: category.groupQualifiers,
-          groupPointsWin: category.groupPointsWin,
-          groupPointsLoss: category.groupPointsLoss,
-          groupPointsNoShow: category.groupPointsNoShow,
-          knockoutFirstRoundMatches: category.knockoutFirstRoundMatches,
-          knockoutSets: category.knockoutSets,
-          knockoutSuperTieBreak: category.knockoutSuperTieBreak,
-          groupDurationMin: category.groupMatchDurationMin,
-          knockoutDurationMin: category.knockoutMatchDurationMin,
-        }))
+      ? tournament.categories.map(draftFromApiCategory)
       : [defaultCategory(tournament?.sport ?? "PADEL")],
   );
 
@@ -785,10 +886,7 @@ export function TournamentEditor({
       setPlayFormat("DOUBLES");
     }
     setCategories((current) =>
-      current.map((category) => ({
-        ...category,
-        level: normalizeLevelForSport(category.level, nextSport),
-      })),
+      current.map((category) => normalizeCategoryForSport(category, nextSport)),
     );
   };
 
@@ -796,7 +894,8 @@ export function TournamentEditor({
     const preparedCategories = categories.map((category) => ({
       ...(category.id ? { id: category.id } : {}),
       name: buildCategoryName(category, sport),
-      level: category.level,
+      level: apiLevelFromDraft(category),
+      sumaLevels: category.isSuma ? category.sumaLevels : [],
       modality: category.modality,
       maxPairs: category.maxPairs,
       minPairs: category.minPairs || undefined,
@@ -1386,25 +1485,101 @@ export function TournamentEditor({
                       <Label className="text-muted-foreground text-[11px]">
                         Categoría
                       </Label>
-                      <select
-                        className="border-input bg-background h-10 w-full rounded-lg border px-2 text-sm"
-                        value={category.level}
-                        onChange={(e) =>
-                          applyCategoryChange(index, {
-                            level: Number(e.target.value),
-                          })
-                        }
-                      >
-                        {levelOptions.map((levelOption) => (
-                          <option
-                            key={levelOption.value}
-                            value={levelOption.value}
-                          >
-                            {levelOption.label}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex gap-2">
+                        <select
+                          className="border-input bg-background h-10 min-w-0 flex-1 rounded-lg border px-2 text-sm"
+                          value={
+                            category.isSuma ? "suma" : String(category.level)
+                          }
+                          onChange={(e) => {
+                            if (e.target.value === "suma") {
+                              applyCategoryChange(index, {
+                                isSuma: true,
+                                level: category.isSuma
+                                  ? category.level
+                                  : DEFAULT_SUMA_VALUE,
+                                sumaLevels: category.isSuma
+                                  ? category.sumaLevels
+                                  : [],
+                              });
+                              return;
+                            }
+                            applyCategoryChange(index, {
+                              isSuma: false,
+                              level: Number(e.target.value),
+                              sumaLevels: [],
+                            });
+                          }}
+                        >
+                          {levelOptions.map((levelOption) => (
+                            <option
+                              key={levelOption.value}
+                              value={levelOption.value}
+                            >
+                              {levelOption.label}
+                            </option>
+                          ))}
+                          {sport === "PADEL" ? (
+                            <option value="suma">Suma</option>
+                          ) : null}
+                        </select>
+                        {category.isSuma ? (
+                          <Input
+                            type="number"
+                            min={SUMA_VALUE_MIN}
+                            max={SUMA_VALUE_MAX}
+                            value={category.level}
+                            onChange={(e) =>
+                              applyCategoryChange(index, {
+                                level: Number(e.target.value),
+                              })
+                            }
+                            className="h-10 w-20 shrink-0 rounded-lg"
+                            aria-label="Valor de suma"
+                            title="Suma de categorías (ej. 12)"
+                          />
+                        ) : null}
+                      </div>
                     </div>
+                    {category.isSuma ? (
+                      <div className="space-y-1 sm:col-span-12">
+                        <Label className="text-muted-foreground text-[11px]">
+                          Categorías habilitadas
+                        </Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {PADEL_LEVEL_OPTIONS.map((levelOption) => {
+                            const selected = category.sumaLevels.includes(
+                              levelOption.value,
+                            );
+                            return (
+                              <button
+                                key={levelOption.value}
+                                type="button"
+                                onClick={() =>
+                                  applyCategoryChange(index, {
+                                    sumaLevels: toggleSumaLevel(
+                                      category.sumaLevels,
+                                      levelOption.value,
+                                    ),
+                                  })
+                                }
+                                className={
+                                  selected
+                                    ? "inline-flex h-8 items-center gap-1 rounded-full border border-emerald-600 bg-emerald-500 px-2.5 text-xs font-medium text-white"
+                                    : "inline-flex h-8 items-center gap-1 rounded-full border border-border bg-background px-2.5 text-xs font-medium text-muted-foreground hover:border-emerald-500/50 hover:text-foreground"
+                                }
+                                aria-pressed={selected}
+                              >
+                                {!selected ? (
+                                  <Plus className="size-3.5" />
+                                ) : null}
+                                {levelOption.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="text-muted-foreground text-[11px]">
                         Modalidad

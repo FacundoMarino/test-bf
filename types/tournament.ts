@@ -112,6 +112,8 @@ export type TournamentCategory = {
   id: string;
   name: string;
   level: number;
+  /** Padel ranks (1–9) enabled when the category is Suma. */
+  sumaLevels?: number[];
   modality: TournamentModality;
   maxPairs: number;
   minPairs: number | null;
