@@ -119,6 +119,10 @@ export async function runTournamentDrawAction(
   clubId: string,
   tournamentId: string,
   categoryId: string,
+  scheduleOptions?: {
+    avoidSameDayGroupMatches?: boolean;
+    avoidSameDayKnockoutMatches?: boolean;
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = await getTokenOrRedirect();
   const res = await apiFetch(
@@ -126,6 +130,7 @@ export async function runTournamentDrawAction(
     {
       authToken: token,
       method: "POST",
+      body: JSON.stringify(scheduleOptions ?? {}),
     },
   );
   if (res.error) return { ok: false, error: res.error.message };
@@ -312,6 +317,8 @@ export async function saveTournamentManualZonesAction(
       }>;
       entries: Array<{ registrationId?: string; isBye?: boolean }>;
     }>;
+    avoidSameDayGroupMatches?: boolean;
+    avoidSameDayKnockoutMatches?: boolean;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = await getTokenOrRedirect();

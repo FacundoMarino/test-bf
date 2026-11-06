@@ -171,6 +171,10 @@ export function TournamentDrawBoard({
     zoneId: string;
     entryId: string;
   } | null>(null);
+  const [avoidSameDayGroupMatches, setAvoidSameDayGroupMatches] =
+    useState(false);
+  const [avoidSameDayKnockoutMatches, setAvoidSameDayKnockoutMatches] =
+    useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Re-sincroniza el estado local cuando llega data fresca del servidor (sin useEffect).
@@ -207,6 +211,10 @@ export function TournamentDrawBoard({
         clubId,
         tournamentId,
         selectedCategoryId,
+        {
+          avoidSameDayGroupMatches,
+          avoidSameDayKnockoutMatches,
+        },
       );
       if (!response.ok) {
         setError(response.error);
@@ -237,6 +245,8 @@ export function TournamentDrawBoard({
               isBye: entry.isBye,
             })),
           })),
+          avoidSameDayGroupMatches,
+          avoidSameDayKnockoutMatches,
         },
       );
       if (!response.ok) {
@@ -367,9 +377,39 @@ export function TournamentDrawBoard({
         <p className="text-muted-foreground inline-flex items-center gap-1 text-xs">
           <Info className="size-3.5" />
           Arrastrá una pareja de una zona a otra. En cualquier zona con cantidad
-          par de parejas podés usar el cruce (primera ronda + ganador vs
-          perdedor) para que todos jueguen 2 partidos.
+          par de parejas podés usar el cruce (primera ronda + ganador vs ganador
+          / perdedor vs perdedor) para que todos jueguen 2 partidos.
         </p>
+        <div className="rounded-lg border border-border/70 bg-background px-3 py-2.5">
+          <p className="text-sm font-semibold">Torneo semanal</p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            No repetir partidos de una misma pareja el mismo día en:
+          </p>
+          <div className="mt-2 flex flex-wrap gap-4">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-border accent-primary"
+                checked={avoidSameDayGroupMatches}
+                onChange={(event) =>
+                  setAvoidSameDayGroupMatches(event.target.checked)
+                }
+              />
+              Fase de grupos
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-border accent-primary"
+                checked={avoidSameDayKnockoutMatches}
+                onChange={(event) =>
+                  setAvoidSameDayKnockoutMatches(event.target.checked)
+                }
+              />
+              Cuadros
+            </label>
+          </div>
+        </div>
       </div>
 
       {error ? (
@@ -496,9 +536,8 @@ export function TournamentDrawBoard({
                           <div className="space-y-1.5 rounded-lg border border-border/70 bg-background p-2">
                             <p className="text-muted-foreground text-[11px]">
                               Definí los partidos de la primera ronda. Después
-                              se juega Ganador 1 vs Perdedor 2, Ganador 2 vs
-                              Perdedor 3, y así (el último contra el perdedor
-                              del primero).
+                              se juega Ganador vs Ganador y Perdedor vs
+                              Perdedor.
                             </p>
                             {Array.from(
                               { length: realEntries.length / 2 },

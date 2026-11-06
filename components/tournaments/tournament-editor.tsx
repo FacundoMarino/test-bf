@@ -101,7 +101,20 @@ type CourtBlockDraft = {
   externalCourtName: string;
   startsAt: string;
   endsAt: string;
+  /** Filtrar el rango Solo a estos días (0=Dom … 6=Sáb). */
+  restrictWeekdays: boolean;
+  weekdays: number[];
 };
+
+const WEEKDAY_CHIPS: Array<{ value: number; label: string }> = [
+  { value: 1, label: "Lu" },
+  { value: 2, label: "Ma" },
+  { value: 3, label: "Mi" },
+  { value: 4, label: "Ju" },
+  { value: 5, label: "Vi" },
+  { value: 6, label: "Sá" },
+  { value: 0, label: "Do" },
+];
 
 type Props = {
   clubId: string;
@@ -357,12 +370,20 @@ function isWithinPeriod(
   return true;
 }
 
-function splitRangeIntoDailyBlocks(startsAt: Date, endsAt: Date) {
+function splitRangeIntoDailyBlocks(
+  startsAt: Date,
+  endsAt: Date,
+  allowedWeekdays?: number[] | null,
+) {
   const results: Array<{
     date: string;
     startTimeMinutes: number;
     endTimeMinutes: number;
   }> = [];
+  const weekdayFilter =
+    allowedWeekdays && allowedWeekdays.length > 0
+      ? new Set(allowedWeekdays)
+      : null;
 
   const startDay = new Date(startsAt);
   startDay.setHours(0, 0, 0, 0);
@@ -371,20 +392,22 @@ function splitRangeIntoDailyBlocks(startsAt: Date, endsAt: Date) {
 
   const cursor = new Date(startDay);
   while (cursor <= endDay) {
-    const isStartDay = cursor.getTime() === startDay.getTime();
-    const isEndDay = cursor.getTime() === endDay.getTime();
-    const startTimeMinutes = isStartDay
-      ? startsAt.getHours() * 60 + startsAt.getMinutes()
-      : 0;
-    const endTimeMinutes = isEndDay
-      ? endsAt.getHours() * 60 + endsAt.getMinutes()
-      : 1440;
-    if (endTimeMinutes > startTimeMinutes) {
-      results.push({
-        date: formatLocalIsoDate(cursor),
-        startTimeMinutes,
-        endTimeMinutes,
-      });
+    if (!weekdayFilter || weekdayFilter.has(cursor.getDay())) {
+      const isStartDay = cursor.getTime() === startDay.getTime();
+      const isEndDay = cursor.getTime() === endDay.getTime();
+      const startTimeMinutes = isStartDay
+        ? startsAt.getHours() * 60 + startsAt.getMinutes()
+        : 0;
+      const endTimeMinutes = isEndDay
+        ? endsAt.getHours() * 60 + endsAt.getMinutes()
+        : 1440;
+      if (endTimeMinutes > startTimeMinutes) {
+        results.push({
+          date: formatLocalIsoDate(cursor),
+          startTimeMinutes,
+          endTimeMinutes,
+        });
+      }
     }
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -533,8 +556,13 @@ function buildOwnCourtBlocksFromSchedules(
   startsAt: Date,
   endsAt: Date,
   schedules: CourtOption["schedules"],
+  allowedWeekdays?: number[] | null,
 ) {
   const dailyRanges = splitRangeIntoDailyRanges(startsAt, endsAt);
+  const weekdayFilter =
+    allowedWeekdays && allowedWeekdays.length > 0
+      ? new Set(allowedWeekdays)
+      : null;
   const blocks: Array<{
     date: string;
     startTimeMinutes: number;
@@ -543,6 +571,9 @@ function buildOwnCourtBlocksFromSchedules(
 
   for (const dayRange of dailyRanges) {
     const dayDate = new Date(`${dayRange.date}T00:00`);
+    if (weekdayFilter && !weekdayFilter.has(dayDate.getDay())) {
+      continue;
+    }
     const windows = getScheduleWindowsForDate(dayDate, schedules);
     const fallbackWindows = getScheduleWindowsForDate(dayDate, schedules, {
       ignorePeriod: true,
@@ -595,6 +626,24 @@ function collapseCourtBlocksForEditor(
     });
     const first = sorted[0];
     const last = sorted[sorted.length - 1];
+    const presentWeekdays = [
+      ...new Set(
+        sorted.map((block) =>
+          new Date(`${block.date.slice(0, 10)}T00:00`).getDay(),
+        ),
+      ),
+    ].sort((a, b) => a - b);
+    const rangeStart = new Date(`${first.date.slice(0, 10)}T00:00`);
+    const rangeEnd = new Date(`${last.date.slice(0, 10)}T00:00`);
+    const allWeekdaysInRange = new Set<number>();
+    const cursor = new Date(rangeStart);
+    while (cursor <= rangeEnd) {
+      allWeekdaysInRange.add(cursor.getDay());
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    const restrictWeekdays =
+      presentWeekdays.length > 0 &&
+      presentWeekdays.length < allWeekdaysInRange.size;
 
     return {
       clientKey: crypto.randomUUID(),
@@ -605,6 +654,8 @@ function collapseCourtBlocksForEditor(
       externalCourtName: first.externalCourtName ?? "",
       startsAt: toDateTimeLocal(first.date, first.startTimeMinutes),
       endsAt: toDateTimeLocal(last.date, last.endTimeMinutes),
+      restrictWeekdays,
+      weekdays: restrictWeekdays ? presentWeekdays : [],
     };
   });
 }
@@ -618,6 +669,8 @@ function defaultCourtBlock(isExternal = false): CourtBlockDraft {
     externalCourtName: "",
     startsAt: "",
     endsAt: "",
+    restrictWeekdays: false,
+    weekdays: [],
   };
 }
 
@@ -917,13 +970,22 @@ export function TournamentEditor({
         const selectedCourt = block.isExternal
           ? null
           : courtById.get(block.courtId);
+        const allowedWeekdays =
+          block.restrictWeekdays && block.weekdays.length > 0
+            ? block.weekdays
+            : null;
         const dailyBlocks =
           block.isExternal || !selectedCourt
-            ? splitRangeIntoDailyBlocks(startsAtDate, endsAtDate)
+            ? splitRangeIntoDailyBlocks(
+                startsAtDate,
+                endsAtDate,
+                allowedWeekdays,
+              )
             : buildOwnCourtBlocksFromSchedules(
                 startsAtDate,
                 endsAtDate,
                 selectedCourt.schedules,
+                allowedWeekdays,
               );
         return dailyBlocks.map((dailyBlock) => ({
           isExternal: block.isExternal,
@@ -1009,6 +1071,20 @@ export function TournamentEditor({
       }
       if (!payload.courtBlocks.length) {
         setError("Debes cargar al menos un bloque de cancha.");
+        return;
+      }
+      if (
+        blocks.some(
+          (block) =>
+            block.restrictWeekdays &&
+            block.weekdays.length === 0 &&
+            block.startsAt &&
+            block.endsAt,
+        )
+      ) {
+        setError(
+          "Si activás 'solo ciertos días', elegí al menos un día de la semana.",
+        );
         return;
       }
       const invalidOwnBlock = ownBlockValidity.find(
@@ -2000,6 +2076,63 @@ export function TournamentEditor({
                         </Button>
                       </div>
                     </div>
+                    <div className="mt-3 space-y-2">
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="size-4 rounded border-border accent-primary"
+                          checked={block.restrictWeekdays}
+                          disabled={isPersistedBlock}
+                          onChange={(e) =>
+                            applyBlockChange(globalIndex, {
+                              restrictWeekdays: e.target.checked,
+                              weekdays: e.target.checked ? block.weekdays : [],
+                            })
+                          }
+                        />
+                        Jugar solo ciertos días de la semana
+                      </label>
+                      {block.restrictWeekdays ? (
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap gap-2">
+                            {WEEKDAY_CHIPS.map((day) => {
+                              const selected = block.weekdays.includes(
+                                day.value,
+                              );
+                              return (
+                                <button
+                                  key={day.value}
+                                  type="button"
+                                  disabled={isPersistedBlock}
+                                  onClick={() => {
+                                    const next = selected
+                                      ? block.weekdays.filter(
+                                          (value) => value !== day.value,
+                                        )
+                                      : [...block.weekdays, day.value].sort(
+                                          (a, b) => a - b,
+                                        );
+                                    applyBlockChange(globalIndex, {
+                                      weekdays: next,
+                                    });
+                                  }}
+                                  className={`inline-flex size-9 items-center justify-center rounded-full border text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                    selected
+                                      ? "border-primary bg-primary text-primary-foreground"
+                                      : "border-border bg-background text-foreground hover:border-primary/50"
+                                  }`}
+                                >
+                                  {day.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="text-muted-foreground text-[11px]">
+                            Elegí los días que se juega.
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
@@ -2106,6 +2239,63 @@ export function TournamentEditor({
                             ×
                           </Button>
                         </div>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="size-4 rounded border-border accent-primary"
+                            checked={block.restrictWeekdays}
+                            onChange={(e) =>
+                              applyBlockChange(globalIndex, {
+                                restrictWeekdays: e.target.checked,
+                                weekdays: e.target.checked
+                                  ? block.weekdays
+                                  : [],
+                              })
+                            }
+                          />
+                          Jugar solo ciertos días de la semana
+                        </label>
+                        {block.restrictWeekdays ? (
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap gap-2">
+                              {WEEKDAY_CHIPS.map((day) => {
+                                const selected = block.weekdays.includes(
+                                  day.value,
+                                );
+                                return (
+                                  <button
+                                    key={day.value}
+                                    type="button"
+                                    onClick={() => {
+                                      const next = selected
+                                        ? block.weekdays.filter(
+                                            (value) => value !== day.value,
+                                          )
+                                        : [...block.weekdays, day.value].sort(
+                                            (a, b) => a - b,
+                                          );
+                                      applyBlockChange(globalIndex, {
+                                        weekdays: next,
+                                      });
+                                    }}
+                                    className={`inline-flex size-9 items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
+                                      selected
+                                        ? "border-primary bg-primary text-primary-foreground"
+                                        : "border-border bg-background text-foreground hover:border-primary/50"
+                                    }`}
+                                  >
+                                    {day.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <p className="text-muted-foreground text-[11px]">
+                              Elegí los días que se juega.
+                            </p>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   );
