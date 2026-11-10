@@ -607,7 +607,84 @@ function courtBlockGroupKey(block: TournamentCourtBlock) {
   return `own:${block.court?.id ?? ""}`;
 }
 
-/** Collapse persisted daily court blocks back into one range per cancha for editing. */
+function uniqueSortedBlockDates(blocks: TournamentCourtBlock[]) {
+  return [...new Set(blocks.map((block) => block.date.slice(0, 10)))].sort(
+    (a, b) => a.localeCompare(b),
+  );
+}
+
+/** True si el set de fechas = expand(min..max) filtrado por esos weekdays (sin inventar días). */
+function datesMatchWeekdayFilter(dates: string[], weekdays: number[]) {
+  if (!dates.length) return true;
+  const dateSet = new Set(dates);
+  const weekdaySet = new Set(weekdays);
+  for (const date of dates) {
+    if (!weekdaySet.has(new Date(`${date}T00:00`).getDay())) return false;
+  }
+  const cursor = new Date(`${dates[0]}T00:00`);
+  const end = new Date(`${dates[dates.length - 1]}T00:00`);
+  while (cursor <= end) {
+    if (weekdaySet.has(cursor.getDay())) {
+      if (!dateSet.has(formatLocalIsoDate(cursor))) return false;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return true;
+}
+
+function isCoherentCourtBlockCluster(blocks: TournamentCourtBlock[]) {
+  const dates = uniqueSortedBlockDates(blocks);
+  const weekdays = [
+    ...new Set(dates.map((date) => new Date(`${date}T00:00`).getDay())),
+  ].sort((a, b) => a - b);
+  return datesMatchWeekdayFilter(dates, weekdays);
+}
+
+function courtBlockClusterToDraft(
+  groupBlocks: TournamentCourtBlock[],
+): CourtBlockDraft {
+  const sorted = [...groupBlocks].sort((a, b) => {
+    const dateCmp = a.date.slice(0, 10).localeCompare(b.date.slice(0, 10));
+    if (dateCmp !== 0) return dateCmp;
+    return a.startTimeMinutes - b.startTimeMinutes;
+  });
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const dates = uniqueSortedBlockDates(sorted);
+  const presentWeekdays = [
+    ...new Set(dates.map((date) => new Date(`${date}T00:00`).getDay())),
+  ].sort((a, b) => a - b);
+  const rangeStart = new Date(`${dates[0]}T00:00`);
+  const rangeEnd = new Date(`${dates[dates.length - 1]}T00:00`);
+  const allWeekdaysInRange = new Set<number>();
+  const cursor = new Date(rangeStart);
+  while (cursor <= rangeEnd) {
+    allWeekdaysInRange.add(cursor.getDay());
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const restrictWeekdays =
+    presentWeekdays.length > 0 &&
+    presentWeekdays.length < allWeekdaysInRange.size;
+
+  return {
+    clientKey: crypto.randomUUID(),
+    id: first.id,
+    isExternal: first.isExternal,
+    courtId: first.court?.id ?? "",
+    externalClubName: first.externalClubName ?? "",
+    externalCourtName: first.externalCourtName ?? "",
+    startsAt: toDateTimeLocal(first.date, first.startTimeMinutes),
+    endsAt: toDateTimeLocal(last.date, last.endTimeMinutes),
+    restrictWeekdays,
+    weekdays: restrictWeekdays ? presentWeekdays : [],
+  };
+}
+
+/**
+ * Collapse persisted daily court blocks into editor rows.
+ * Same cancha can yield multiple rows when ranges/weekdays are not a single
+ * coherent filter (e.g. miércoles 18/11–16/12 + sábado 19/12).
+ */
 function collapseCourtBlocksForEditor(
   blocks: TournamentCourtBlock[],
 ): CourtBlockDraft[] {
@@ -621,46 +698,30 @@ function collapseCourtBlocksForEditor(
     groups.set(key, group);
   }
 
-  return [...groups.values()].map((groupBlocks) => {
+  const drafts: CourtBlockDraft[] = [];
+  for (const groupBlocks of groups.values()) {
     const sorted = [...groupBlocks].sort((a, b) => {
       const dateCmp = a.date.slice(0, 10).localeCompare(b.date.slice(0, 10));
       if (dateCmp !== 0) return dateCmp;
       return a.startTimeMinutes - b.startTimeMinutes;
     });
-    const first = sorted[0];
-    const last = sorted[sorted.length - 1];
-    const presentWeekdays = [
-      ...new Set(
-        sorted.map((block) =>
-          new Date(`${block.date.slice(0, 10)}T00:00`).getDay(),
-        ),
-      ),
-    ].sort((a, b) => a - b);
-    const rangeStart = new Date(`${first.date.slice(0, 10)}T00:00`);
-    const rangeEnd = new Date(`${last.date.slice(0, 10)}T00:00`);
-    const allWeekdaysInRange = new Set<number>();
-    const cursor = new Date(rangeStart);
-    while (cursor <= rangeEnd) {
-      allWeekdaysInRange.add(cursor.getDay());
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    const restrictWeekdays =
-      presentWeekdays.length > 0 &&
-      presentWeekdays.length < allWeekdaysInRange.size;
 
-    return {
-      clientKey: crypto.randomUUID(),
-      id: first.id,
-      isExternal: first.isExternal,
-      courtId: first.court?.id ?? "",
-      externalClubName: first.externalClubName ?? "",
-      externalCourtName: first.externalCourtName ?? "",
-      startsAt: toDateTimeLocal(first.date, first.startTimeMinutes),
-      endsAt: toDateTimeLocal(last.date, last.endTimeMinutes),
-      restrictWeekdays,
-      weekdays: restrictWeekdays ? presentWeekdays : [],
-    };
-  });
+    let cluster: TournamentCourtBlock[] = [];
+    for (const block of sorted) {
+      const candidate = [...cluster, block];
+      if (cluster.length === 0 || isCoherentCourtBlockCluster(candidate)) {
+        cluster = candidate;
+        continue;
+      }
+      drafts.push(courtBlockClusterToDraft(cluster));
+      cluster = [block];
+    }
+    if (cluster.length) {
+      drafts.push(courtBlockClusterToDraft(cluster));
+    }
+  }
+
+  return drafts;
 }
 
 function defaultCourtBlock(isExternal = false): CourtBlockDraft {

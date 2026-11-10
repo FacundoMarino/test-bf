@@ -9,6 +9,12 @@ import {
   saveTournamentManualZonesAction,
 } from "@/actions/tournaments";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type {
   TournamentCategory,
   TournamentZoneGroupFormat,
@@ -175,6 +181,7 @@ export function TournamentDrawBoard({
     useState(false);
   const [avoidSameDayKnockoutMatches, setAvoidSameDayKnockoutMatches] =
     useState(false);
+  const [confirmRedrawOpen, setConfirmRedrawOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Re-sincroniza el estado local cuando llega data fresca del servidor (sin useEffect).
@@ -203,9 +210,18 @@ export function TournamentDrawBoard({
     return JSON.stringify(original) !== JSON.stringify(selectedZones);
   }, [selectedCategory, selectedZones]);
 
-  const onRunDraw = () => {
+  const hasExistingDraw = Boolean(
+    selectedCategory &&
+    (selectedZones.some((zone) => zone.entries.length > 0) ||
+      selectedCategory.zones.some(
+        (zone) => zone.entries.length > 0 || zone.matches.length > 0,
+      )),
+  );
+
+  const executeDraw = () => {
     if (!selectedCategoryId) return;
     setError(null);
+    setConfirmRedrawOpen(false);
     startTransition(async () => {
       const response = await runTournamentDrawAction(
         clubId,
@@ -222,6 +238,15 @@ export function TournamentDrawBoard({
       }
       router.refresh();
     });
+  };
+
+  const onRunDraw = () => {
+    if (!selectedCategoryId) return;
+    if (hasExistingDraw) {
+      setConfirmRedrawOpen(true);
+      return;
+    }
+    executeDraw();
   };
 
   const onSaveManualZones = () => {
@@ -345,7 +370,7 @@ export function TournamentDrawBoard({
             className="h-10 rounded-lg"
           >
             <Users className="size-4" />
-            Sortear zonas
+            {hasExistingDraw ? "Re-sortear zonas" : "Sortear zonas"}
           </Button>
           <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
             <Users className="size-3.5" />
@@ -708,6 +733,36 @@ export function TournamentDrawBoard({
           generarlas.
         </div>
       )}
+
+      <Dialog open={confirmRedrawOpen} onOpenChange={setConfirmRedrawOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Re-sortear zonas</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Si volvés a sortear, los grupos, cuadros, fixture y resultados se
+            borrarán, y se reorganizarán con el nuevo sorteo.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmRedrawOpen(false)}
+              disabled={isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={executeDraw}
+              disabled={isPending || !selectedCategoryId}
+            >
+              {isPending ? "Sorteando..." : "Re-sortear"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
