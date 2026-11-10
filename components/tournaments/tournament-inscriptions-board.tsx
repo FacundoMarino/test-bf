@@ -33,6 +33,8 @@ type Props = {
   categories: TournamentCategory[];
   startsAt: string;
   endsAt: string;
+  /** Fechas (YYYY-MM-DD) con canchas asignadas; si hay, solo se ofrecen esas. */
+  playableDates?: string[];
 };
 
 type PaymentSide = "player" | "partner";
@@ -43,6 +45,8 @@ type FlatRegistration = {
   partnerName: string;
   playerEmail: string | null;
   partnerEmail: string | null;
+  playerPhone: string | null;
+  partnerPhone: string | null;
   categoryName: string;
   categoryId: string;
   preferredTimeNotes: string | null;
@@ -129,6 +133,8 @@ function flatten(categories: TournamentCategory[]): FlatRegistration[] {
         partnerName: reg.partnerName,
         playerEmail: reg.playerProfile.email,
         partnerEmail: reg.partnerEmail,
+        playerPhone: reg.playerProfile.phone ?? null,
+        partnerPhone: reg.partnerPhone ?? null,
         categoryName: category.name,
         categoryId: category.id,
         preferredTimeNotes: reg.preferredTimeNotes,
@@ -178,6 +184,7 @@ export function TournamentInscriptionsBoard({
   categories,
   startsAt,
   endsAt,
+  playableDates,
 }: Props) {
   const router = useRouter();
   const [filterCategory, setFilterCategory] = useState("all");
@@ -196,10 +203,12 @@ export function TournamentInscriptionsBoard({
   const isSingles = sport === "TENNIS" && playFormat === "SINGLES";
 
   const allRegistrations = useMemo(() => flatten(categories), [categories]);
-  const days = useMemo(
-    () => tournamentDaysBetween(startsAt, endsAt),
-    [startsAt, endsAt],
-  );
+  const playableKey = (playableDates ?? []).join(",");
+  const days = useMemo(() => {
+    const all = tournamentDaysBetween(startsAt, endsAt);
+    const playable = new Set(playableKey ? playableKey.split(",") : []);
+    return playable.size ? all.filter((day) => playable.has(day.key)) : all;
+  }, [startsAt, endsAt, playableKey]);
 
   const [paymentOverrides, setPaymentOverrides] = useState<
     Record<string, PaymentOverride>
@@ -543,6 +552,7 @@ export function TournamentInscriptionsBoard({
                   {isSingles ? "Jugador" : "Pareja"}
                 </th>
                 <th className="px-3 py-3 font-medium">Mails</th>
+                <th className="px-3 py-3 font-medium">Teléfono</th>
                 <th className="px-3 py-3 font-medium">Categoría</th>
                 <th className="px-3 py-3 font-medium">$ Precio</th>
                 <th className="px-3 py-3 font-medium">Preferencia</th>
@@ -577,6 +587,16 @@ export function TournamentInscriptionsBoard({
                     {!isSingles ? (
                       <p className="truncate text-xs leading-relaxed text-muted-foreground">
                         {reg.partnerEmail ?? "—"}
+                      </p>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-4 align-top">
+                    <p className="truncate text-xs leading-relaxed text-muted-foreground">
+                      {reg.playerPhone ?? "—"}
+                    </p>
+                    {!isSingles ? (
+                      <p className="truncate text-xs leading-relaxed text-muted-foreground">
+                        {reg.partnerPhone ?? "—"}
                       </p>
                     ) : null}
                   </td>

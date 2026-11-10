@@ -181,7 +181,14 @@ function formatFixtureDayHeading(value: string) {
     day: "numeric",
     month: "long",
   });
-  return formatted.replace(/\b\p{L}/gu, (char) => char.toUpperCase());
+  return formatted
+    .split(" ")
+    .map((word) =>
+      word === "de" || !word
+        ? word
+        : word.charAt(0).toUpperCase() + word.slice(1),
+    )
+    .join(" ");
 }
 
 function pairLabel(

@@ -106,6 +106,9 @@ type CourtBlockDraft = {
   weekdays: number[];
 };
 
+const MATCH_DURATION_MIN = 30;
+const MATCH_DURATION_MAX = 180;
+
 const WEEKDAY_CHIPS: Array<{ value: number; label: string }> = [
   { value: 1, label: "Lu" },
   { value: 2, label: "Ma" },
@@ -1069,6 +1072,22 @@ export function TournamentEditor({
         setError("Debes cargar al menos una categoría.");
         return;
       }
+      const outOfRange = (value: number) =>
+        !Number.isFinite(value) ||
+        value < MATCH_DURATION_MIN ||
+        value > MATCH_DURATION_MAX;
+      if (
+        payload.categories.some(
+          (category) =>
+            outOfRange(category.groupMatchDurationMin) ||
+            outOfRange(category.knockoutMatchDurationMin),
+        )
+      ) {
+        setError(
+          `La duración de los partidos debe estar entre ${MATCH_DURATION_MIN} y ${MATCH_DURATION_MAX} minutos.`,
+        );
+        return;
+      }
       if (!payload.courtBlocks.length) {
         setError("Debes cargar al menos un bloque de cancha.");
         return;
@@ -1473,9 +1492,12 @@ export function TournamentEditor({
               <Label>Duración partido — grupos (min)</Label>
               <Input
                 type="number"
-                value={categories[0]?.groupDurationMin ?? 60}
+                min={MATCH_DURATION_MIN}
+                max={MATCH_DURATION_MAX}
+                step={5}
+                value={categories[0]?.groupDurationMin || ""}
                 onChange={(e) => {
-                  const value = Number(e.target.value) || 60;
+                  const value = Math.trunc(Number(e.target.value)) || 0;
                   setCategories((current) =>
                     current.map((item) => ({
                       ...item,
@@ -1490,9 +1512,12 @@ export function TournamentEditor({
               <Label>Duración partido — cuadros (min)</Label>
               <Input
                 type="number"
-                value={categories[0]?.knockoutDurationMin ?? 90}
+                min={MATCH_DURATION_MIN}
+                max={MATCH_DURATION_MAX}
+                step={5}
+                value={categories[0]?.knockoutDurationMin || ""}
                 onChange={(e) => {
-                  const value = Number(e.target.value) || 90;
+                  const value = Math.trunc(Number(e.target.value)) || 0;
                   setCategories((current) =>
                     current.map((item) => ({
                       ...item,

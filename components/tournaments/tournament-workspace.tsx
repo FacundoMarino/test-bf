@@ -105,6 +105,9 @@ export function TournamentWorkspace({
           categories={tournament.categories}
           startsAt={tournament.startsAt}
           endsAt={tournament.endsAt}
+          playableDates={tournament.courtBlocks.map((block) =>
+            block.date.slice(0, 10),
+          )}
         />
       ) : null}
 
