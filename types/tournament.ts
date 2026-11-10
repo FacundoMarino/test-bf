@@ -20,6 +20,7 @@ export type TournamentRegistration = {
   id: string;
   partnerName: string;
   partnerEmail: string | null;
+  partnerPhone?: string | null;
   preferredTimeNotes: string | null;
   status: "ACTIVE" | "CANCELLED";
   isPaid: boolean;
@@ -33,6 +34,7 @@ export type TournamentRegistration = {
     id: string;
     fullName: string | null;
     email: string | null;
+    phone?: string | null;
   };
 };
 
