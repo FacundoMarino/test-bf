@@ -50,6 +50,7 @@ export function buildInitialFormState(
     description: profile?.description ?? "",
     email: club?.email ?? "",
     notifyReservationByEmail: club?.notifyReservationByEmail ?? false,
+    userCancellationMinHours: club?.userCancellationMinHours ?? 0,
     web: club?.web ?? "",
     phone: profile?.phone ?? "",
     location: sanitizeProfileCity(club?.location ?? profile?.location),

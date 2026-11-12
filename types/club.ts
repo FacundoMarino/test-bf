@@ -18,6 +18,8 @@ export type ClubRecord = {
   email: string | null;
   web: string | null;
   notifyReservationByEmail?: boolean | null;
+  /** Horas mínimas para que el jugador cancele desde la app (0 = sin límite). */
+  userCancellationMinHours?: number | null;
   avatarUrl: string | null;
   pricing: unknown;
   approvalStatus?: "PENDING" | "APPROVED" | "REJECTED" | null;
@@ -132,6 +134,12 @@ export const clubProfileSaveSchema = z.object({
       z.string().email("Introduce un email válido"),
     ]),
     notifyReservationByEmail: z.boolean().optional(),
+    userCancellationMinHours: z.coerce
+      .number()
+      .int("Las horas deben ser un número entero")
+      .min(0, "Las horas no pueden ser negativas")
+      .max(168, "Máximo 168 hs (7 días)")
+      .optional(),
     web: optionalWebUrlSchema,
     avatarUrl: clubAvatarUrlSchema,
     courtCount: z.coerce.number().int().min(1),

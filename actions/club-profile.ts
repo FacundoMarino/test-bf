@@ -48,6 +48,7 @@ export async function saveClubProfileAction(
     pricing: club.pricing,
     location: club.location?.trim() ? club.location.trim() : null,
     notifyReservationByEmail: club.notifyReservationByEmail ?? false,
+    userCancellationMinHours: club.userCancellationMinHours ?? 0,
   };
   if (club.email) clubJson.email = club.email;
   if (club.web) clubJson.web = club.web;

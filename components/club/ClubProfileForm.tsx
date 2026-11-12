@@ -52,6 +52,9 @@ export function ClubProfileForm({
   const [notifyReservationByEmail, setNotifyReservationByEmail] = useState(
     initial.notifyReservationByEmail,
   );
+  const [userCancellationMinHours, setUserCancellationMinHours] = useState(
+    initial.userCancellationMinHours,
+  );
   const [web, setWeb] = useState(initial.web);
   const [phone, setPhone] = useState(initial.phone);
   const [location, setLocation] = useState(initial.location);
@@ -101,6 +104,7 @@ export function ClubProfileForm({
         location,
         email,
         notifyReservationByEmail,
+        userCancellationMinHours,
         web,
         avatarUrl,
         courtCount,
@@ -354,6 +358,33 @@ export function ClubProfileForm({
                   checked={notifyReservationByEmail}
                   onCheckedChange={setNotifyReservationByEmail}
                   aria-label="Notificaciones de reservas por mail"
+                />
+              </div>
+              <div className="border-border bg-muted/30 flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
+                <div className="space-y-1">
+                  <Label htmlFor="userCancellationMinHours">
+                    Límite de cancelación desde la app (hs)
+                  </Label>
+                  <p className="text-muted-foreground text-xs">
+                    Los jugadores no podrán cancelar un turno desde la app con
+                    menos de estas horas de antelación. 0 = sin límite.
+                  </p>
+                </div>
+                <Input
+                  id="userCancellationMinHours"
+                  type="number"
+                  min={0}
+                  max={168}
+                  value={userCancellationMinHours}
+                  onChange={(e) =>
+                    setUserCancellationMinHours(
+                      Math.min(
+                        168,
+                        Math.max(0, Number.parseInt(e.target.value, 10) || 0),
+                      ),
+                    )
+                  }
+                  className="h-11 w-24 rounded-lg"
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
