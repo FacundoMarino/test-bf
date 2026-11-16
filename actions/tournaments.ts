@@ -142,11 +142,13 @@ export async function updateTournamentMatchScheduleAction(
   clubId: string,
   tournamentId: string,
   matchId: string,
-  payload: {
-    matchDate: string;
-    startTimeMinutes: number;
-    courtId?: string | null;
-  },
+  payload:
+    | {
+        matchDate: string;
+        startTimeMinutes: number;
+        courtId?: string | null;
+      }
+    | { toBeDefined: true },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = await getTokenOrRedirect();
   const res = await apiFetch(

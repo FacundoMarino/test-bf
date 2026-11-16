@@ -156,7 +156,7 @@ function mapFixtureMatch(
 }
 
 function minutesToTime(value: number | null) {
-  if (value === null) return "--:--";
+  if (value === null) return "A definir";
   const h = Math.floor(value / 60)
     .toString()
     .padStart(2, "0");
@@ -171,7 +171,7 @@ function timeToMinutes(value: string) {
 }
 
 function formatIsoDate(value: string | null) {
-  if (!value) return "Sin fecha";
+  if (!value) return "A definir";
   return value.slice(0, 10);
 }
 
@@ -451,6 +451,7 @@ export function TournamentFixtureBoard({
   const [dateValue, setDateValue] = useState("");
   const [timeValue, setTimeValue] = useState("");
   const [courtId, setCourtId] = useState("");
+  const [toBeDefined, setToBeDefined] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -508,11 +509,12 @@ export function TournamentFixtureBoard({
         : "",
     );
     setCourtId(match.courtId ?? "");
+    setToBeDefined(!match.matchDate && match.startTimeMinutes === null);
     setError(null);
   };
 
   const overlapWarning = useMemo(() => {
-    if (!editing) return null;
+    if (!editing || toBeDefined) return null;
     const startTimeMinutes = timeToMinutes(timeValue);
     if (!dateValue || startTimeMinutes === null || !courtId) return null;
 
@@ -531,11 +533,28 @@ export function TournamentFixtureBoard({
     if (!conflict) return null;
 
     return `El horario se superpone con ${conflict.stageLabel} (${conflict.homeLabel} vs ${conflict.awayLabel}). Podés guardar igual.`;
-  }, [courtId, dateValue, editing, fixtureMatches, timeValue]);
+  }, [courtId, dateValue, editing, fixtureMatches, timeValue, toBeDefined]);
 
   const saveSchedule = () => {
     if (!editing) return;
     setError(null);
+    if (toBeDefined) {
+      startTransition(async () => {
+        const result = await updateTournamentMatchScheduleAction(
+          clubId,
+          tournamentId,
+          editing.id,
+          { toBeDefined: true },
+        );
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        setEditing(null);
+        router.refresh();
+      });
+      return;
+    }
     const startTimeMinutes = timeToMinutes(timeValue);
     if (!dateValue || startTimeMinutes === null) {
       setError("Completá fecha y hora.");
@@ -578,7 +597,7 @@ export function TournamentFixtureBoard({
                 key={dayKey}
                 title={
                   dayKey === "sin-fecha"
-                    ? "Sin fecha"
+                    ? "A definir"
                     : formatFixtureDayHeading(dayKey)
                 }
                 icon={CalendarDays}
@@ -646,6 +665,7 @@ export function TournamentFixtureBoard({
                     type="date"
                     value={dateValue}
                     onChange={(e) => setDateValue(e.target.value)}
+                    disabled={toBeDefined}
                     className="h-10 rounded-lg"
                   />
                 </div>
@@ -656,6 +676,7 @@ export function TournamentFixtureBoard({
                     type="time"
                     value={timeValue}
                     onChange={(e) => setTimeValue(e.target.value)}
+                    disabled={toBeDefined}
                     className="h-10 rounded-lg"
                   />
                 </div>
@@ -665,9 +686,10 @@ export function TournamentFixtureBoard({
                 <Label htmlFor="fixture-match-court">Cancha</Label>
                 <select
                   id="fixture-match-court"
-                  className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm"
+                  className="border-input bg-background h-10 w-full rounded-lg border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                   value={courtId}
                   onChange={(e) => setCourtId(e.target.value)}
+                  disabled={toBeDefined}
                 >
                   <option value="">Seleccionar cancha</option>
                   {courtOptions.map((court) => (
@@ -690,7 +712,25 @@ export function TournamentFixtureBoard({
                 </p>
               ) : null}
 
-              <div className="flex justify-end gap-2">
+              {toBeDefined ? (
+                <p className="text-muted-foreground text-xs">
+                  El partido queda sin fecha, hora ni cancha hasta que las
+                  parejas acuerden cuándo jugarlo. Se libera el turno de la
+                  cancha.
+                </p>
+              ) : null}
+
+              <div className="flex items-center justify-end gap-2">
+                <label className="mr-auto flex cursor-pointer items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    className="accent-primary size-4"
+                    checked={toBeDefined}
+                    onChange={(e) => setToBeDefined(e.target.checked)}
+                    disabled={isPending}
+                  />
+                  A definir
+                </label>
                 <Button
                   type="button"
                   variant="outline"

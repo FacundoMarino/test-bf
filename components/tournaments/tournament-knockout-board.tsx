@@ -144,10 +144,16 @@ function zoneRankOptions(category: TournamentCategory) {
     zoneId: string;
     rank: number;
   }> = [];
+  const teamCountOf = (zone: (typeof zones)[number]) =>
+    zone.entries.filter((entry) => !entry.isBye).length;
+  // Mismo tope para todas las zonas: si una es de 4, se ofrece el 4° de cada
+  // zona (formatos donde clasifican todos).
+  const largestZone = Math.max(0, ...zones.map(teamCountOf));
   for (const zone of zones) {
-    const teamCount = zone.entries.filter((entry) => !entry.isBye).length;
+    const teamCount = teamCountOf(zone);
     const ranks = Math.max(
       3,
+      largestZone,
       zoneKnockoutQualifierCount(teamCount, defaultQualifiers),
       defaultQualifiers,
     );
