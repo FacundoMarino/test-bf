@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { apiFetch } from "@/lib/api";
+import { CLUB_BOOKINGS_FETCH_LIMIT } from "@/lib/club-reservation-utils";
 import { env } from "@/lib/env";
 import { normalizeClubReservation } from "@/lib/normalize-club-reservation";
 import type { ClubReservation } from "@/types/club-reservation";
@@ -165,6 +166,7 @@ export async function createManualCourtBookingAction(
 /** Lista actualizada de reservas (manualGuests incluido). Útil tras crear/cancelar sin depender solo de router.refresh. */
 export async function refreshClubReservationsAction(
   clubId: string,
+  range?: { from: string; to: string; limit?: number },
 ): Promise<
   { ok: true; reservations: ClubReservation[] } | { ok: false; error: string }
 > {
@@ -172,17 +174,46 @@ export async function refreshClubReservationsAction(
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
   if (!token) return { ok: false, error: "Sesión no válida" };
 
-  const res = await apiFetch<ReservationsListResponse>(
-    `/clubs/${clubId}/bookings?limit=500`,
-    { authToken: token, cache: "no-store" },
-  );
-  if (res.error) {
-    await maybeLogoutOnInvalidToken(res.error.message);
-    return { ok: false, error: res.error.message };
+  const limit = range?.limit ?? CLUB_BOOKINGS_FETCH_LIMIT;
+  const reservations: ClubReservation[] = [];
+  const seen = new Set<string>();
+  const maxPages = 40;
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const qs = new URLSearchParams({
+      limit: String(limit),
+      page: String(page),
+    });
+    if (range?.from) qs.set("from", range.from);
+    if (range?.to) qs.set("to", range.to);
+
+    const res = await apiFetch<ReservationsListResponse>(
+      `/clubs/${clubId}/bookings?${qs}`,
+      { authToken: token, cache: "no-store" },
+    );
+    if (res.error) {
+      await maybeLogoutOnInvalidToken(res.error.message);
+      if (page === 1) return { ok: false, error: res.error.message };
+      break;
+    }
+
+    const batch = res.data.data
+      .map(normalizeClubReservation)
+      .filter((r): r is ClubReservation => r !== null);
+    let added = 0;
+    for (const row of batch) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      reservations.push(row);
+      added += 1;
+    }
+
+    const total = res.data.meta?.total ?? reservations.length;
+    if (added === 0 || batch.length === 0 || reservations.length >= total) {
+      break;
+    }
   }
-  const reservations = res.data.data
-    .map(normalizeClubReservation)
-    .filter((r): r is ClubReservation => r !== null);
+
   return { ok: true, reservations };
 }
 

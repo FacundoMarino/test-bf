@@ -17,14 +17,14 @@ export type FirstRoundKnockoutSlot = {
   awayBye: boolean;
 };
 
+/** Clasificados por zona: respeta `groupQualifiers` de la categoría (máx. parejas en la zona). */
 export function zoneKnockoutQualifierCount(
   teamCount: number,
   defaultQualifiers = 2,
 ) {
-  const fallback = Math.max(1, defaultQualifiers);
-  if (teamCount >= 4) return Math.min(3, teamCount);
-  if (teamCount > 0) return Math.min(fallback, teamCount);
-  return fallback;
+  const configured = Math.max(1, defaultQualifiers);
+  if (teamCount <= 0) return configured;
+  return Math.min(configured, teamCount);
 }
 
 function ref(zone: KnockoutZoneSeed, rank: number): KnockoutZoneRef {

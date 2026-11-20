@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -36,6 +36,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   bookingBlocksCalendarSlot,
+  bookingOverlapsLocalDay,
+  clubBookingsDayRange,
+  clubBookingsListRange,
+  clubBookingsMonthRange,
+  CLUB_BOOKINGS_FETCH_LIMIT,
   isTentativePublicOpenMatch,
   matchParticipantsCount,
   mergeConsecutiveCalendarSlotRows,
@@ -93,10 +98,6 @@ function startOfLocalDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
-}
-
-function sameLocalDay(a: Date, b: Date): boolean {
-  return formatLocalYmd(a) === formatLocalYmd(b);
 }
 
 function fmtDate(iso: string) {
@@ -191,35 +192,48 @@ export function ReservationsBoard({
     Array<{ name: string; phone: string }>
   >([{ name: "", phone: "" }]);
   const [manualNotes, setManualNotes] = useState("");
-  /** Lista recién traída del API (p. ej. tras reserva manual); evita ver datos cacheados sin manualGuests. */
-  const [hotReservations, setHotReservations] = useState<
-    ClubReservation[] | null
-  >(null);
+  /** Lista del rango visible (mes del calendario o ventana de lista). */
+  const [boardReservations, setBoardReservations] =
+    useState<ClubReservation[]>(initialReservations);
+  /** Reservas del día visible. El mes se trunca y un fijo queda como Cerrado. */
+  const [dayReservations, setDayReservations] = useState<{
+    key: string;
+    rows: ClubReservation[];
+  } | null>(null);
+  const dayRequestRef = useRef(0);
 
-  const initialBookingIdsKey = useMemo(
-    () => [...initialReservations.map((r) => r.id)].sort().join(","),
-    [initialReservations],
-  );
-
-  const hotBookingIdsKey = useMemo(
+  const bookingsRange = useMemo(
     () =>
-      hotReservations
-        ? [...hotReservations.map((r) => r.id)].sort().join(",")
-        : null,
-    [hotReservations],
+      mode === "list"
+        ? clubBookingsListRange()
+        : clubBookingsMonthRange(viewMonth),
+    [mode, viewMonth],
   );
+  const dayRange = useMemo(
+    () => clubBookingsDayRange(selectedDate),
+    [selectedDate],
+  );
+  const dayRangeKey = `${dayRange.from}|${dayRange.to}`;
 
-  const boardReservations = useMemo(() => {
-    if (!hotReservations) return initialReservations;
-    // Si el servidor ya cambió el set base, ignoramos el cache local.
-    if (hotBookingIdsKey !== initialBookingIdsKey) return initialReservations;
-    return hotReservations;
-  }, [
-    hotReservations,
-    hotBookingIdsKey,
-    initialReservations,
-    initialBookingIdsKey,
-  ]);
+  const loadBookings = useCallback(async () => {
+    if (!clubId) return;
+    const fresh = await refreshClubReservationsAction(clubId, bookingsRange);
+    if (fresh.ok) setBoardReservations(fresh.reservations);
+  }, [clubId, bookingsRange]);
+
+  const loadDayBookings = useCallback(async () => {
+    if (!clubId || mode !== "calendar") return;
+    const requestId = dayRequestRef.current + 1;
+    dayRequestRef.current = requestId;
+    const key = dayRangeKey;
+    const fresh = await refreshClubReservationsAction(clubId, {
+      from: dayRange.from,
+      to: dayRange.to,
+      limit: CLUB_BOOKINGS_FETCH_LIMIT,
+    });
+    if (requestId !== dayRequestRef.current) return;
+    if (fresh.ok) setDayReservations({ key, rows: fresh.reservations });
+  }, [clubId, dayRange.from, dayRange.to, dayRangeKey, mode]);
 
   const loadSlots = useCallback(async () => {
     if (!validCourtId || !clubId) {
@@ -253,13 +267,27 @@ export function ReservationsBoard({
   }, [loadSlots]);
 
   useEffect(() => {
+    void Promise.resolve().then(() => {
+      void loadBookings();
+    });
+  }, [loadBookings]);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      void loadDayBookings();
+    });
+  }, [loadDayBookings]);
+
+  useEffect(() => {
     const onRefresh = () => {
       void loadSlots();
+      void loadBookings();
+      void loadDayBookings();
     };
     window.addEventListener("club-reservations-refresh", onRefresh);
     return () =>
       window.removeEventListener("club-reservations-refresh", onRefresh);
-  }, [loadSlots]);
+  }, [loadSlots, loadBookings, loadDayBookings]);
 
   // No auto-refetch on window/tab focus; only refresh after explicit user actions.
 
@@ -303,12 +331,22 @@ export function ReservationsBoard({
   }, [boardReservations, validCourtId]);
 
   const bookingsForCourtDay = useMemo(() => {
-    return boardReservations.filter(
+    const source =
+      dayReservations?.key === dayRangeKey
+        ? dayReservations.rows
+        : boardReservations;
+    return source.filter(
       (r) =>
         r.court.id === validCourtId &&
-        sameLocalDay(new Date(r.start), selectedDate),
+        bookingOverlapsLocalDay(r.start, r.end, selectedDate),
     );
-  }, [boardReservations, validCourtId, selectedDate]);
+  }, [
+    boardReservations,
+    dayReservations,
+    dayRangeKey,
+    validCourtId,
+    selectedDate,
+  ]);
 
   const slotRows = useMemo(() => {
     const raw: CalendarSlotRow[] = daySlots.map((slot) => {
@@ -414,6 +452,8 @@ export function ReservationsBoard({
     }
     router.refresh();
     void loadSlots();
+    void loadBookings();
+    void loadDayBookings();
   }
 
   async function handleCancelBooking(bookingId: string): Promise<boolean> {
@@ -428,6 +468,8 @@ export function ReservationsBoard({
     setExpandedBookingId(null);
     router.refresh();
     void loadSlots();
+    void loadBookings();
+    void loadDayBookings();
     return true;
   }
 
@@ -465,10 +507,7 @@ export function ReservationsBoard({
       setError(res.error);
       return;
     }
-    const fresh = await refreshClubReservationsAction(clubId);
-    if (fresh.ok) {
-      setHotReservations(fresh.reservations);
-    }
+    await Promise.all([loadBookings(), loadDayBookings()]);
     setManualModalOpen(false);
     setManualSlot(null);
     router.refresh();

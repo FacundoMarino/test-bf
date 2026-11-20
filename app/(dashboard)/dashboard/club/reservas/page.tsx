@@ -2,19 +2,18 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ReservationsHeaderActions } from "@/components/reservas/ReservationsHeaderActions";
 
+import { refreshClubReservationsAction } from "@/actions/reservas";
 import { ReservationsBoard } from "@/components/reservas/ReservationsBoard";
 import { getDashboardContext, isClubAccount } from "@/lib/dashboard-context";
 import { apiFetch } from "@/lib/api";
 import { env } from "@/lib/env";
-import { normalizeClubReservation } from "@/lib/normalize-club-reservation";
+import {
+  CLUB_BOOKINGS_FETCH_LIMIT,
+  clubBookingsMonthRange,
+} from "@/lib/club-reservation-utils";
 import type { ClubReservation } from "@/types/club-reservation";
 
 export const dynamic = "force-dynamic";
-
-type ReservationsResponse = {
-  data: unknown[];
-  meta: { total: number; page: number; limit: number; totalPages: number };
-};
 
 type CourtsResponse = {
   data: Array<{
@@ -35,10 +34,12 @@ export default async function ReservasPage() {
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
   if (!token) redirect("/login");
 
-  const [res, courtsRes] = await Promise.all([
-    apiFetch<ReservationsResponse>(`/clubs/${ctx.club.id}/bookings?limit=500`, {
-      authToken: token,
-      cache: "no-store",
+  const monthRange = clubBookingsMonthRange(new Date());
+  const [bookingsRes, courtsRes] = await Promise.all([
+    refreshClubReservationsAction(ctx.club.id, {
+      from: monthRange.from,
+      to: monthRange.to,
+      limit: CLUB_BOOKINGS_FETCH_LIMIT,
     }),
     apiFetch<CourtsResponse>(`/clubs/${ctx.club.id}/courts?limit=100`, {
       authToken: token,
@@ -46,11 +47,9 @@ export default async function ReservasPage() {
     }),
   ]);
 
-  const reservations: ClubReservation[] = res.error
-    ? []
-    : res.data.data
-        .map(normalizeClubReservation)
-        .filter((r): r is ClubReservation => r !== null);
+  const reservations: ClubReservation[] = bookingsRes.ok
+    ? bookingsRes.reservations
+    : [];
   const courts = courtsRes.error ? [] : courtsRes.data.data;
 
   return (
