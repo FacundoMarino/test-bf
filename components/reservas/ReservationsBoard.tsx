@@ -22,6 +22,7 @@ import {
   refreshClubReservationsAction,
   rejectClubBookingAction,
 } from "@/actions/reservas";
+import { getCourtCustomSlotsAction } from "@/actions/courts";
 import { MiniMonthCalendar } from "@/components/calendar/mini-month-calendar";
 import { AllCourtsDayView } from "@/components/reservas/AllCourtsDayView";
 import { BookingDetailCard } from "@/components/reservas/BookingDetailCard";
@@ -36,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  applyCustomHoldsToDaySlots,
   bookingOverlapsLocalDay,
   buildCalendarSlotRows,
   clubBookingsDayRange,
@@ -44,6 +46,7 @@ import {
   CLUB_BOOKINGS_FETCH_LIMIT,
   isTentativePublicOpenMatch,
   matchParticipantsCount,
+  type CalendarCustomHold,
   type CourtDaySlot,
 } from "@/lib/club-reservation-utils";
 import { cn } from "@/lib/utils";
@@ -250,7 +253,11 @@ export function ReservationsBoard({
       }
       const hit = slotsCacheRef.current.byCourt.get(slotCourtId);
       if (hit) return { ok: true, slots: hit };
-      const res = await listCourtDaySlotsAction(clubId, slotCourtId, ymd);
+      const month = ymd.slice(0, 7);
+      const [res, customRes] = await Promise.all([
+        listCourtDaySlotsAction(clubId, slotCourtId, ymd),
+        getCourtCustomSlotsAction(clubId, slotCourtId, month),
+      ]);
       if (!res.ok) return res;
       const seen = new Set<string>();
       const unique = res.slots.filter((s) => {
@@ -259,10 +266,23 @@ export function ReservationsBoard({
         seen.add(k);
         return true;
       });
+      const holds: CalendarCustomHold[] = customRes.ok
+        ? customRes.rows
+            .filter((row) => row.date === ymd)
+            .map((row) => ({
+              startTimeMinutes: row.startTimeMinutes,
+              endTimeMinutes: row.endTimeMinutes,
+              holdLabel: row.note,
+              isTournament: row.kind === "TOURNAMENT",
+            }))
+        : [];
+      const [y, mo, d] = ymd.split("-").map(Number);
+      const day = new Date(y, (mo ?? 1) - 1, d ?? 1);
+      const merged = applyCustomHoldsToDaySlots(unique, holds, day);
       if (slotsCacheRef.current.ymd === ymd) {
-        slotsCacheRef.current.byCourt.set(slotCourtId, unique);
+        slotsCacheRef.current.byCourt.set(slotCourtId, merged);
       }
-      return { ok: true, slots: unique };
+      return { ok: true, slots: merged };
     },
     [clubId],
   );

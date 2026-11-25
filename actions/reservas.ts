@@ -247,19 +247,25 @@ export async function listCourtDaySlotsAction(
     const slots: CourtSlotDay[] = rows.map((row) => {
       const o = row as Record<string, unknown>;
       const snake = o as { is_available?: boolean; price_per_hour?: number };
-      const isAvailable = (o.isAvailable ?? snake.is_available) !== false;
-      const priceRaw = o.pricePerHour ?? snake.price_per_hour;
-      const pricePerHour =
-        typeof priceRaw === "number" && Number.isFinite(priceRaw)
-          ? priceRaw
-          : undefined;
       const isTournament =
         o.isTournament === true ||
         (o as { is_tournament?: boolean }).is_tournament === true;
       const isPersonalized =
         !isTournament &&
         (o.isCustom === true ||
-          (o as { is_custom?: boolean }).is_custom === true);
+          o.isCustom === "true" ||
+          (o as { is_custom?: boolean | string }).is_custom === true ||
+          (o as { is_custom?: boolean | string }).is_custom === "true");
+      const isAvailableRaw = o.isAvailable ?? snake.is_available;
+      const isAvailable =
+        isPersonalized || isTournament
+          ? false
+          : isAvailableRaw !== false && isAvailableRaw !== "false";
+      const priceRaw = o.pricePerHour ?? snake.price_per_hour;
+      const pricePerHour =
+        typeof priceRaw === "number" && Number.isFinite(priceRaw)
+          ? priceRaw
+          : undefined;
       const noteRaw = o.note ?? (o as { hold_note?: string }).hold_note;
       const holdLabel =
         typeof noteRaw === "string" && noteRaw.trim().length > 0

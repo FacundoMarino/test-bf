@@ -87,6 +87,80 @@ export type CourtDaySlot = {
   holdLabel?: string | null;
 };
 
+/** Turno personalizado / torneo (misma fuente que "Gestionar disponibilidad"). */
+export type CalendarCustomHold = {
+  startTimeMinutes: number;
+  endTimeMinutes: number;
+  holdLabel?: string | null;
+  isTournament?: boolean;
+};
+
+function startOfLocalDayMs(d: Date): number {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x.getTime();
+}
+
+function minutesFromLocalDayStart(iso: string, dayStartMs: number): number {
+  return (new Date(iso).getTime() - dayStartMs) / 60000;
+}
+
+function rangesOverlap(
+  a0: number,
+  a1: number,
+  b0: number,
+  b1: number,
+): boolean {
+  return a0 < b1 && a1 > b0;
+}
+
+/**
+ * Incrusta los turnos personalizados del día: saca las franjas regulares que
+ * pisan y agrega el bloque custom si el endpoint de slots no lo trajo.
+ */
+export function applyCustomHoldsToDaySlots(
+  slots: CourtDaySlot[],
+  holds: CalendarCustomHold[],
+  day: Date,
+): CourtDaySlot[] {
+  if (holds.length === 0) return slots;
+  const dayStartMs = startOfLocalDayMs(day);
+  const slotRange = (s: CourtDaySlot) => ({
+    a: minutesFromLocalDayStart(s.start, dayStartMs),
+    b: minutesFromLocalDayStart(s.end, dayStartMs),
+  });
+
+  const filtered = slots.filter((s) => {
+    if (s.isPersonalized || s.isTournament) return true;
+    const { a, b } = slotRange(s);
+    return !holds.some((h) =>
+      rangesOverlap(a, b, h.startTimeMinutes, h.endTimeMinutes),
+    );
+  });
+
+  const extras: CourtDaySlot[] = [];
+  for (const hold of holds) {
+    const already = filtered.some((s) => {
+      if (!s.isPersonalized && !s.isTournament) return false;
+      const { a, b } = slotRange(s);
+      return rangesOverlap(a, b, hold.startTimeMinutes, hold.endTimeMinutes);
+    });
+    if (already) continue;
+    extras.push({
+      start: new Date(dayStartMs + hold.startTimeMinutes * 60000).toISOString(),
+      end: new Date(dayStartMs + hold.endTimeMinutes * 60000).toISOString(),
+      isAvailable: false,
+      isPersonalized: hold.isTournament !== true,
+      isTournament: hold.isTournament === true,
+      holdLabel: hold.holdLabel ?? null,
+    });
+  }
+
+  return [...filtered, ...extras].sort(
+    (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+  );
+}
+
 /** Cruza las franjas de una cancha con sus reservas del día. */
 export function buildCalendarSlotRows(
   slots: CourtDaySlot[],
@@ -107,13 +181,7 @@ export function buildCalendarSlotRows(
       overlapping.find((r) => isTentativePublicOpenMatch(r)) ?? null;
     const base = { start: slot.start, end: slot.end };
 
-    if (blockingBooking) {
-      return { ...base, kind: "reserved", booking: blockingBooking };
-    }
-    if (tentativeBooking && slot.isAvailable) {
-      return { ...base, kind: "tentativeOpen", booking: tentativeBooking };
-    }
-    if (!slot.isAvailable && slot.isTournament) {
+    if (slot.isTournament) {
       return {
         ...base,
         kind: "tournament",
@@ -121,13 +189,19 @@ export function buildCalendarSlotRows(
         holdLabel: slot.holdLabel ?? "Torneo",
       };
     }
-    if (!slot.isAvailable && slot.isPersonalized) {
+    if (slot.isPersonalized) {
       return {
         ...base,
         kind: "personalized",
         booking: null,
         holdLabel: slot.holdLabel ?? null,
       };
+    }
+    if (blockingBooking) {
+      return { ...base, kind: "reserved", booking: blockingBooking };
+    }
+    if (tentativeBooking && slot.isAvailable) {
+      return { ...base, kind: "tentativeOpen", booking: tentativeBooking };
     }
     if (!slot.isAvailable) {
       return { ...base, kind: "closed", booking: null };

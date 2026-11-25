@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyCustomHoldsToDaySlots,
   bookingOverlapsLocalDay,
+  buildCalendarSlotRows,
   clubBookingsDayRange,
   clubBookingsListRange,
   clubBookingsMonthRange,
   mergeConsecutiveCalendarSlotRows,
   type CalendarSlotRow,
+  type CourtDaySlot,
 } from "./club-reservation-utils";
 import type { ClubReservation } from "@/types/club-reservation";
 
@@ -104,6 +107,84 @@ describe("bookingOverlapsLocalDay", () => {
     expect(bookingOverlapsLocalDay(start, end, new Date(2026, 10, 23))).toBe(
       false,
     );
+  });
+});
+
+describe("applyCustomHoldsToDaySlots", () => {
+  it("drops overlapping regular slots and inserts the personalized hold", () => {
+    const day = new Date(2026, 11, 8);
+    const iso = (h: number, m = 0) =>
+      new Date(2026, 11, 8, h, m, 0, 0).toISOString();
+    const slots: CourtDaySlot[] = [
+      { start: iso(16, 30), end: iso(18), isAvailable: true },
+      { start: iso(18), end: iso(19, 30), isAvailable: true },
+      { start: iso(19, 30), end: iso(21), isAvailable: true },
+    ];
+    const merged = applyCustomHoldsToDaySlots(
+      slots,
+      [
+        {
+          startTimeMinutes: 18 * 60,
+          endTimeMinutes: 23 * 60,
+          holdLabel: "Despedida pilates",
+        },
+      ],
+      day,
+    );
+    expect(
+      merged.some(
+        (s) => s.isPersonalized && s.holdLabel === "Despedida pilates",
+      ),
+    ).toBe(true);
+    expect(
+      merged.some(
+        (s) => s.isAvailable && s.start === iso(18) && s.end === iso(19, 30),
+      ),
+    ).toBe(false);
+    expect(
+      merged.some((s) => s.start === iso(16, 30) && s.end === iso(18)),
+    ).toBe(true);
+  });
+
+  it("does not duplicate a hold already present in the slots payload", () => {
+    const day = new Date(2026, 11, 8);
+    const iso = (h: number, m = 0) =>
+      new Date(2026, 11, 8, h, m, 0, 0).toISOString();
+    const slots: CourtDaySlot[] = [
+      {
+        start: iso(18),
+        end: iso(23),
+        isAvailable: false,
+        isPersonalized: true,
+        holdLabel: "Despedida pilates",
+      },
+    ];
+    const merged = applyCustomHoldsToDaySlots(
+      slots,
+      [{ startTimeMinutes: 18 * 60, endTimeMinutes: 23 * 60 }],
+      day,
+    );
+    expect(merged.filter((s) => s.isPersonalized)).toHaveLength(1);
+  });
+});
+
+describe("buildCalendarSlotRows", () => {
+  it("paints personalized holds even if isAvailable is true", () => {
+    const rows = buildCalendarSlotRows(
+      [
+        {
+          start: "2026-12-08T18:00:00.000Z",
+          end: "2026-12-08T23:00:00.000Z",
+          isAvailable: true,
+          isPersonalized: true,
+          holdLabel: "Despedida pilates",
+        },
+      ],
+      [],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("personalized");
+    expect(rows[0]?.holdLabel).toBe("Despedida pilates");
   });
 });
 

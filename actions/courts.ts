@@ -461,6 +461,7 @@ export type CourtCustomSlot = {
   endTimeMinutes: number;
   price: number;
   note: string | null;
+  kind?: "PERSONALIZED" | "TOURNAMENT";
 };
 
 export async function getCourtCustomSlotsAction(
@@ -483,7 +484,11 @@ export async function getCourtCustomSlotsAction(
       await maybeLogoutOnInvalidToken(message);
       return { ok: false, error: message };
     }
-    const rows = Array.isArray(body) ? body : [];
+    const rows = Array.isArray(body)
+      ? body
+      : Array.isArray((body as { data?: unknown }).data)
+        ? (body as { data: unknown[] }).data
+        : [];
     return {
       ok: true,
       rows: rows.map((row) => {
@@ -506,6 +511,11 @@ export async function getCourtCustomSlotsAction(
             typeof r.note === "string" && r.note.trim().length > 0
               ? r.note.trim()
               : null,
+          kind:
+            r.kind === "TOURNAMENT" ||
+            (r as { kind?: string }).kind === "tournament"
+              ? "TOURNAMENT"
+              : "PERSONALIZED",
         };
       }),
     };
