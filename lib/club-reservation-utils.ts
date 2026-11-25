@@ -78,6 +78,65 @@ export function mergeConsecutiveCalendarSlotRows(
   return out;
 }
 
+export type CourtDaySlot = {
+  start: string;
+  end: string;
+  isAvailable: boolean;
+  isPersonalized?: boolean;
+  isTournament?: boolean;
+  holdLabel?: string | null;
+};
+
+/** Cruza las franjas de una cancha con sus reservas del día. */
+export function buildCalendarSlotRows(
+  slots: CourtDaySlot[],
+  bookings: ClubReservation[],
+): CalendarSlotRow[] {
+  const raw: CalendarSlotRow[] = slots.map((slot) => {
+    const s0 = new Date(slot.start).getTime();
+    const s1 = new Date(slot.end).getTime();
+    const overlapping = bookings.filter((r) => {
+      if (r.status !== "PENDING" && r.status !== "CONFIRMED") return false;
+      const b0 = new Date(r.start).getTime();
+      const b1 = new Date(r.end).getTime();
+      return s0 < b1 && s1 > b0;
+    });
+    const blockingBooking =
+      overlapping.find((r) => bookingBlocksCalendarSlot(r)) ?? null;
+    const tentativeBooking =
+      overlapping.find((r) => isTentativePublicOpenMatch(r)) ?? null;
+    const base = { start: slot.start, end: slot.end };
+
+    if (blockingBooking) {
+      return { ...base, kind: "reserved", booking: blockingBooking };
+    }
+    if (tentativeBooking && slot.isAvailable) {
+      return { ...base, kind: "tentativeOpen", booking: tentativeBooking };
+    }
+    if (!slot.isAvailable && slot.isTournament) {
+      return {
+        ...base,
+        kind: "tournament",
+        booking: null,
+        holdLabel: slot.holdLabel ?? "Torneo",
+      };
+    }
+    if (!slot.isAvailable && slot.isPersonalized) {
+      return {
+        ...base,
+        kind: "personalized",
+        booking: null,
+        holdLabel: slot.holdLabel ?? null,
+      };
+    }
+    if (!slot.isAvailable) {
+      return { ...base, kind: "closed", booking: null };
+    }
+    return { ...base, kind: "available", booking: null };
+  });
+  return mergeConsecutiveCalendarSlotRows(raw);
+}
+
 /** Reserva que bloquea el turno en el calendario del club. */
 export function bookingBlocksCalendarSlot(r: ClubReservation): boolean {
   if (r.status === "CANCELLED" || r.status === "REJECTED") return false;

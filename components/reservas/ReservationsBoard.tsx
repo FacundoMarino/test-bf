@@ -23,6 +23,7 @@ import {
   rejectClubBookingAction,
 } from "@/actions/reservas";
 import { MiniMonthCalendar } from "@/components/calendar/mini-month-calendar";
+import { AllCourtsDayView } from "@/components/reservas/AllCourtsDayView";
 import { BookingDetailCard } from "@/components/reservas/BookingDetailCard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -35,16 +36,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  bookingBlocksCalendarSlot,
   bookingOverlapsLocalDay,
+  buildCalendarSlotRows,
   clubBookingsDayRange,
   clubBookingsListRange,
   clubBookingsMonthRange,
   CLUB_BOOKINGS_FETCH_LIMIT,
   isTentativePublicOpenMatch,
   matchParticipantsCount,
-  mergeConsecutiveCalendarSlotRows,
-  type CalendarSlotRow,
+  type CourtDaySlot,
 } from "@/lib/club-reservation-utils";
 import { cn } from "@/lib/utils";
 import type {
@@ -123,15 +123,6 @@ function fmtTimeUtc(iso: string) {
   return `${hh}:${mm}`;
 }
 
-function intervalsOverlapMs(
-  a0: number,
-  a1: number,
-  b0: number,
-  b1: number,
-): boolean {
-  return a0 < b1 && a1 > b0;
-}
-
 export function ReservationsBoard({
   clubId,
   initialCourts,
@@ -142,6 +133,8 @@ export function ReservationsBoard({
   initialReservations: ClubReservation[];
 }) {
   const router = useRouter();
+  const [view, setView] = useState<"all" | "court">("all");
+  const [allCourtsRefreshKey, setAllCourtsRefreshKey] = useState(0);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"ALL" | ReservationStatus>("ALL");
   const [mode, setMode] = useState<"list" | "calendar">("calendar");
@@ -170,21 +163,13 @@ export function ReservationsBoard({
     return initialCourts[0]!.id;
   }, [initialCourts, courtId]);
 
-  const [daySlots, setDaySlots] = useState<
-    Array<{
-      start: string;
-      end: string;
-      isAvailable: boolean;
-      isPersonalized?: boolean;
-      isTournament?: boolean;
-      holdLabel?: string | null;
-    }>
-  >([]);
+  const [daySlots, setDaySlots] = useState<CourtDaySlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualBusy, setManualBusy] = useState(false);
   const [manualSlot, setManualSlot] = useState<{
+    courtId: string;
     start: string;
     end: string;
   } | null>(null);
@@ -201,6 +186,7 @@ export function ReservationsBoard({
     rows: ClubReservation[];
   } | null>(null);
   const dayRequestRef = useRef(0);
+  const [dayFailedKey, setDayFailedKey] = useState<string | null>(null);
 
   const bookingsRange = useMemo(
     () =>
@@ -221,44 +207,99 @@ export function ReservationsBoard({
     if (fresh.ok) setBoardReservations(fresh.reservations);
   }, [clubId, bookingsRange]);
 
-  const loadDayBookings = useCallback(async () => {
-    if (!clubId || mode !== "calendar") return;
-    const requestId = dayRequestRef.current + 1;
-    dayRequestRef.current = requestId;
-    const key = dayRangeKey;
-    const fresh = await refreshClubReservationsAction(clubId, {
-      from: dayRange.from,
-      to: dayRange.to,
-      limit: CLUB_BOOKINGS_FETCH_LIMIT,
-    });
-    if (requestId !== dayRequestRef.current) return;
-    if (fresh.ok) setDayReservations({ key, rows: fresh.reservations });
-  }, [clubId, dayRange.from, dayRange.to, dayRangeKey, mode]);
+  const loadedDayKeyRef = useRef<string | null>(null);
+  const loadDayBookings = useCallback(
+    async (force = false) => {
+      if (!clubId || (view === "court" && mode !== "calendar")) return;
+      const key = dayRangeKey;
+      if (!force && loadedDayKeyRef.current === key) return;
+      const requestId = dayRequestRef.current + 1;
+      dayRequestRef.current = requestId;
+      const fresh = await refreshClubReservationsAction(clubId, {
+        from: dayRange.from,
+        to: dayRange.to,
+        limit: CLUB_BOOKINGS_FETCH_LIMIT,
+      });
+      if (requestId !== dayRequestRef.current) return;
+      if (fresh.ok) {
+        loadedDayKeyRef.current = key;
+        setDayReservations({ key, rows: fresh.reservations });
+      } else {
+        setDayFailedKey(key);
+      }
+    },
+    [clubId, dayRange.from, dayRange.to, dayRangeKey, mode, view],
+  );
+
+  /** Franjas por cancha del día visible, compartidas entre ambas vistas. */
+  const slotsCacheRef = useRef<{
+    ymd: string;
+    byCourt: Map<string, CourtDaySlot[]>;
+  }>({ ymd: "", byCourt: new Map() });
+
+  const fetchCourtSlots = useCallback(
+    async (
+      slotCourtId: string,
+      ymd: string,
+    ): Promise<
+      { ok: true; slots: CourtDaySlot[] } | { ok: false; error: string }
+    > => {
+      const cache = slotsCacheRef.current;
+      if (cache.ymd !== ymd) {
+        slotsCacheRef.current = { ymd, byCourt: new Map() };
+      }
+      const hit = slotsCacheRef.current.byCourt.get(slotCourtId);
+      if (hit) return { ok: true, slots: hit };
+      const res = await listCourtDaySlotsAction(clubId, slotCourtId, ymd);
+      if (!res.ok) return res;
+      const seen = new Set<string>();
+      const unique = res.slots.filter((s) => {
+        const k = `${s.start}\0${s.end}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      if (slotsCacheRef.current.ymd === ymd) {
+        slotsCacheRef.current.byCourt.set(slotCourtId, unique);
+      }
+      return { ok: true, slots: unique };
+    },
+    [clubId],
+  );
 
   const loadSlots = useCallback(async () => {
+    if (view !== "court") return;
     if (!validCourtId || !clubId) {
       setDaySlots([]);
       return;
     }
+    const ymd = formatLocalYmd(selectedDate);
+    const cached =
+      slotsCacheRef.current.ymd === ymd
+        ? slotsCacheRef.current.byCourt.get(validCourtId)
+        : undefined;
+    if (cached) {
+      setSlotsError(null);
+      setDaySlots(cached);
+      return;
+    }
     setLoadingSlots(true);
     setSlotsError(null);
-    const ymd = formatLocalYmd(selectedDate);
-    const res = await listCourtDaySlotsAction(clubId, validCourtId, ymd);
+    const res = await fetchCourtSlots(validCourtId, ymd);
     setLoadingSlots(false);
     if (!res.ok) {
       setSlotsError(res.error);
       setDaySlots([]);
       return;
     }
-    const seen = new Set<string>();
-    const unique = res.slots.filter((s) => {
-      const k = `${s.start}\0${s.end}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-    setDaySlots(unique);
-  }, [clubId, validCourtId, selectedDate]);
+    setDaySlots(res.slots);
+  }, [clubId, validCourtId, selectedDate, view, fetchCourtSlots]);
+
+  const refreshSlots = useCallback(() => {
+    slotsCacheRef.current = { ymd: "", byCourt: new Map() };
+    void loadSlots();
+    setAllCourtsRefreshKey((k) => k + 1);
+  }, [loadSlots]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -280,14 +321,14 @@ export function ReservationsBoard({
 
   useEffect(() => {
     const onRefresh = () => {
-      void loadSlots();
+      refreshSlots();
       void loadBookings();
-      void loadDayBookings();
+      void loadDayBookings(true);
     };
     window.addEventListener("club-reservations-refresh", onRefresh);
     return () =>
       window.removeEventListener("club-reservations-refresh", onRefresh);
-  }, [loadSlots, loadBookings, loadDayBookings]);
+  }, [refreshSlots, loadBookings, loadDayBookings]);
 
   // No auto-refetch on window/tab focus; only refresh after explicit user actions.
 
@@ -348,76 +389,10 @@ export function ReservationsBoard({
     selectedDate,
   ]);
 
-  const slotRows = useMemo(() => {
-    const raw: CalendarSlotRow[] = daySlots.map((slot) => {
-      const s0 = new Date(slot.start).getTime();
-      const s1 = new Date(slot.end).getTime();
-      const overlapping = bookingsForCourtDay.filter(
-        (r) =>
-          (r.status === "PENDING" || r.status === "CONFIRMED") &&
-          intervalsOverlapMs(
-            s0,
-            s1,
-            new Date(r.start).getTime(),
-            new Date(r.end).getTime(),
-          ),
-      );
-      const blockingBooking =
-        overlapping.find((r) => bookingBlocksCalendarSlot(r)) ?? null;
-      const tentativeBooking =
-        overlapping.find((r) => isTentativePublicOpenMatch(r)) ?? null;
-
-      if (blockingBooking) {
-        return {
-          start: slot.start,
-          end: slot.end,
-          kind: "reserved" as const,
-          booking: blockingBooking,
-        };
-      }
-      if (tentativeBooking && slot.isAvailable) {
-        return {
-          start: slot.start,
-          end: slot.end,
-          kind: "tentativeOpen" as const,
-          booking: tentativeBooking,
-        };
-      }
-      if (!slot.isAvailable && slot.isTournament) {
-        return {
-          start: slot.start,
-          end: slot.end,
-          kind: "tournament" as const,
-          booking: null,
-          holdLabel: slot.holdLabel ?? "Torneo",
-        };
-      }
-      if (!slot.isAvailable && slot.isPersonalized) {
-        return {
-          start: slot.start,
-          end: slot.end,
-          kind: "personalized" as const,
-          booking: null,
-          holdLabel: slot.holdLabel ?? null,
-        };
-      }
-      if (!slot.isAvailable) {
-        return {
-          start: slot.start,
-          end: slot.end,
-          kind: "closed" as const,
-          booking: null,
-        };
-      }
-      return {
-        start: slot.start,
-        end: slot.end,
-        kind: "available" as const,
-        booking: null,
-      };
-    });
-    return mergeConsecutiveCalendarSlotRows(raw);
-  }, [daySlots, bookingsForCourtDay]);
+  const slotRows = useMemo(
+    () => buildCalendarSlotRows(daySlots, bookingsForCourtDay),
+    [daySlots, bookingsForCourtDay],
+  );
 
   const dayStats = useMemo(() => {
     const disponibles = slotRows.filter(
@@ -450,10 +425,14 @@ export function ReservationsBoard({
       setError(res.error);
       return;
     }
+    if (listDetailBooking?.id === bookingId) {
+      setListDetailOpen(false);
+      setListDetailBooking(null);
+    }
     router.refresh();
-    void loadSlots();
+    refreshSlots();
     void loadBookings();
-    void loadDayBookings();
+    void loadDayBookings(true);
   }
 
   async function handleCancelBooking(bookingId: string): Promise<boolean> {
@@ -467,22 +446,26 @@ export function ReservationsBoard({
     }
     setExpandedBookingId(null);
     router.refresh();
-    void loadSlots();
+    refreshSlots();
     void loadBookings();
-    void loadDayBookings();
+    void loadDayBookings(true);
     return true;
   }
 
-  function openManualReservation(slot: { start: string; end: string }) {
+  function openManualReservation(
+    slot: { start: string; end: string },
+    slotCourtId: string = validCourtId,
+  ) {
+    if (!slotCourtId) return;
     setError(null);
-    setManualSlot(slot);
+    setManualSlot({ ...slot, courtId: slotCourtId });
     setManualPlayers([{ name: "", phone: "" }]);
     setManualNotes("");
     setManualModalOpen(true);
   }
 
   async function handleConfirmManualReservation() {
-    if (!manualSlot || !validCourtId) return;
+    if (!manualSlot) return;
     const guests = manualPlayers
       .map((p) => ({
         name: p.name.trim(),
@@ -497,7 +480,7 @@ export function ReservationsBoard({
     setManualBusy(true);
     const res = await createManualCourtBookingAction(
       clubId,
-      validCourtId,
+      manualSlot.courtId,
       manualSlot.start,
       guests,
       manualNotes.trim() || undefined,
@@ -507,14 +490,23 @@ export function ReservationsBoard({
       setError(res.error);
       return;
     }
-    await Promise.all([loadBookings(), loadDayBookings()]);
+    await Promise.all([loadBookings(), loadDayBookings(true)]);
     setManualModalOpen(false);
     setManualSlot(null);
     router.refresh();
-    void loadSlots();
+    refreshSlots();
   }
 
   const selectedCourt = initialCourts.find((c) => c.id === validCourtId);
+  const manualCourt = manualSlot
+    ? initialCourts.find((c) => c.id === manualSlot.courtId)
+    : undefined;
+  const dayBookingsForAllCourts =
+    dayReservations?.key === dayRangeKey
+      ? dayReservations.rows
+      : dayFailedKey === dayRangeKey
+        ? boardReservations
+        : null;
   const courtSelectLabel = selectedCourt
     ? courtSelectLine(selectedCourt)
     : "Seleccioná una cancha";
@@ -528,628 +520,743 @@ export function ReservationsBoard({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-3">
-        {mode === "list" ? (
-          <div className="relative min-w-[260px] flex-1">
-            <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por jugador o cancha..."
-              className="h-11 rounded-lg pl-10"
-            />
-          </div>
-        ) : (
-          <div className="flex-1" />
-        )}
-        <div className="grid grid-cols-2 gap-2">
-          <Button
+      <div
+        role="tablist"
+        aria-label="Vista de reservas"
+        className="bg-muted/60 inline-flex rounded-xl p-1"
+      >
+        {(
+          [
+            ["court", "Por cancha"],
+            ["all", "Vista del día (todas las canchas)"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
             type="button"
-            variant={mode === "list" ? "default" : "outline"}
-            className="rounded-lg"
-            onClick={() => setMode("list")}
+            role="tab"
+            aria-selected={view === value}
+            onClick={() => {
+              setExpandedBookingId(null);
+              setView(value);
+            }}
+            className={cn(
+              "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+              view === value
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
           >
-            Lista
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "calendar" ? "default" : "outline"}
-            className="rounded-lg"
-            onClick={() => setMode("calendar")}
-          >
-            Calendario
-          </Button>
-        </div>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {mode === "list" ? (
-        <div className="flex items-center gap-2">
-          <label className="text-muted-foreground text-xs font-medium">
-            Cancha
-          </label>
-          <select
-            value={listCourtId}
-            onChange={(e) => setListCourtId(e.target.value)}
-            className="border-input bg-background text-foreground focus-visible:ring-ring h-9 min-w-[240px] rounded-lg border px-2.5 text-sm shadow-sm outline-none focus-visible:ring-2"
-          >
-            <option value="ALL">Todas</option>
-            {initialCourts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {courtSelectLine(c)}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
-
-      {mode === "list" ? (
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              ["ALL", `Todas (${grouped.ALL})`],
-              ["CONFIRMED", `Confirmadas (${grouped.CONFIRMED})`],
-              ["PENDING", `Pendientes (${grouped.PENDING})`],
-              ["CANCELLED", `Canceladas (${grouped.CANCELLED})`],
-              ["REJECTED", `Rechazadas (${grouped.REJECTED})`],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setStatus(value)}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                status === value
-                  ? "bg-primary/15 text-primary border-primary/30"
-                  : "border-border text-muted-foreground hover:bg-muted",
-              )}
+      <div hidden={view !== "all"} className="space-y-5">
+        {error ? (
+          <p className="text-destructive text-sm" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {initialCourts.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No hay canchas.{" "}
+            <Link
+              href="/dashboard/club/pistas"
+              className="text-primary font-medium underline-offset-2 hover:underline"
             >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+              Crear en Pistas
+            </Link>
+          </p>
+        ) : (
+          <AllCourtsDayView
+            courts={initialCourts}
+            selectedDate={selectedDate}
+            onSelectDate={(d) => {
+              setSelectedDate(d);
+              setViewMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+            }}
+            active={view === "all"}
+            fetchCourtSlots={fetchCourtSlots}
+            dayBookings={dayBookingsForAllCourts}
+            refreshKey={allCourtsRefreshKey}
+            onFreeSlotClick={(slotCourtId, slot) =>
+              openManualReservation(slot, slotCourtId)
+            }
+            onBookingClick={(booking) => {
+              setListDetailBooking(booking);
+              setListDetailOpen(true);
+            }}
+          />
+        )}
+      </div>
 
-      {error ? (
-        <p className="text-destructive text-sm" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      {mode === "list" ? (
-        <div className="border-border bg-card overflow-hidden rounded-xl border shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm">
-              <thead className="bg-muted/40 text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium">ID</th>
-                  <th className="px-4 py-3 text-left font-medium">Jugador</th>
-                  <th className="px-4 py-3 text-left font-medium">cancha</th>
-                  <th className="px-4 py-3 text-left font-medium">Fecha</th>
-                  <th className="px-4 py-3 text-left font-medium">Hora</th>
-                  <th className="px-4 py-3 text-left font-medium">Estado</th>
-                  <th className="px-4 py-3 text-right font-medium">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.id} className="border-border/70 border-t">
-                    <td className="px-4 py-3 text-xs">{r.id.slice(0, 8)}</td>
-                    <td className="px-4 py-3">
-                      {r.user.fullName ?? "Sin nombre"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {r.court.name.trim() || "Sin nombre"}
-                    </td>
-                    <td className="px-4 py-3">{fmtDate(r.start)}</td>
-                    <td className="px-4 py-3">{`${fmtTime(r.start)}-${fmtTime(r.end)}`}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col items-start gap-1">
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-                            STATUS_CLASSNAMES[r.status],
-                          )}
-                        >
-                          {STATUS_LABELS[r.status]}
-                        </span>
-                        {isTentativePublicOpenMatch(r) ? (
-                          <span className="text-[#405fd3] text-xs font-semibold">
-                            Turno libre (partido abierto)
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setListDetailBooking(r);
-                            setListDetailOpen(true);
-                          }}
-                        >
-                          <Eye className="size-4" />
-                        </Button>
-                        {r.status === "PENDING" ? (
-                          <>
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              disabled={busyId === r.id}
-                              onClick={() => void onAction(r.id, "approve")}
-                            >
-                              <Check className="size-4 text-[#788ce3]" />
-                            </Button>
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              disabled={busyId === r.id}
-                              onClick={() => void onAction(r.id, "reject")}
-                            >
-                              <X className="size-4 text-rose-600" />
-                            </Button>
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="text-muted-foreground px-4 py-8 text-center"
-                    >
-                      No hay reservas para los filtros seleccionados.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+      {view === "court" ? (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            {mode === "list" ? (
+              <div className="relative min-w-[260px] flex-1">
+                <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar por jugador o cancha..."
+                  className="h-11 rounded-lg pl-10"
+                />
+              </div>
+            ) : (
+              <div className="flex-1" />
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={mode === "list" ? "default" : "outline"}
+                className="rounded-lg"
+                onClick={() => setMode("list")}
+              >
+                Lista
+              </Button>
+              <Button
+                type="button"
+                variant={mode === "calendar" ? "default" : "outline"}
+                className="rounded-lg"
+                onClick={() => setMode("calendar")}
+              >
+                Calendario
+              </Button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-          <aside className="lg:w-72 shrink-0 space-y-4">
-            <div>
-              <label className="text-muted-foreground mb-1.5 block text-xs font-medium">
+
+          {mode === "list" ? (
+            <div className="flex items-center gap-2">
+              <label className="text-muted-foreground text-xs font-medium">
                 Cancha
               </label>
-              {initialCourts.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No hay canchas.{" "}
-                  <Link
-                    href="/dashboard/club/pistas"
-                    className="text-primary font-medium underline-offset-2 hover:underline"
-                  >
-                    Crear en Pistas
-                  </Link>
-                </p>
-              ) : (
-                <select
-                  value={validCourtId}
-                  onChange={(e) => {
-                    setExpandedBookingId(null);
-                    setCourtId(e.target.value);
-                  }}
-                  className="border-input bg-background text-foreground focus-visible:ring-ring h-11 w-full rounded-xl border px-3 text-sm font-medium shadow-sm outline-none focus-visible:ring-2"
+              <select
+                value={listCourtId}
+                onChange={(e) => setListCourtId(e.target.value)}
+                className="border-input bg-background text-foreground focus-visible:ring-ring h-9 min-w-[240px] rounded-lg border px-2.5 text-sm shadow-sm outline-none focus-visible:ring-2"
+              >
+                <option value="ALL">Todas</option>
+                {initialCourts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {courtSelectLine(c)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {mode === "list" ? (
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["ALL", `Todas (${grouped.ALL})`],
+                  ["CONFIRMED", `Confirmadas (${grouped.CONFIRMED})`],
+                  ["PENDING", `Pendientes (${grouped.PENDING})`],
+                  ["CANCELLED", `Canceladas (${grouped.CANCELLED})`],
+                  ["REJECTED", `Rechazadas (${grouped.REJECTED})`],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setStatus(value)}
+                  className={cn(
+                    "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                    status === value
+                      ? "bg-primary/15 text-primary border-primary/30"
+                      : "border-border text-muted-foreground hover:bg-muted",
+                  )}
                 >
-                  {initialCourts.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {courtSelectLine(c)}
-                    </option>
-                  ))}
-                </select>
-              )}
+                  {label}
+                </button>
+              ))}
             </div>
+          ) : null}
 
-            <MiniMonthCalendar
-              className="border-border bg-card rounded-xl border p-3 shadow-sm"
-              viewMonth={viewMonth}
-              onViewMonthChange={setViewMonth}
-              selectedDate={selectedDate}
-              onSelectDate={(d) => {
-                setExpandedBookingId(null);
-                setSelectedDate(d);
-                setViewMonth(new Date(d.getFullYear(), d.getMonth(), 1));
-              }}
-              markedDays={markedDays}
-            />
+          {error ? (
+            <p className="text-destructive text-sm" role="alert">
+              {error}
+            </p>
+          ) : null}
 
-            <div className="border-border bg-muted/20 space-y-2 rounded-xl border px-3 py-3 text-xs">
-              <p className="text-muted-foreground font-semibold tracking-wide uppercase">
-                Leyenda
-              </p>
-              <ul className="space-y-2">
-                <li className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full bg-[#c5e835]" />
-                  <span className="text-muted-foreground">
-                    Personalizado (ocupado)
-                  </span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full bg-[#e8a317]" />
-                  <span className="text-muted-foreground">Torneo</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full bg-[#788ce3]" />
-                  <span className="text-muted-foreground">Disponible</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full bg-sky-500" />
-                  <span className="text-muted-foreground">Reservado</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full bg-[#405fd3]" />
-                  <span className="text-muted-foreground">
-                    Partido abierto pendiente (turno libre)
-                  </span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full bg-rose-400" />
-                  <span className="text-muted-foreground">Cancelado</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="size-2.5 shrink-0 rounded-full bg-slate-400" />
-                  <span className="text-muted-foreground">Día cerrado</span>
-                </li>
-              </ul>
-            </div>
-          </aside>
-
-          <section className="border-border bg-card min-h-[420px] flex-1 rounded-2xl border p-5 shadow-sm">
-            {initialCourts.length === 0 ? null : (
-              <>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <h2 className="text-foreground text-lg font-semibold capitalize">
-                    {longDateLabel}
-                  </h2>
-                  <p className="text-muted-foreground text-sm">
-                    <span className="text-[#788ce3] font-medium">
-                      {dayStats.disponibles} disponibles
-                    </span>
-                    <span className="mx-2">·</span>
-                    <span className="text-sky-600 font-medium dark:text-sky-400">
-                      {dayStats.reservados} reservados
-                    </span>
-                    {dayStats.tentativosAbiertos > 0 ? (
-                      <>
-                        <span className="mx-2">·</span>
-                        <span className="text-[#405fd3] font-medium">
-                          {dayStats.tentativosAbiertos}{" "}
-                          {dayStats.tentativosAbiertos === 1
-                            ? "partido abierto pendiente"
-                            : "partidos abiertos pendientes"}
-                        </span>
-                      </>
+          {mode === "list" ? (
+            <div className="border-border bg-card overflow-hidden rounded-xl border shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-sm">
+                  <thead className="bg-muted/40 text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium">ID</th>
+                      <th className="px-4 py-3 text-left font-medium">
+                        Jugador
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium">
+                        cancha
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium">Fecha</th>
+                      <th className="px-4 py-3 text-left font-medium">Hora</th>
+                      <th className="px-4 py-3 text-left font-medium">
+                        Estado
+                      </th>
+                      <th className="px-4 py-3 text-right font-medium">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r) => (
+                      <tr key={r.id} className="border-border/70 border-t">
+                        <td className="px-4 py-3 text-xs">
+                          {r.id.slice(0, 8)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {r.user.fullName ?? "Sin nombre"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {r.court.name.trim() || "Sin nombre"}
+                        </td>
+                        <td className="px-4 py-3">{fmtDate(r.start)}</td>
+                        <td className="px-4 py-3">{`${fmtTime(r.start)}-${fmtTime(r.end)}`}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col items-start gap-1">
+                            <span
+                              className={cn(
+                                "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
+                                STATUS_CLASSNAMES[r.status],
+                              )}
+                            >
+                              {STATUS_LABELS[r.status]}
+                            </span>
+                            {isTentativePublicOpenMatch(r) ? (
+                              <span className="text-[#405fd3] text-xs font-semibold">
+                                Turno libre (partido abierto)
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setListDetailBooking(r);
+                                setListDetailOpen(true);
+                              }}
+                            >
+                              <Eye className="size-4" />
+                            </Button>
+                            {r.status === "PENDING" ? (
+                              <>
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  disabled={busyId === r.id}
+                                  onClick={() => void onAction(r.id, "approve")}
+                                >
+                                  <Check className="size-4 text-[#788ce3]" />
+                                </Button>
+                                <Button
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  disabled={busyId === r.id}
+                                  onClick={() => void onAction(r.id, "reject")}
+                                >
+                                  <X className="size-4 text-rose-600" />
+                                </Button>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {filtered.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="text-muted-foreground px-4 py-8 text-center"
+                        >
+                          No hay reservas para los filtros seleccionados.
+                        </td>
+                      </tr>
                     ) : null}
-                    <span className="mx-2">·</span>
-                    <span className="text-rose-600 font-medium dark:text-rose-400">
-                      {dayStats.cancelados} cancelados
-                    </span>
-                  </p>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+              <aside className="lg:w-72 shrink-0 space-y-4">
+                <div>
+                  <label className="text-muted-foreground mb-1.5 block text-xs font-medium">
+                    Cancha
+                  </label>
+                  {initialCourts.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                      No hay canchas.{" "}
+                      <Link
+                        href="/dashboard/club/pistas"
+                        className="text-primary font-medium underline-offset-2 hover:underline"
+                      >
+                        Crear en Pistas
+                      </Link>
+                    </p>
+                  ) : (
+                    <select
+                      value={validCourtId}
+                      onChange={(e) => {
+                        setExpandedBookingId(null);
+                        setCourtId(e.target.value);
+                      }}
+                      className="border-input bg-background text-foreground focus-visible:ring-ring h-11 w-full rounded-xl border px-3 text-sm font-medium shadow-sm outline-none focus-visible:ring-2"
+                    >
+                      {initialCourts.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {courtSelectLine(c)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
-                <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
-                  {courtSelectLabel}
-                </p>
+                <MiniMonthCalendar
+                  className="border-border bg-card rounded-xl border p-3 shadow-sm"
+                  viewMonth={viewMonth}
+                  onViewMonthChange={setViewMonth}
+                  selectedDate={selectedDate}
+                  onSelectDate={(d) => {
+                    setExpandedBookingId(null);
+                    setSelectedDate(d);
+                    setViewMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+                  }}
+                  markedDays={markedDays}
+                />
 
-                {slotsError ? (
-                  <p className="text-destructive mt-4 text-sm">{slotsError}</p>
-                ) : loadingSlots ? (
-                  <p className="text-muted-foreground mt-10 text-center text-sm">
-                    Cargando turnos…
+                <div className="border-border bg-muted/20 space-y-2 rounded-xl border px-3 py-3 text-xs">
+                  <p className="text-muted-foreground font-semibold tracking-wide uppercase">
+                    Leyenda
                   </p>
-                ) : slotRows.length === 0 ? (
-                  <p className="text-muted-foreground mt-10 text-center text-sm">
-                    No hay franjas para este día en esta cancha.
-                  </p>
-                ) : (
-                  <ul className="mt-6 space-y-3">
-                    {slotRows.map((row, rowIndex) => {
-                      const isAvail = row.kind === "available";
-                      const isPersonalized = row.kind === "personalized";
-                      const isTournament = row.kind === "tournament";
-                      const isRes = row.kind === "reserved";
-                      const isFixedSeries =
-                        isRes && row.booking?.isFixedSeries === true;
-                      const rangeLabel =
-                        isRes && row.booking
-                          ? `${fmtTimeUtc(row.booking.start)} – ${fmtTimeUtc(row.booking.end)}`
-                          : `${fmtTimeUtc(row.start)} – ${fmtTimeUtc(row.end)}`;
-                      const personalizedLabel =
-                        row.holdLabel?.trim() || "Turno personalizado";
-                      const tournamentLabel = row.holdLabel?.trim() || "Torneo";
-                      const isTent =
-                        row.kind === "tentativeOpen" && row.booking != null;
-                      const isClosed = row.kind === "closed";
-                      const tentBooking = isTent ? row.booking : null;
-                      const maxP = tentBooking?.maxPlayers ?? 4;
-                      const filledP = tentBooking
-                        ? matchParticipantsCount(tentBooking)
-                        : 0;
-
-                      const isExpanded =
-                        (isRes || isTent) &&
-                        row.booking &&
-                        expandedBookingId === row.booking.id;
-
-                      const interactiveHeader = isAvail || isRes || isTent;
-
-                      return (
-                        <li
-                          key={`${validCourtId}-${formatLocalYmd(selectedDate)}-${rowIndex}-${row.kind}`}
-                          className={cn(
-                            "overflow-hidden rounded-xl border",
-                            isAvail && "border-[#788ce3]/30 bg-[#788ce3]/10",
-                            isPersonalized &&
-                              "border-[#c5e835]/70 bg-[#d4f542]/30",
-                            isTournament &&
-                              "border-[#e8a317]/70 bg-[#e8a317]/15",
-                            isRes &&
-                              "border-sky-200/80 bg-sky-50/50 dark:border-sky-900/30 dark:bg-sky-950/25",
-                            isTent && "border-[#405fd3]/30 bg-[#405fd3]/10",
-                            isClosed &&
-                              "border-border bg-muted/30 text-muted-foreground",
-                          )}
-                        >
-                          <div
-                            role={interactiveHeader ? "button" : undefined}
-                            tabIndex={interactiveHeader ? 0 : undefined}
-                            className={cn(
-                              "flex items-stretch",
-                              isAvail && "cursor-pointer hover:bg-[#788ce3]/20",
-                              isRes &&
-                                "cursor-pointer hover:bg-sky-100/40 dark:hover:bg-sky-950/40",
-                              isTent && "cursor-pointer hover:bg-[#405fd3]/20",
-                            )}
-                            onClick={() => {
-                              if (isAvail) {
-                                openManualReservation({
-                                  start: row.start,
-                                  end: row.end,
-                                });
-                                return;
-                              }
-                              if ((isRes || isTent) && row.booking) {
-                                setExpandedBookingId((prev) =>
-                                  prev === row.booking!.id
-                                    ? null
-                                    : row.booking!.id,
-                                );
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (
-                                isAvail &&
-                                (e.key === "Enter" || e.key === " ")
-                              ) {
-                                e.preventDefault();
-                                openManualReservation({
-                                  start: row.start,
-                                  end: row.end,
-                                });
-                                return;
-                              }
-                              if (
-                                !(isRes || isTent) ||
-                                !row.booking ||
-                                (e.key !== "Enter" && e.key !== " ")
-                              ) {
-                                return;
-                              }
-                              e.preventDefault();
-                              setExpandedBookingId((prev) =>
-                                prev === row.booking!.id
-                                  ? null
-                                  : row.booking!.id,
-                              );
-                            }}
-                          >
-                            <div
-                              className={cn(
-                                "w-1.5 shrink-0",
-                                isPersonalized && "bg-[#c5e835]",
-                                isTournament && "bg-[#e8a317]",
-                                isAvail && "bg-[#788ce3]",
-                                isRes && "bg-sky-500",
-                                isTent && "bg-[#405fd3]",
-                                isClosed && "bg-slate-400",
-                              )}
-                            />
-                            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
-                              <div className="min-w-0">
-                                <p className="text-foreground font-semibold">
-                                  {rangeLabel}
-                                </p>
-                                {isAvail ? (
-                                  <p className="text-muted-foreground mt-0.5 text-sm">
-                                    Disponible
-                                  </p>
-                                ) : null}
-                                {isTournament ? (
-                                  <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm font-medium text-[#9a6b0a]">
-                                    <Trophy className="size-3.5 shrink-0 opacity-80" />
-                                    {tournamentLabel}
-                                  </p>
-                                ) : null}
-                                {isPersonalized ? (
-                                  <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm font-medium text-[#5a7a12] dark:text-[#c5e835]">
-                                    <User className="size-3.5 shrink-0 opacity-80" />
-                                    {personalizedLabel}
-                                  </p>
-                                ) : null}
-                                {isRes && row.booking ? (
-                                  <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-sky-700 dark:text-sky-300">
-                                    <User className="size-3.5 shrink-0 opacity-80" />
-                                    <span className="truncate font-medium">
-                                      {row.booking.user.fullName ??
-                                        "Sin nombre"}
-                                    </span>
-                                  </p>
-                                ) : null}
-                                {isTent && tentBooking ? (
-                                  <div className="mt-0.5 space-y-0.5">
-                                    <p className="inline-flex flex-wrap items-center gap-1.5 text-sm font-medium text-[#405fd3]">
-                                      <Users className="size-3.5 shrink-0 opacity-90" />
-                                      <span>
-                                        Partido pendiente · {filledP}/{maxP}{" "}
-                                        jugadores
-                                      </span>
-                                    </p>
-                                    <p className="text-muted-foreground max-w-[min(100%,420px)] text-xs font-medium leading-snug">
-                                      Hay un partido esperando en este horario;
-                                      el turno sigue libre para otra reserva
-                                      hasta completar el cupo.
-                                    </p>
-                                  </div>
-                                ) : null}
-                                {isClosed ? (
-                                  <p className="mt-0.5 text-sm">
-                                    No disponible
-                                  </p>
-                                ) : null}
-                              </div>
-                              <div className="flex shrink-0 items-center gap-2">
-                                {isTournament ? (
-                                  <span className="inline-flex rounded-full bg-[#e8a317]/20 px-3 py-1 text-xs font-semibold text-[#9a6b0a]">
-                                    Torneo
-                                  </span>
-                                ) : null}
-                                {isPersonalized ? (
-                                  <span className="inline-flex rounded-full bg-[#c5e835]/25 px-3 py-1 text-xs font-semibold text-[#5a7a12] dark:text-[#d4f542]">
-                                    Ocupado
-                                  </span>
-                                ) : null}
-                                {isAvail ? (
-                                  <button
-                                    type="button"
-                                    className="inline-flex rounded-full bg-[#788ce3]/15 px-3 py-1 text-xs font-semibold text-[#788ce3] transition-colors hover:bg-[#788ce3]/25"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openManualReservation({
-                                        start: row.start,
-                                        end: row.end,
-                                      });
-                                    }}
-                                  >
-                                    Libre
-                                  </button>
-                                ) : null}
-                                {isTent ? (
-                                  <>
-                                    <span className="inline-flex rounded-full bg-[#405fd3]/20 px-3 py-1 text-xs font-semibold text-[#405fd3]">
-                                      Pendiente
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="inline-flex rounded-full border-2 border-[#788ce3]/70 bg-transparent px-3 py-1 text-xs font-semibold text-[#788ce3] transition-colors hover:bg-[#788ce3]/10"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        openManualReservation({
-                                          start: row.start,
-                                          end: row.end,
-                                        });
-                                      }}
-                                    >
-                                      Libre
-                                    </button>
-                                    <ChevronDown
-                                      className={cn(
-                                        "size-4 shrink-0 text-[#405fd3] transition-transform",
-                                        isExpanded && "rotate-180",
-                                      )}
-                                      aria-hidden
-                                    />
-                                  </>
-                                ) : null}
-                                {isRes && row.booking ? (
-                                  <>
-                                    <div
-                                      onClick={(e) => e.stopPropagation()}
-                                      onKeyDown={(e) => e.stopPropagation()}
-                                    >
-                                      {row.booking.status === "PENDING" ? (
-                                        <DropdownMenu>
-                                          <DropdownMenuTrigger
-                                            className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800 outline-none hover:bg-sky-200/80 dark:bg-sky-900/50 dark:text-sky-100 dark:hover:bg-sky-900/70"
-                                            disabled={busyId === row.booking.id}
-                                          >
-                                            {isFixedSeries
-                                              ? "Turno fijo"
-                                              : "Reservado"}
-                                            <ChevronDown className="size-3.5 opacity-70" />
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent align="end">
-                                            <DropdownMenuItem
-                                              onClick={() =>
-                                                void onAction(
-                                                  row.booking!.id,
-                                                  "approve",
-                                                )
-                                              }
-                                            >
-                                              Confirmar reserva
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              variant="destructive"
-                                              onClick={() =>
-                                                void onAction(
-                                                  row.booking!.id,
-                                                  "reject",
-                                                )
-                                              }
-                                            >
-                                              Rechazar
-                                            </DropdownMenuItem>
-                                          </DropdownMenuContent>
-                                        </DropdownMenu>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800 dark:bg-sky-900/50 dark:text-sky-100">
-                                          {isFixedSeries
-                                            ? "Turno fijo"
-                                            : "Reservado"}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <ChevronDown
-                                      className={cn(
-                                        "size-4 shrink-0 text-sky-700 transition-transform dark:text-sky-300",
-                                        isExpanded && "rotate-180",
-                                      )}
-                                      aria-hidden
-                                    />
-                                  </>
-                                ) : null}
-                                {isClosed ? (
-                                  <span className="inline-flex rounded-full bg-slate-200/80 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-                                    Cerrado
-                                  </span>
-                                ) : null}
-                              </div>
-                            </div>
-                          </div>
-                          {(isRes || isTent) && row.booking && isExpanded ? (
-                            <BookingDetailCard
-                              booking={row.booking}
-                              cancelling={cancelBusyId === row.booking.id}
-                              onCancel={() =>
-                                void handleCancelBooking(row.booking!.id)
-                              }
-                            />
-                          ) : null}
-                        </li>
-                      );
-                    })}
+                  <ul className="space-y-2">
+                    <li className="flex items-center gap-2">
+                      <span className="size-2.5 shrink-0 rounded-full bg-[#c5e835]" />
+                      <span className="text-muted-foreground">
+                        Personalizado (ocupado)
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-2.5 shrink-0 rounded-full bg-[#e8a317]" />
+                      <span className="text-muted-foreground">Torneo</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-2.5 shrink-0 rounded-full bg-[#788ce3]" />
+                      <span className="text-muted-foreground">Disponible</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-2.5 shrink-0 rounded-full bg-sky-500" />
+                      <span className="text-muted-foreground">Reservado</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-2.5 shrink-0 rounded-full bg-[#405fd3]" />
+                      <span className="text-muted-foreground">
+                        Partido abierto pendiente (turno libre)
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-2.5 shrink-0 rounded-full bg-rose-400" />
+                      <span className="text-muted-foreground">Cancelado</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-2.5 shrink-0 rounded-full bg-slate-400" />
+                      <span className="text-muted-foreground">Día cerrado</span>
+                    </li>
                   </ul>
+                </div>
+              </aside>
+
+              <section className="border-border bg-card min-h-[420px] flex-1 rounded-2xl border p-5 shadow-sm">
+                {initialCourts.length === 0 ? null : (
+                  <>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <h2 className="text-foreground text-lg font-semibold capitalize">
+                        {longDateLabel}
+                      </h2>
+                      <p className="text-muted-foreground text-sm">
+                        <span className="text-[#788ce3] font-medium">
+                          {dayStats.disponibles} disponibles
+                        </span>
+                        <span className="mx-2">·</span>
+                        <span className="text-sky-600 font-medium dark:text-sky-400">
+                          {dayStats.reservados} reservados
+                        </span>
+                        {dayStats.tentativosAbiertos > 0 ? (
+                          <>
+                            <span className="mx-2">·</span>
+                            <span className="text-[#405fd3] font-medium">
+                              {dayStats.tentativosAbiertos}{" "}
+                              {dayStats.tentativosAbiertos === 1
+                                ? "partido abierto pendiente"
+                                : "partidos abiertos pendientes"}
+                            </span>
+                          </>
+                        ) : null}
+                        <span className="mx-2">·</span>
+                        <span className="text-rose-600 font-medium dark:text-rose-400">
+                          {dayStats.cancelados} cancelados
+                        </span>
+                      </p>
+                    </div>
+
+                    <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
+                      {courtSelectLabel}
+                    </p>
+
+                    {slotsError ? (
+                      <p className="text-destructive mt-4 text-sm">
+                        {slotsError}
+                      </p>
+                    ) : loadingSlots ? (
+                      <ul className="mt-6 space-y-3" aria-busy>
+                        <li className="sr-only">Cargando turnos…</li>
+                        {[40, 55, 35, 60, 45, 50].map((w, i) => (
+                          <li
+                            key={i}
+                            aria-hidden
+                            className="border-border flex animate-pulse items-stretch overflow-hidden rounded-xl border"
+                            style={{ animationDelay: `${(i % 4) * 120}ms` }}
+                          >
+                            <div className="bg-muted w-1.5 shrink-0" />
+                            <div className="flex flex-1 items-center justify-between gap-3 px-4 py-3">
+                              <div className="flex-1 space-y-2">
+                                <div className="bg-muted h-3.5 w-28 rounded" />
+                                <div
+                                  className="bg-muted h-3 rounded"
+                                  style={{ width: `${w}%` }}
+                                />
+                              </div>
+                              <div className="bg-muted h-6 w-20 rounded-full" />
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : slotRows.length === 0 ? (
+                      <p className="text-muted-foreground mt-10 text-center text-sm">
+                        No hay franjas para este día en esta cancha.
+                      </p>
+                    ) : (
+                      <ul className="mt-6 space-y-3">
+                        {slotRows.map((row, rowIndex) => {
+                          const isAvail = row.kind === "available";
+                          const isPersonalized = row.kind === "personalized";
+                          const isTournament = row.kind === "tournament";
+                          const isRes = row.kind === "reserved";
+                          const isFixedSeries =
+                            isRes && row.booking?.isFixedSeries === true;
+                          const rangeLabel =
+                            isRes && row.booking
+                              ? `${fmtTimeUtc(row.booking.start)} – ${fmtTimeUtc(row.booking.end)}`
+                              : `${fmtTimeUtc(row.start)} – ${fmtTimeUtc(row.end)}`;
+                          const personalizedLabel =
+                            row.holdLabel?.trim() || "Turno personalizado";
+                          const tournamentLabel =
+                            row.holdLabel?.trim() || "Torneo";
+                          const isTent =
+                            row.kind === "tentativeOpen" && row.booking != null;
+                          const isClosed = row.kind === "closed";
+                          const tentBooking = isTent ? row.booking : null;
+                          const maxP = tentBooking?.maxPlayers ?? 4;
+                          const filledP = tentBooking
+                            ? matchParticipantsCount(tentBooking)
+                            : 0;
+
+                          const isExpanded =
+                            (isRes || isTent) &&
+                            row.booking &&
+                            expandedBookingId === row.booking.id;
+
+                          const interactiveHeader = isAvail || isRes || isTent;
+
+                          return (
+                            <li
+                              key={`${validCourtId}-${formatLocalYmd(selectedDate)}-${rowIndex}-${row.kind}`}
+                              className={cn(
+                                "overflow-hidden rounded-xl border",
+                                isAvail &&
+                                  "border-[#788ce3]/30 bg-[#788ce3]/10",
+                                isPersonalized &&
+                                  "border-[#c5e835]/70 bg-[#d4f542]/30",
+                                isTournament &&
+                                  "border-[#e8a317]/70 bg-[#e8a317]/15",
+                                isRes &&
+                                  "border-sky-200/80 bg-sky-50/50 dark:border-sky-900/30 dark:bg-sky-950/25",
+                                isTent && "border-[#405fd3]/30 bg-[#405fd3]/10",
+                                isClosed &&
+                                  "border-border bg-muted/30 text-muted-foreground",
+                              )}
+                            >
+                              <div
+                                role={interactiveHeader ? "button" : undefined}
+                                tabIndex={interactiveHeader ? 0 : undefined}
+                                className={cn(
+                                  "flex items-stretch",
+                                  isAvail &&
+                                    "cursor-pointer hover:bg-[#788ce3]/20",
+                                  isRes &&
+                                    "cursor-pointer hover:bg-sky-100/40 dark:hover:bg-sky-950/40",
+                                  isTent &&
+                                    "cursor-pointer hover:bg-[#405fd3]/20",
+                                )}
+                                onClick={() => {
+                                  if (isAvail) {
+                                    openManualReservation({
+                                      start: row.start,
+                                      end: row.end,
+                                    });
+                                    return;
+                                  }
+                                  if ((isRes || isTent) && row.booking) {
+                                    setExpandedBookingId((prev) =>
+                                      prev === row.booking!.id
+                                        ? null
+                                        : row.booking!.id,
+                                    );
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (
+                                    isAvail &&
+                                    (e.key === "Enter" || e.key === " ")
+                                  ) {
+                                    e.preventDefault();
+                                    openManualReservation({
+                                      start: row.start,
+                                      end: row.end,
+                                    });
+                                    return;
+                                  }
+                                  if (
+                                    !(isRes || isTent) ||
+                                    !row.booking ||
+                                    (e.key !== "Enter" && e.key !== " ")
+                                  ) {
+                                    return;
+                                  }
+                                  e.preventDefault();
+                                  setExpandedBookingId((prev) =>
+                                    prev === row.booking!.id
+                                      ? null
+                                      : row.booking!.id,
+                                  );
+                                }}
+                              >
+                                <div
+                                  className={cn(
+                                    "w-1.5 shrink-0",
+                                    isPersonalized && "bg-[#c5e835]",
+                                    isTournament && "bg-[#e8a317]",
+                                    isAvail && "bg-[#788ce3]",
+                                    isRes && "bg-sky-500",
+                                    isTent && "bg-[#405fd3]",
+                                    isClosed && "bg-slate-400",
+                                  )}
+                                />
+                                <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
+                                  <div className="min-w-0">
+                                    <p className="text-foreground font-semibold">
+                                      {rangeLabel}
+                                    </p>
+                                    {isAvail ? (
+                                      <p className="text-muted-foreground mt-0.5 text-sm">
+                                        Disponible
+                                      </p>
+                                    ) : null}
+                                    {isTournament ? (
+                                      <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm font-medium text-[#9a6b0a]">
+                                        <Trophy className="size-3.5 shrink-0 opacity-80" />
+                                        {tournamentLabel}
+                                      </p>
+                                    ) : null}
+                                    {isPersonalized ? (
+                                      <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm font-medium text-[#5a7a12] dark:text-[#c5e835]">
+                                        <User className="size-3.5 shrink-0 opacity-80" />
+                                        {personalizedLabel}
+                                      </p>
+                                    ) : null}
+                                    {isRes && row.booking ? (
+                                      <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-sky-700 dark:text-sky-300">
+                                        <User className="size-3.5 shrink-0 opacity-80" />
+                                        <span className="truncate font-medium">
+                                          {row.booking.user.fullName ??
+                                            "Sin nombre"}
+                                        </span>
+                                      </p>
+                                    ) : null}
+                                    {isTent && tentBooking ? (
+                                      <div className="mt-0.5 space-y-0.5">
+                                        <p className="inline-flex flex-wrap items-center gap-1.5 text-sm font-medium text-[#405fd3]">
+                                          <Users className="size-3.5 shrink-0 opacity-90" />
+                                          <span>
+                                            Partido pendiente · {filledP}/{maxP}{" "}
+                                            jugadores
+                                          </span>
+                                        </p>
+                                        <p className="text-muted-foreground max-w-[min(100%,420px)] text-xs font-medium leading-snug">
+                                          Hay un partido esperando en este
+                                          horario; el turno sigue libre para
+                                          otra reserva hasta completar el cupo.
+                                        </p>
+                                      </div>
+                                    ) : null}
+                                    {isClosed ? (
+                                      <p className="mt-0.5 text-sm">
+                                        No disponible
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                  <div className="flex shrink-0 items-center gap-2">
+                                    {isTournament ? (
+                                      <span className="inline-flex rounded-full bg-[#e8a317]/20 px-3 py-1 text-xs font-semibold text-[#9a6b0a]">
+                                        Torneo
+                                      </span>
+                                    ) : null}
+                                    {isPersonalized ? (
+                                      <span className="inline-flex rounded-full bg-[#c5e835]/25 px-3 py-1 text-xs font-semibold text-[#5a7a12] dark:text-[#d4f542]">
+                                        Ocupado
+                                      </span>
+                                    ) : null}
+                                    {isAvail ? (
+                                      <button
+                                        type="button"
+                                        className="inline-flex rounded-full bg-[#788ce3]/15 px-3 py-1 text-xs font-semibold text-[#788ce3] transition-colors hover:bg-[#788ce3]/25"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openManualReservation({
+                                            start: row.start,
+                                            end: row.end,
+                                          });
+                                        }}
+                                      >
+                                        Libre
+                                      </button>
+                                    ) : null}
+                                    {isTent ? (
+                                      <>
+                                        <span className="inline-flex rounded-full bg-[#405fd3]/20 px-3 py-1 text-xs font-semibold text-[#405fd3]">
+                                          Pendiente
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="inline-flex rounded-full border-2 border-[#788ce3]/70 bg-transparent px-3 py-1 text-xs font-semibold text-[#788ce3] transition-colors hover:bg-[#788ce3]/10"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openManualReservation({
+                                              start: row.start,
+                                              end: row.end,
+                                            });
+                                          }}
+                                        >
+                                          Libre
+                                        </button>
+                                        <ChevronDown
+                                          className={cn(
+                                            "size-4 shrink-0 text-[#405fd3] transition-transform",
+                                            isExpanded && "rotate-180",
+                                          )}
+                                          aria-hidden
+                                        />
+                                      </>
+                                    ) : null}
+                                    {isRes && row.booking ? (
+                                      <>
+                                        <div
+                                          onClick={(e) => e.stopPropagation()}
+                                          onKeyDown={(e) => e.stopPropagation()}
+                                        >
+                                          {row.booking.status === "PENDING" ? (
+                                            <DropdownMenu>
+                                              <DropdownMenuTrigger
+                                                className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800 outline-none hover:bg-sky-200/80 dark:bg-sky-900/50 dark:text-sky-100 dark:hover:bg-sky-900/70"
+                                                disabled={
+                                                  busyId === row.booking.id
+                                                }
+                                              >
+                                                {isFixedSeries
+                                                  ? "Turno fijo"
+                                                  : "Reservado"}
+                                                <ChevronDown className="size-3.5 opacity-70" />
+                                              </DropdownMenuTrigger>
+                                              <DropdownMenuContent align="end">
+                                                <DropdownMenuItem
+                                                  onClick={() =>
+                                                    void onAction(
+                                                      row.booking!.id,
+                                                      "approve",
+                                                    )
+                                                  }
+                                                >
+                                                  Confirmar reserva
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                  variant="destructive"
+                                                  onClick={() =>
+                                                    void onAction(
+                                                      row.booking!.id,
+                                                      "reject",
+                                                    )
+                                                  }
+                                                >
+                                                  Rechazar
+                                                </DropdownMenuItem>
+                                              </DropdownMenuContent>
+                                            </DropdownMenu>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800 dark:bg-sky-900/50 dark:text-sky-100">
+                                              {isFixedSeries
+                                                ? "Turno fijo"
+                                                : "Reservado"}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <ChevronDown
+                                          className={cn(
+                                            "size-4 shrink-0 text-sky-700 transition-transform dark:text-sky-300",
+                                            isExpanded && "rotate-180",
+                                          )}
+                                          aria-hidden
+                                        />
+                                      </>
+                                    ) : null}
+                                    {isClosed ? (
+                                      <span className="inline-flex rounded-full bg-slate-200/80 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                                        Cerrado
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                              {(isRes || isTent) &&
+                              row.booking &&
+                              isExpanded ? (
+                                <BookingDetailCard
+                                  booking={row.booking}
+                                  cancelling={cancelBusyId === row.booking.id}
+                                  onCancel={() =>
+                                    void handleCancelBooking(row.booking!.id)
+                                  }
+                                />
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-          </section>
-        </div>
-      )}
+              </section>
+            </div>
+          )}
+        </>
+      ) : null}
 
       <Dialog
         open={listDetailOpen}
@@ -1175,6 +1282,28 @@ export function ReservationsBoard({
               }}
             />
           ) : null}
+          {listDetailBooking?.status === "PENDING" &&
+          !isTentativePublicOpenMatch(listDetailBooking) ? (
+            <div className="border-border flex items-center justify-end gap-2 border-t px-5 py-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-lg"
+                disabled={busyId === listDetailBooking.id}
+                onClick={() => void onAction(listDetailBooking.id, "reject")}
+              >
+                Rechazar
+              </Button>
+              <Button
+                type="button"
+                className="rounded-lg"
+                disabled={busyId === listDetailBooking.id}
+                onClick={() => void onAction(listDetailBooking.id, "approve")}
+              >
+                Confirmar reserva
+              </Button>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 
@@ -1197,7 +1326,7 @@ export function ReservationsBoard({
                 month: "numeric",
               })}
               {manualSlot ? ` - ${fmtTimeUtc(manualSlot.start)}` : ""}
-              {selectedCourt ? ` - ${selectedCourt.name}` : ""}
+              {manualCourt ? ` - ${manualCourt.name}` : ""}
             </p>
             <p className="text-muted-foreground mt-1 text-sm">
               Los datos de los jugadores se guardan para identificar la reserva.
