@@ -76,7 +76,16 @@ function fmtHm(iso: string): string {
 
 function minutesFromDayStart(iso: string, dayStartMs: number): number {
   const m = (new Date(iso).getTime() - dayStartMs) / 60000;
-  return Math.min(MINUTES_PER_DAY, Math.max(0, m));
+  return Math.min(MINUTES_PER_DAY * 2, Math.max(0, m));
+}
+
+function hourMarkLabel(absoluteMinutes: number): string {
+  const dayOffset = Math.floor(absoluteMinutes / MINUTES_PER_DAY);
+  const clock =
+    ((absoluteMinutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+  const hh = String(Math.floor(clock / 60)).padStart(2, "0");
+  const label = `${hh}:00`;
+  return dayOffset > 0 ? `${label} (+${dayOffset})` : label;
 }
 
 function courtTypeTag(type: string): string {
@@ -410,7 +419,7 @@ export function AllCourtsDayView({
                     className="text-muted-foreground absolute right-0 left-0 px-2 pt-1 text-center text-[11px] font-medium"
                     style={{ top: (m - gridStartMin) * PX_PER_MINUTE }}
                   >
-                    {`${String(Math.floor(m / 60) % 24).padStart(2, "0")}:00`}
+                    {hourMarkLabel(m)}
                   </span>
                 ))}
               </div>
@@ -481,6 +490,7 @@ export function AllCourtsDayView({
                         style={{
                           top: top + 2,
                           height: Math.max(height - 4, 20),
+                          zIndex: row.kind === "reserved" ? 2 : 1,
                         }}
                         onFreeClick={() =>
                           onFreeSlotClick(c.id, {
